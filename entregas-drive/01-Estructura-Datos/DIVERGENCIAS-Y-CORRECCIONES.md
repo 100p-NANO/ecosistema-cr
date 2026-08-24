@@ -140,3 +140,70 @@ para leerse línea a línea. Y 25 pruebas que demuestran cada garantía:
 Una que vale la pena mirar: el contexto de sede no sobrevive a la transacción. Es
 la defensa contra el fallo clásico de multi-tenancy — que una petición herede el
 tenant de la anterior porque comparten conexión en el pool.
+
+---
+
+# Anexo · Cuatro puntos más, tras leer la v1.1 completa (24 ago 2026)
+
+Verificado directamente sobre el documento del Drive, última modificación 18 ago.
+Los diez puntos anteriores siguen todos vigentes: `personas` continúa sin `sede_id`,
+la tabla sigue llamándose `minores`, `edad` sigue siendo `INT` almacenado y
+`consentimiento_gdpr` sigue siendo un booleano.
+
+## 🔴 11. El acudiente está escrito en TRES sitios a la vez
+
+El mismo hecho —quién responde por un menor— aparece en:
+
+1. `personas.acudiente_id`
+2. `minores.acudiente_principal_id`
+3. `vinculos_personas` con `tipo_relacion = ACUDIENTE`
+
+Cuando el mismo dato vive en tres columnas, tarde o temprano dicen cosas distintas,
+y no hay forma de saber cuál manda. Y el dato en discordia es precisamente el que
+autoriza entregar a un niño a un adulto.
+
+**Sugerencia:** un solo lugar. La relación de custodia va en la tabla de acudientes,
+con vigencia; `personas` no guarda ninguna copia. Implementado así en
+`0004_menores_acudientes.sql`.
+
+## 🟠 12. `es_mayor_18 BOOLEAN` almacenado en `minores`
+
+Es el mismo problema de `edad INT`, pero con peor consecuencia. Un booleano
+almacenado se queda en `false` para siempre: el niño cumple 18 y el sistema sigue
+tratándolo como menor, o alguien corre un proceso de actualización masiva y de él
+depende la protección N4. Debe derivarse de `fecha_nacimiento` en cada lectura.
+
+## 🟠 13. Solo cinco tipos de documento
+
+`tipo_documento` admite `CC, PP, TI, CE, PE`. Con sedes en Panamá, Barcelona y Boca
+Ratón, faltan al menos el DNI y el NIE españoles, la cédula panameña, el registro
+civil (que es el documento real de los niños pequeños en Colombia) y el PPT
+venezolano. La plataforma actual maneja dieciséis.
+
+El efecto práctico: la migración de las sedes internacionales se atasca en la
+validación, y no en la semana 16 sino cuando ya no hay margen.
+
+**Corregido en:** `db/seeds/001_catalogos.sql`, dieciséis tipos con su país.
+
+## 🟠 14. `ip_usuario VARCHAR(20)` no cabe una dirección IPv6
+
+Una IPv6 ocupa hasta 45 caracteres. En `VARCHAR(20)` se trunca o se rechaza, y en
+los dos casos se pierde justo la evidencia que la auditoría existe para conservar.
+Colombia ya asigna IPv6 en redes móviles, así que no es un caso hipotético.
+
+**Sugerencia:** el tipo nativo `INET` de PostgreSQL. Ocupa menos, valida solo y
+permite consultar por rango de red. Usado en `plataforma.auditoria.actor_ip`.
+
+## Una observación sobre la regla de consentimiento
+
+El documento dice: *«Se rechazará cualquier registro con `consentimiento_gdpr =
+false»*. Conviene separar dos cosas que ahí quedan juntas:
+
+- **Aceptar los términos de uso** de la web es condición para usar la web.
+- **Autorizar el tratamiento de datos para convocatoria** no puede ser condición
+  para existir en el registro de la iglesia.
+
+Si se rechaza la creación de la persona, quien no autoriza correos simplemente no
+puede ser registrado — y la Ley 1581 no exige eso; exige poder demostrar para qué
+finalidad se autorizó cada canal. Por eso el consentimiento va en tabla aparte y
+por finalidad, no como un portero a la entrada.
