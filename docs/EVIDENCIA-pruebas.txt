@@ -75,3 +75,55 @@ RESET
      9 |      0 |     9
 (1 row)
 
+CREATE TABLE
+CREATE FUNCTION
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+
+===== INVARIANTES DE MODULOS (esquemas 03 a 10) =====
+ #  |                    invariante                    |           resultado           | veredicto 
+----+--------------------------------------------------+-------------------------------+-----------
+  1 | Reconciliacion de aportes cuadra                 | cuadra=true, dif=0.00         | PASA
+  2 | Un peso de mas detiene la compuerta              | cuadra=false, dif=1.00        | PASA
+  3 | Aporte sin persona y sin declarar anonimo        | RECHAZADO como debe           | PASA
+  4 | Vista del pastor sin columna de monto            | no expone monto               | PASA
+  5 | Check-in de menor sin acudiente                  | RECHAZADO como debe           | PASA
+  6 | Retiro por acudiente SIN permiso de retiro       | no_autorizado                 | PASA
+  7 | Retiro con codigo incorrecto                     | codigo_incorrecto             | PASA
+  8 | Retiro autorizado y con codigo correcto          | entregado y salida registrada | PASA
+  9 | Los intentos fallidos SOBREVIVEN                 | 3 intentos                    | PASA
+ 10 | Salida escrita a mano sin verificar              | RECHAZADA como debe           | PASA
+ 11 | Segundo check-in con el menor adentro            | RECHAZADO como debe           | PASA
+ 12 | Voluntario con menores sin antecedentes          | RECHAZADO como debe           | PASA
+ 13 | Antecedentes vencidos (3 anios)                  | RECHAZADO como debe           | PASA
+ 14 | Voluntario verificado y vigente                  | ACEPTADO                      | PASA
+ 15 | Curso con valor e inscripcion sin pago declarado | RECHAZADA como debe           | PASA
+ 16 | Inscripcion por encima del cupo                  | RECHAZADA como debe           | PASA
+ 17 | Certificado sin aprobar el curso                 | RECHAZADO como debe           | PASA
+ 18 | Persona en dos hogares a la vez                  | RECHAZADA como debe           | PASA
+ 19 | Entrada en servicio sin check-in                 | RECHAZADA como debe           | PASA
+ 20 | Total del conteo generado                        | 225                           | PASA
+ 21 | Notas de consejeria append-only                  | 1                             | PASA
+(21 rows)
+
+ pasan | fallan | total 
+-------+--------+-------
+    21 |      0 |    21
+(1 row)
+

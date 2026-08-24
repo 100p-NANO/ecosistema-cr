@@ -15,8 +15,9 @@ regla de integridad, deduplicación por documento, y módulos que consultan pero
 escriben sobre `personas`. Esos principios coinciden con el Documento 1 y se
 conservan tal cual.
 
-Hay **diez puntos** que conviene resolver antes de la primera carga. El primero es
-el único que califico como bloqueante.
+Hay **catorce puntos** que conviene resolver antes de la primera carga. Los diez
+primeros salieron del primer cotejo; los cuatro del anexo, de releer la v1.1
+completa el 24 de agosto. Tres son bloqueantes: el 1, el 2 y el 11.
 
 ---
 
