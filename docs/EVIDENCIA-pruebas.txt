@@ -1,0 +1,77 @@
+CREATE TABLE
+CREATE FUNCTION
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+
+========== BANCO DE INVARIANTES - CasaRoca System ==========
+ #  |                 invariante                 |                      resultado                       | veredicto 
+----+--------------------------------------------+------------------------------------------------------+-----------
+  1 | Persona sin sede                           | RECHAZADA (not_null_violation)                       | PASA
+  2 | Menor sin acudiente                        | FALLO como debe                                      | PASA
+  3 | Menor CON acudiente                        | ACEPTADA                                             | PASA
+  4 | Menor como acudiente                       | RECHAZADA como debe                                  | PASA
+  5 | Sin consentimiento no se contacta          | false                                                | PASA
+  6 | Con consentimiento si se contacta          | true                                                 | PASA
+  7 | Tras revocar, no se contacta               | false                                                | PASA
+  8 | Consentimiento append-only                 | 2 filas                                              | PASA
+  9 | edad NO se almacena                        | no existe columna                                    | PASA
+ 10 | Dos personas sin correo                    | ACEPTADAS                                            | PASA
+ 11 | Auditoria automatica e inmutable           | 8 -> 8                                               | PASA
+ 12 | Asignacion por encima del techo del rol    | RECHAZADA como debe                                  | PASA
+ 13 | Sede no borrable                           | 5                                                    | PASA
+ 14 | Control de clasificacion (compuerta G5)    | 0 hallazgos                                          | PASA
+ 15 | Codigo de entrega N4 cifrado y verificable | correcto=true, incorrecto=false, crudo ilegible=true | PASA
+ 16 | Sin llave N4 no se descifra                | fallo como debe                                      | PASA
+(16 rows)
+
+ pasan | fallan | total 
+-------+--------+-------
+    16 |      0 |    16
+(1 row)
+
+CREATE TABLE
+GRANT
+DO
+GRANT
+SET
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+RESET
+
+===== AISLAMIENTO ENTRE SEDES (segunda cerradura) =====
+ # |                  escenario                   |     resultado     | veredicto 
+---+----------------------------------------------+-------------------+-----------
+ 1 | Sesion sin contexto de sede                  | 0 filas           | PASA
+ 2 | Panama ve sus propias filas                  | 4 filas           | PASA
+ 3 | Panama NO ve Barcelona ni Bogota             | 0 ajenas          | PASA
+ 4 | Panama escribiendo en Barcelona              | RECHAZADA por RLS | PASA
+ 5 | Nivel N2 leyendo datos N4 (menores)          | 0 filas           | PASA
+ 6 | Nivel N4 en su propia sede                   | 1 filas           | PASA
+ 7 | Alcance de organizacion ve todas las sedes   | 5 sedes           | PASA
+ 8 | El rol de la aplicacion no puede saltar RLS  | false             | PASA
+ 9 | El contexto no se filtra entre transacciones | 0 filas           | PASA
+(9 rows)
+
+ pasan | fallan | total 
+-------+--------+-------
+     9 |      0 |     9
+(1 row)
+
