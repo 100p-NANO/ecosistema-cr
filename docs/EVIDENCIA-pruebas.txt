@@ -28,9 +28,9 @@ DO
   8 | Consentimiento append-only                 | 2 filas                                              | PASA
   9 | edad NO se almacena                        | no existe columna                                    | PASA
  10 | Dos personas sin correo                    | ACEPTADAS                                            | PASA
- 11 | Auditoria automatica e inmutable           | 8 -> 8                                               | PASA
+ 11 | Auditoria automatica e inmutable           | 14 -> 14                                             | PASA
  12 | Asignacion por encima del techo del rol    | RECHAZADA como debe                                  | PASA
- 13 | Sede no borrable                           | 5                                                    | PASA
+ 13 | Sede no borrable                           | 6                                                    | PASA
  14 | Control de clasificacion (compuerta G5)    | 0 hallazgos                                          | PASA
  15 | Codigo de entrega N4 cifrado y verificable | correcto=true, incorrecto=false, crudo ilegible=true | PASA
  16 | Sin llave N4 no se descifra                | fallo como debe                                      | PASA
@@ -125,5 +125,44 @@ DO
  pasan | fallan | total 
 -------+--------+-------
     21 |      0 |    21
+(1 row)
+
+CREATE TABLE
+CREATE FUNCTION
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+
+===== CONSOLA DE SISTEMAS =====
+ #  |                   invariante                    |      resultado      | veredicto 
+----+-------------------------------------------------+---------------------+-----------
+  1 | Segunda sede maestra                            | RECHAZADA como debe | PASA
+  2 | Desactivar la sede maestra                      | RECHAZADA como debe | PASA
+  3 | Crear iglesia sin alcance de organizacion       | RECHAZADA como debe | PASA
+  4 | Filial sin pastor congregacional                | RECHAZADA como debe | PASA
+  5 | Apagar el modulo Personas (nucleo)              | RECHAZADO como debe | PASA
+  6 | Encender RocaKids sin compuerta legal           | RECHAZADO como debe | PASA
+  7 | Encender RocaKids CON evidencia legal           | ACEPTADO            | PASA
+  8 | Permiso N4 a un rol con techo N2                | RECHAZADO como debe | PASA
+  9 | Aportes se enciende porque Personas esta activo | ACEPTADO            | PASA
+ 10 | Plantacion sin modulos de compuerta legal       | 0                   | PASA
+ 11 | Filial nace con los modulos legales apagados    | 3                   | PASA
+ 12 | Roles que pueden exportar RocaKids              | 0                   | PASA
+ 13 | Permiso sobre modulo apagado                    | false               | PASA
+(13 rows)
+
+ pasan | fallan | total 
+-------+--------+-------
+    13 |      0 |    13
 (1 row)
 
