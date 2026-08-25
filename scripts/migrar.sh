@@ -16,4 +16,7 @@ for f in "$RAIZ"/db/seeds/*.sql; do
   printf '  → seed %s\n' "$(basename "$f")"
   psql -d "$PGDATABASE" -v ON_ERROR_STOP=1 -q -f "$f"
 done
+# Rol de conexión de la API. SOLO desarrollo (ver db/dev/rol_login_dev.sql).
+psql -d "$PGDATABASE" -v ON_ERROR_STOP=1 -q -f "$RAIZ/db/dev/rol_login_dev.sql"
+
 echo "migraciones aplicadas sobre $PGDATABASE"

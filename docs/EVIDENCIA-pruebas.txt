@@ -166,3 +166,40 @@ DO
     13 |      0 |    13
 (1 row)
 
+CREATE TABLE
+CREATE FUNCTION
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+
+===== EMPALME CON LOS MODULOS 100p =====
+ #  |                   invariante                    |        resultado        | veredicto 
+----+-------------------------------------------------+-------------------------+-----------
+  1 | El certificado cuadra con sus renglones         | 950000.50 · cuadra=true | PASA
+  2 | Modificar un aporte certificado                 | RECHAZADO como debe     | PASA
+  3 | Anular un aporte certificado                    | RECHAZADO como debe     | PASA
+  4 | Certificado con monedas mezcladas               | RECHAZADO como debe     | PASA
+  5 | Permiso nombrado fuera de su modulo             | RECHAZADO como debe     | PASA
+  6 | Verbos genericos conviven con los nombrados     | 123 filas               | PASA
+  7 | Rol COORDINADOR_NUEVOS con permisos             | 5                       | PASA
+  8 | Nuevo sin ninguna forma de contacto             | RECHAZADO como debe     | PASA
+  9 | El 4C arranca en la fecha de llegada, no de hoy | hace 20 dias            | PASA
+ 10 | Convertir dos veces el mismo registro           | RECHAZADO como debe     | PASA
+ 11 | Convertir a alguien que ya existe no lo duplica | 1 persona(s)            | PASA
+ 12 | La bandeja marca los atrasados                  | ATRASADO                | PASA
+(12 rows)
+
+ pasan | fallan | total 
+-------+--------+-------
+    12 |      0 |    12
+(1 row)
+
