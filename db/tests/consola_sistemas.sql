@@ -271,6 +271,82 @@ BEGIN
   END;
 END $$;
 
+-- ═══════════ CONSEJERÍA ANCLADA A LOS PASTORES ═══════════
+
+-- C21 · El pastor de la sede VE los casos de su sede, sin que se los asignen.
+DO $$
+DECLARE v_sede uuid; v_pastor uuid; v_consultante uuid; v_caso uuid; v_ve boolean;
+BEGIN
+  SELECT id INTO v_sede FROM org.sedes WHERE codigo='MED';
+  SELECT a.persona_id INTO v_pastor FROM identidad.asignaciones a
+   WHERE a.rol='PASTOR_CONGREGACIONAL' AND a.alcance_id=v_sede LIMIT 1;
+  INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
+  VALUES (v_sede,'Consultante','Medellin',DATE '1990-03-03') RETURNING id INTO v_consultante;
+  INSERT INTO consejeria.casos (consultante_id,sede_id,topico)
+  VALUES (v_consultante,v_sede,'FAM') RETURNING id INTO v_caso;
+
+  PERFORM set_config('app.persona_id', v_pastor::text, true);
+  PERFORM set_config('app.nivel_max','2', true);
+  SELECT consejeria.caso_visible(v_caso) INTO v_ve;
+  PERFORM pg_temp.rg(21,'El pastor ve la consejeria de SU sede','true', v_ve::text, v_ve);
+END $$;
+
+-- C22 · El pastor de OTRA sede no la ve.
+DO $$
+DECLARE v_otro uuid; v_caso uuid; v_ve boolean; v_bog uuid;
+BEGIN
+  SELECT id INTO v_bog FROM org.sedes WHERE codigo='BOG-NORTE';
+  SELECT a.persona_id INTO v_otro FROM identidad.asignaciones a
+   WHERE a.rol='PASTOR_CONGREGACIONAL' AND a.alcance_id=v_bog LIMIT 1;
+  SELECT c.id INTO v_caso FROM consejeria.casos c
+   JOIN org.sedes s ON s.id=c.sede_id WHERE s.codigo='MED' LIMIT 1;
+
+  PERFORM set_config('app.persona_id', v_otro::text, true);
+  PERFORM set_config('app.nivel_max','2', true);
+  SELECT consejeria.caso_visible(v_caso) INTO v_ve;
+  PERFORM pg_temp.rg(22,'El pastor de OTRA sede no la ve','false', v_ve::text, NOT v_ve);
+END $$;
+
+-- C23 · Alguien con nivel N3 pero SIN vinculo pastoral tampoco la ve.
+DO $$
+DECLARE v_sede uuid; v_p uuid; v_caso uuid; v_ve boolean;
+BEGIN
+  SELECT id INTO v_sede FROM org.sedes WHERE codigo='MED';
+  INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
+  VALUES (v_sede,'Contable','Curioso',DATE '1982-08-08') RETURNING id INTO v_p;
+  INSERT INTO identidad.asignaciones (persona_id,rol,alcance_tipo,alcance_id,nivel_max)
+  VALUES (v_p,'CONTABILIDAD','organizacion',NULL,3);
+  SELECT c.id INTO v_caso FROM consejeria.casos c
+   JOIN org.sedes s ON s.id=c.sede_id WHERE s.codigo='MED' LIMIT 1;
+
+  PERFORM set_config('app.persona_id', v_p::text, true);
+  PERFORM set_config('app.nivel_max','3', true);
+  SELECT consejeria.caso_visible(v_caso) INTO v_ve;
+  PERFORM pg_temp.rg(23,'Nivel N3 sin vinculo pastoral','false', v_ve::text, NOT v_ve);
+END $$;
+
+-- C24 · Y el pastor SIGUE sin ningun permiso sobre aportes.
+DO $$
+DECLARE v_n bigint;
+BEGIN
+  SELECT count(*) INTO v_n FROM sistema.matriz_permisos
+   WHERE rol IN ('PASTOR_CONGREGACIONAL','PASTOR_PRINCIPAL') AND modulo='aportes';
+  PERFORM pg_temp.rg(24,'Los pastores no alcanzan los aportes','0 permisos',
+    v_n::text||' permisos', v_n = 0);
+END $$;
+
+-- C25 · No se puede otorgar un permiso N3 sin declarar la elevacion.
+DO $$
+BEGIN
+  PERFORM set_config('app.persona_id','', true);
+  BEGIN
+    INSERT INTO sistema.matriz_permisos (rol,modulo,accion) VALUES ('SECRETARIA','consejeria','ver');
+    PERFORM pg_temp.rg(25,'Permiso N3 a un rol N2 sin declararlo','RECHAZADO','ACEPTADO',false);
+  EXCEPTION WHEN check_violation THEN
+    PERFORM pg_temp.rg(25,'Permiso N3 a un rol N2 sin declararlo','RECHAZADO','RECHAZADO como debe',true);
+  END;
+END $$;
+
 \echo ''
 \echo '===== CONSOLA DE SISTEMAS ====='
 SELECT n AS "#", nombre AS "invariante", obtenido AS "resultado",
