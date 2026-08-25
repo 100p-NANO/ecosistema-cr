@@ -71,20 +71,25 @@ export class DbService implements OnModuleDestroy {
   async contextoDe(personaId: string, ip: string | null): Promise<Contexto> {
     const c = await this.pool.connect();
     try {
+      // Una sola llamada a la puerta de arranque. No se leen tablas: la
+      // función SECURITY DEFINER es lo único que puede resolver esto
+      // antes de que exista contexto, y solo responde sobre esta persona.
       const { rows } = await c.query(
-        `SELECT identidad.sedes_de($1)      AS sedes,
-                identidad.nivel_max_de($1)  AS nivel,
-                EXISTS (SELECT 1 FROM identidad.v_permiso_efectivo
-                         WHERE persona_id=$1 AND vigente
-                           AND alcance_tipo='organizacion') AS global`,
+        `SELECT sedes, nivel_max, es_global, tiene_acceso FROM identidad.contexto_de($1)`,
         [personaId],
       );
       const r = rows[0];
+      if (!r?.tiene_acceso) {
+        // Sin asignación vigente no hay acceso. Se devuelve un contexto
+        // vacío en vez de lanzar: la base tampoco le daría ninguna fila,
+        // y así el error se ve en la capa que sabe explicarlo.
+        return { personaId, sedeIds: [], nivelMax: 0, alcanceGlobal: false, ip };
+      }
       return {
         personaId,
-        sedeIds: r?.sedes ?? [],
-        nivelMax: r?.nivel ?? 0,
-        alcanceGlobal: r?.global ?? false,
+        sedeIds: r.sedes ?? [],
+        nivelMax: r.nivel_max ?? 0,
+        alcanceGlobal: r.es_global ?? false,
         ip,
       };
     } finally { c.release(); }

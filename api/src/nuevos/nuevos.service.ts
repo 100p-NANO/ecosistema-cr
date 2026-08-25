@@ -1,174 +1,201 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { DbService } from '../db/db.service';
 import { contextoActual, contextoPublico } from '../contexto/contexto';
-import type { RegistroPublico, RegistroContacto, CambioEtapa } from './dto';
+import type { RegistrarNuevo, RegistrarContacto, ConvertirMiembro } from './dto';
 
 /**
- * Módulo de Nuevos.
+ * Módulo de Nuevos · M-Nuevos.
  *
- * Es la tesis del proyecto: alguien llega por primera vez y el sistema
- * lo acompaña. Todo lo que hace este servicio se apoya en garantías que
- * ya vive la base — la sede obligatoria, el consentimiento por canal, la
- * etapa única del recorrido 4C — así que aquí no se re-valida nada de
- * eso. Si la base lo rechaza, el error sube.
+ * Trabaja sobre la BANDEJA (`crm.nuevos_registros`), no sobre el registro
+ * maestro. Quien llena el formulario público no es todavía una persona
+ * verificada; entra al maestro en la conversión, y solo ahí.
+ *
+ * Ninguna de las reglas del negocio se valida aquí: viven en la base.
+ * Si falta el contacto, si la sede no existe, si ya fue convertido — la
+ * base lo rechaza y el error sube traducido.
  */
 @Injectable()
 export class NuevosService {
   constructor(private readonly db: DbService) {}
 
-  /** Puerta pública. No hay usuario: el contexto es el de la sede del formulario. */
-  async registrar(datos: RegistroPublico, ip: string | null) {
-    if (!datos.primer_nombre?.trim() || !datos.primer_apellido?.trim()) {
-      throw new BadRequestException('El nombre y el apellido son obligatorios.');
+  /** Puerta pública: sin identidad, con el contexto de la sede del formulario. */
+  async registrar(datos: RegistrarNuevo, ip: string | null) {
+    if (!datos.nombre?.trim()) throw new BadRequestException('El nombre es obligatorio.');
+    if (!datos.email && !datos.telefono) {
+      throw new BadRequestException('Hace falta un correo o un teléfono para poder contactarle.');
     }
-    const sedeId = await this.sedePorCodigo(datos.sede_codigo);
+    const sedeId = await this.sedePorCodigo(datos.sede);
 
     return this.db.enTransaccion(contextoPublico(sedeId, ip), async (c) => {
-      const { rows: [persona] } = await c.query(
-        `INSERT INTO nucleo.personas
-           (sede_id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-            email_principal, telefono_movil, fecha_nacimiento, source_system)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'registro_publico')
-         RETURNING id`,
-        [sedeId, datos.primer_nombre.trim(), datos.segundo_nombre ?? null,
-         datos.primer_apellido.trim(), datos.segundo_apellido ?? null,
-         datos.email ?? null, datos.telefono ?? null, datos.fecha_nacimiento ?? null],
-      );
+      let nuevo;
+      try {
+        ({ rows: [nuevo] } = await c.query(
+          `INSERT INTO crm.nuevos_registros
+             (sede_id, nombre, email, telefono, como_supo, es_cristiano, comentarios, fuente, ip_registro)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'web',$8)
+           RETURNING id, estado, registrado_en`,
+          [sedeId, datos.nombre.trim(), datos.email ?? null, datos.telefono ?? null,
+           datos.como_supo ?? null, datos.es_cristiano ?? null, datos.comentarios ?? null, ip],
+        ));
+      } catch (e: any) {
+        if (e.code === '23505') {
+          throw new ConflictException({
+            error: 'Ya recibimos un registro con ese correo y todavía lo estamos atendiendo.',
+            codigo_error: 'EMAIL_DUPLICADO',
+          });
+        }
+        throw e;
+      }
 
-      // El consentimiento se guarda por canal y con su fecha original.
-      // Un canal no marcado NO se registra: la ausencia no es un no,
-      // es la ausencia, y puede_contactar() ya devuelve falso sin fila.
-      for (const canal of datos.autoriza ?? []) {
+      // El consentimiento se ancla a una PERSONA, y en la bandeja todavía
+      // no hay persona. Se guarda aquí con SU MOMENTO, y la conversión lo
+      // traslada a la tabla de consentimientos con esa misma fecha: es lo
+      // que exige la Ley 1581, porque un consentimiento recapturado más
+      // tarde no cubre el tratamiento anterior.
+      if (datos.autoriza?.length) {
         await c.query(
-          `INSERT INTO plataforma.consentimientos
-             (persona_id, sede_id, finalidad, canal, acto, ocurrido_en, evidencia_tipo, evidencia_ref)
-           VALUES ($1,$2,'convocatoria',$3,'otorgado', now(), 'formulario_web', $4)`,
-          [persona.id, sedeId, canal, `registro-publico:${persona.id}`],
+          `UPDATE crm.nuevos_registros
+              SET canales_autorizados = $2::plataforma.canal_contacto[],
+                  autorizado_en = now()
+            WHERE id = $1`,
+          [nuevo.id, `{${datos.autoriza.join(',')}}`],
         );
       }
 
-      await c.query(
-        `INSERT INTO crm.recorrido (persona_id, sede_id, etapa, puerta_entrada)
-         VALUES ($1,$2,'conoce',$3)`,
-        [persona.id, sedeId, datos.puerta_entrada ?? 'formulario web'],
-      );
-
-      await c.query(
-        `INSERT INTO crm.linea_tiempo
-           (persona_id, sede_id, ocurrido_en, tipo, entidad_modulo, entidad_tipo, entidad_id, resumen)
-         VALUES ($1,$2, now(), 'PRIMERA_VISITA','nuevos','persona',$1::text,
-                 'Se registró por el formulario público')`,
-        [persona.id, sedeId],
-      );
-
-      return { id: persona.id, etapa: 'conoce' };
+      return {
+        id: nuevo.id,
+        estado: 'registrado',
+        mensaje: '¡Bienvenido! Pronto nos contactaremos',
+        registrado_en: nuevo.registrado_en,
+      };
     });
   }
 
-  /** Los nuevos de MI sede. El filtro de sede no se escribe: lo pone RLS. */
-  async listar(limite = 50) {
-    const ctx = contextoActual();
-    return this.db.enTransaccion(ctx, async (c) => {
+  /** Tablero del coordinador. El filtro de sede no se escribe: lo pone RLS. */
+  async dashboard(estado?: string, limite = 50) {
+    return this.db.enTransaccion(contextoActual(), async (c) => {
       const { rows } = await c.query(
-        `SELECT p.id, p.primer_nombre, p.primer_apellido, p.email_principal,
-                p.telefono_movil, r.etapa, r.entro_en, r.puerta_entrada
-         FROM crm.recorrido r
-         JOIN nucleo.personas p ON p.id = r.persona_id
-         WHERE r.salio_en IS NULL AND r.etapa IN ('conoce','conectate')
-         ORDER BY r.entro_en DESC
-         LIMIT $1`,
-        [limite],
+        `SELECT id, nombre, email, telefono, como_supo, es_cristiano, estado, prioridad,
+                registrado_en, proximo_contacto, contactos, ultimo_contacto, proxima_accion
+         FROM crm.v_bandeja_nuevos
+         WHERE ($1::text IS NULL OR estado = $1::crm.estado_nuevo)
+         ORDER BY (proxima_accion = 'ATRASADO') DESC, registrado_en DESC
+         LIMIT $2`,
+        [estado ?? null, limite],
       );
-      return rows;
+      return { total: rows.length, nuevos: rows };
     });
   }
 
-  /** Ficha 360: la persona, su etapa y su memoria. */
-  async ficha(id: string) {
-    const ctx = contextoActual();
-    return this.db.enTransaccion(ctx, async (c) => {
-      const { rows: [p] } = await c.query(
-        `SELECT id, nombre_completo, edad, es_menor, email_principal, telefono_movil, sede_id
-         FROM nucleo.v_personas WHERE id = $1`, [id]);
-      if (!p) throw new NotFoundException('No existe esa persona, o su sede no es la suya.');
+  /** Historial completo de un registro de la bandeja. */
+  async historial(id: string) {
+    return this.db.enTransaccion(contextoActual(), async (c) => {
+      const { rows: [n] } = await c.query(
+        `SELECT id, nombre, email, telefono, como_supo, es_cristiano, comentarios,
+                estado, prioridad, registrado_en, persona_id, convertido_en
+         FROM crm.nuevos_registros WHERE id = $1`, [id]);
+      if (!n) throw new NotFoundException('No existe ese registro, o no pertenece a su sede.');
 
-      const { rows: recorrido } = await c.query(
-        `SELECT etapa, entro_en, salio_en, puerta_entrada FROM crm.recorrido
-         WHERE persona_id=$1 ORDER BY entro_en DESC`, [id]);
-      const { rows: linea } = await c.query(
-        `SELECT ocurrido_en, tipo, resumen FROM crm.linea_tiempo
-         WHERE persona_id=$1 ORDER BY ocurrido_en DESC LIMIT 50`, [id]);
-      const { rows: [cons] } = await c.query(
-        `SELECT plataforma.puede_contactar($1,'email','convocatoria')    AS email,
-                plataforma.puede_contactar($1,'whatsapp','convocatoria') AS whatsapp,
-                plataforma.puede_contactar($1,'llamada','convocatoria')  AS llamada`, [id]);
+      const { rows: contactos } = await c.query(
+        `SELECT ocurrido_en, tipo, resumen, reaccion, siguiente_paso, coordinador_id
+         FROM crm.contactos_nuevos WHERE nuevo_id = $1 ORDER BY ocurrido_en DESC`, [id]);
 
-      return { persona: p, recorrido, linea_tiempo: linea, se_puede_contactar: cons };
+      let linea: any[] = [];
+      if (n.persona_id) {
+        ({ rows: linea } = await c.query(
+          `SELECT ocurrido_en, tipo, resumen FROM crm.linea_tiempo
+           WHERE persona_id = $1 ORDER BY ocurrido_en DESC LIMIT 50`, [n.persona_id]));
+      }
+      return { ...n, historial_contactos: contactos, linea_tiempo: linea };
     });
   }
 
-  /** Un contacto de seguimiento entra a la línea de tiempo. */
-  async registrarContacto(id: string, datos: RegistroContacto) {
+  /** Registrar un contacto de seguimiento. */
+  async registrarContacto(id: string, datos: RegistrarContacto) {
     const ctx = contextoActual();
     if (!datos.resumen?.trim()) throw new BadRequestException('El resumen del contacto es obligatorio.');
-    return this.db.enTransaccion(ctx, async (c) => {
-      const { rows: [p] } = await c.query(
-        `SELECT sede_id FROM nucleo.personas WHERE id=$1`, [id]);
-      if (!p) throw new NotFoundException('No existe esa persona, o su sede no es la suya.');
 
-      const { rows: [h] } = await c.query(
-        `INSERT INTO crm.linea_tiempo
-           (persona_id, sede_id, ocurrido_en, tipo, entidad_modulo, entidad_tipo, entidad_id,
-            resumen, registrado_por)
-         VALUES ($1,$2,COALESCE($3::timestamptz, now()),$4,'nuevos','contacto',gen_random_uuid()::text,$5,$6)
+    return this.db.enTransaccion(ctx, async (c) => {
+      const { rows: [n] } = await c.query(
+        `SELECT id, estado FROM crm.nuevos_registros WHERE id = $1`, [id]);
+      if (!n) throw new NotFoundException('No existe ese registro, o no pertenece a su sede.');
+      if (n.estado === 'convertido') {
+        throw new ConflictException('Ese registro ya se convirtió: el seguimiento continúa en la ficha de la persona.');
+      }
+
+      const { rows: [contacto] } = await c.query(
+        `INSERT INTO crm.contactos_nuevos
+           (nuevo_id, coordinador_id, tipo, resumen, reaccion, siguiente_paso, proximo_contacto)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
          RETURNING id, ocurrido_en`,
-        [id, p.sede_id, datos.ocurrido_en ?? null, datos.tipo, datos.resumen.trim(), ctx.personaId],
+        [id, ctx.personaId, datos.tipo_contacto, datos.resumen.trim(), datos.reaccion,
+         datos.siguiente_paso ?? null, datos.fecha_siguiente_contacto ?? null],
       );
-      return h;
+
+      // El estado del registro se deriva de la reacción: no se pide al
+      // cliente que lo mande, porque entonces dos pantallas podrían
+      // discrepar sobre en qué punto está la misma persona.
+      const nuevoEstado =
+        datos.reaccion === 'no_interesado' ? 'no_interesado' :
+        n.estado === 'nuevo' ? 'contactado' : 'en_seguimiento';
+
+      await c.query(
+        `UPDATE crm.nuevos_registros
+            SET estado = $2::crm.estado_nuevo,
+                proximo_contacto = COALESCE($3::date, proximo_contacto),
+                coordinador_id = COALESCE(coordinador_id, $4)
+          WHERE id = $1`,
+        [id, nuevoEstado, datos.fecha_siguiente_contacto ?? null, ctx.personaId],
+      );
+
+      return {
+        contacto_id: contacto.id,
+        estado_nuevo: nuevoEstado,
+        mensaje: 'Contacto registrado',
+        proxima_accion: datos.siguiente_paso ?? null,
+      };
     });
   }
 
-  /**
-   * Avanzar en el recorrido 4C. Cierra la etapa abierta y abre la nueva
-   * en la misma transacción: el índice único de la base impide que la
-   * persona quede en dos etapas a la vez, aunque el código se equivoque.
-   */
-  async cambiarEtapa(id: string, datos: CambioEtapa) {
+  /** Convertir en miembro: entra al registro maestro y arranca el 4C. */
+  async convertirMiembro(id: string, datos: ConvertirMiembro) {
     const ctx = contextoActual();
     return this.db.enTransaccion(ctx, async (c) => {
-      const { rows: [actual] } = await c.query(
-        `SELECT id, etapa, sede_id FROM crm.recorrido
-         WHERE persona_id=$1 AND salio_en IS NULL`, [id]);
-      if (!actual) throw new NotFoundException('Esa persona no tiene un recorrido abierto.');
-      if (actual.etapa === datos.etapa) {
-        throw new BadRequestException(`Ya está en la etapa «${datos.etapa}».`);
+      let personaId: string;
+      try {
+        const { rows: [r] } = await c.query(
+          `SELECT crm.convertir_en_miembro($1,$2,$3) AS persona_id`,
+          [id, ctx.personaId, datos.notas ?? null],
+        );
+        personaId = r.persona_id;
+      } catch (e: any) {
+        if (e.code === '02000') throw new NotFoundException('No existe ese registro en la bandeja.');
+        if (e.code === '23514') throw new ConflictException('Ese registro ya fue convertido.');
+        throw e;
       }
 
-      await c.query(`UPDATE crm.recorrido SET salio_en = now() WHERE id=$1`, [actual.id]);
-      const { rows: [nueva] } = await c.query(
-        `INSERT INTO crm.recorrido (persona_id, sede_id, etapa, responsable_id)
-         VALUES ($1,$2,$3,$4) RETURNING id, etapa, entro_en`,
-        [id, actual.sede_id, datos.etapa, ctx.personaId],
-      );
-      await c.query(
-        `INSERT INTO crm.linea_tiempo
-           (persona_id, sede_id, ocurrido_en, tipo, entidad_modulo, entidad_tipo, entidad_id,
-            resumen, registrado_por)
-         VALUES ($1,$2, now(),'CAMBIO_ETAPA','nuevos','recorrido',$3::text,$4,$5)`,
-        [id, actual.sede_id, nueva.id,
-         `Pasa de «${actual.etapa}» a «${datos.etapa}»${datos.nota ? ': ' + datos.nota : ''}`,
-         ctx.personaId],
-      );
-      return nueva;
+      const { rows: [p] } = await c.query(
+        `SELECT nombre_completo FROM nucleo.v_personas WHERE id = $1`, [personaId]);
+      const { rows: [r4c] } = await c.query(
+        `SELECT etapa, entro_en FROM crm.recorrido WHERE persona_id = $1 AND salio_en IS NULL`,
+        [personaId]);
+
+      return {
+        nuevo_id: id,
+        persona_id: personaId,
+        nombre: p?.nombre_completo,
+        estado: 'convertido',
+        recorrido_4c: r4c ?? null,
+        mensaje: 'Nuevo miembro integrado al sistema',
+      };
     });
   }
 
   private async sedePorCodigo(codigo: string): Promise<string> {
     if (!codigo) throw new BadRequestException('Falta la sede de destino.');
-    // Consulta sin contexto: el catálogo de sedes es N1 y no está bajo RLS.
     const ctx = { personaId: null, sedeIds: [], nivelMax: 1, alcanceGlobal: false, ip: null };
     return this.db.enTransaccion(ctx, async (c) => {
-      const { rows } = await c.query(`SELECT id FROM org.sedes WHERE codigo=$1 AND activa`, [codigo]);
+      const { rows } = await c.query(`SELECT id FROM org.sedes WHERE codigo = $1 AND activa`, [codigo]);
       if (!rows.length) throw new BadRequestException(`La sede «${codigo}» no existe o está inactiva.`);
       return rows[0].id as string;
     });

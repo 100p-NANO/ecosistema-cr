@@ -142,6 +142,9 @@ DO
 DO
 DO
 DO
+DO
+DO
+DO
 
 ===== CONSOLA DE SISTEMAS =====
  #  |                   invariante                    |      resultado      | veredicto 
@@ -159,11 +162,14 @@ DO
  11 | Filial nace con los modulos legales apagados    | 3                   | PASA
  12 | Roles que pueden exportar RocaKids              | 0                   | PASA
  13 | Permiso sobre modulo apagado                    | false               | PASA
-(13 rows)
+ 14 | Toda vista con security_invoker                 | 0 vistas expuestas  | PASA
+ 15 | Sin objetos ilegibles para la aplicacion        | 0 objetos           | PASA
+ 16 | Sin secuencias sin conceder                     | 0 secuencias        | PASA
+(16 rows)
 
  pasan | fallan | total 
 -------+--------+-------
-    13 |      0 |    13
+    16 |      0 |    16
 (1 row)
 
 CREATE TABLE

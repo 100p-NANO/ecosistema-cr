@@ -173,6 +173,42 @@ BEGIN
     COALESCE(v_permitido::text,'sin filas'), COALESCE(v_permitido,false) = false);
 END $$;
 
+
+
+-- ═══════════ CONTROLES DE CONFIGURACIÓN ═══════════
+-- Tres fallos que no se ven leyendo el esquema y salen como un 500 —
+-- o, peor, como datos de otra sede.
+
+-- C14 · Ninguna vista se ejecuta con los permisos de su propietario.
+DO $$
+DECLARE v_n bigint; v_lista text;
+BEGIN
+  SELECT count(*), string_agg(esquema||'.'||vista, ', ') INTO v_n, v_lista
+    FROM plataforma.v_control_vistas;
+  PERFORM pg_temp.rg(14,'Toda vista con security_invoker','0 vistas expuestas',
+    COALESCE(v_lista, '0 vistas expuestas'), v_n = 0);
+END $$;
+
+-- C15 · La aplicacion puede leer todo lo que necesita.
+DO $$
+DECLARE v_n bigint; v_lista text;
+BEGIN
+  SELECT count(*), string_agg(esquema||'.'||objeto, ', ') INTO v_n, v_lista
+    FROM plataforma.v_control_permisos;
+  PERFORM pg_temp.rg(15,'Sin objetos ilegibles para la aplicacion','0 objetos',
+    COALESCE(v_lista, '0 objetos'), v_n = 0);
+END $$;
+
+-- C16 · Y puede insertar: las secuencias tambien estan concedidas.
+DO $$
+DECLARE v_n bigint; v_lista text;
+BEGIN
+  SELECT count(*), string_agg(esquema||'.'||secuencia, ', ') INTO v_n, v_lista
+    FROM plataforma.v_control_secuencias;
+  PERFORM pg_temp.rg(16,'Sin secuencias sin conceder','0 secuencias',
+    COALESCE(v_lista, '0 secuencias'), v_n = 0);
+END $$;
+
 \echo ''
 \echo '===== CONSOLA DE SISTEMAS ====='
 SELECT n AS "#", nombre AS "invariante", obtenido AS "resultado",

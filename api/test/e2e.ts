@@ -1,27 +1,28 @@
 /**
  * Prueba de extremo a extremo del Módulo de Nuevos.
  *
- * Lo que de verdad demuestra: que el aislamiento entre sedes SOBREVIVE
- * al pasar por la API. Un esquema con RLS impecable no sirve de nada si
- * la capa de aplicación abre una conexión sin contexto — y ese fallo no
- * se ve mirando el SQL.
+ * Lo que de verdad demuestra: que el aislamiento entre sedes SOBREVIVE al
+ * pasar por la API. Un esquema con RLS impecable no sirve de nada si la
+ * capa de aplicación abre una conexión sin contexto — y ese fallo no se
+ * ve leyendo el SQL.
+ *
+ * Las rutas son las del documento M-Nuevos del equipo 100p.
  */
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
 import { Client } from 'pg';
 
-const R: Array<{ n: number; nombre: string; esperado: string; obtenido: string; paso: boolean }> = [];
-const reg = (n: number, nombre: string, esperado: string, obtenido: string, paso: boolean) =>
-  R.push({ n, nombre, esperado, obtenido, paso });
+const R: Array<{ n: number; nombre: string; obtenido: string; paso: boolean }> = [];
+const reg = (n: number, nombre: string, obtenido: string, paso: boolean) =>
+  R.push({ n, nombre, obtenido, paso });
 
 async function main() {
   process.env.PGUSER ||= 'casaroca_api_dev';
-  const app = await NestFactory.create(AppModule, { logger: false });
+  const app = await NestFactory.create(AppModule, { logger: ['error'] });
   await app.listen(0);
   const base = (await app.getUrl()).replace('[::1]', '127.0.0.1').replace(/\/$/, '') + '/';
 
-  // Identidades reales de la base de desarrollo.
   const admin = new Client({
     host: process.env.PGHOST ?? '/tmp', port: Number(process.env.PGPORT ?? 5433),
     database: process.env.PGDATABASE ?? 'casaroca_dev', user: 'postgres',
@@ -30,117 +31,120 @@ async function main() {
   const q = async (sql: string, p: any[] = []) => (await admin.query(sql, p)).rows;
 
   const [{ id: pastorBog }] = await q(
-    `SELECT a.persona_id AS id FROM identidad.asignaciones a
-     JOIN org.sedes s ON s.id=a.alcance_id
-     WHERE a.rol='PASTOR_CONGREGACIONAL' AND s.codigo='BOG-NORTE' LIMIT 1`);
+    `SELECT a.persona_id AS id FROM identidad.asignaciones a JOIN org.sedes s ON s.id=a.alcance_id
+      WHERE a.rol='PASTOR_CONGREGACIONAL' AND s.codigo='BOG-NORTE' LIMIT 1`);
   const [{ id: pastorMed }] = await q(
-    `SELECT a.persona_id AS id FROM identidad.asignaciones a
-     JOIN org.sedes s ON s.id=a.alcance_id
-     WHERE a.rol='PASTOR_CONGREGACIONAL' AND s.codigo='MED' LIMIT 1`);
+    `SELECT a.persona_id AS id FROM identidad.asignaciones a JOIN org.sedes s ON s.id=a.alcance_id
+      WHERE a.rol='PASTOR_CONGREGACIONAL' AND s.codigo='MED' LIMIT 1`);
 
   const pedir = (ruta: string, opts: RequestInit = {}, persona?: string) =>
-    fetch(base + ruta, {
+    fetch(base + 'api/v1/nuevos/' + ruta, {
       ...opts,
-      headers: {
-        'content-type': 'application/json',
-        ...(persona ? { 'X-Persona-Id': persona } : {}),
-        ...(opts.headers ?? {}),
-      },
+      headers: { 'content-type': 'application/json',
+                 ...(persona ? { 'X-Persona-Id': persona } : {}), ...(opts.headers ?? {}) },
     });
 
-  // ── E1 · registro público ──────────────────────────────────────────
-  const marca = 'Prueba' + Date.now().toString().slice(-6);
-  let r = await pedir('publico/registro', {
-    method: 'POST',
-    body: JSON.stringify({
-      sede_codigo: 'BOG-NORTE', primer_nombre: 'Nuevo', primer_apellido: marca,
-      email: `nuevo.${marca.toLowerCase()}@example.org`, autoriza: ['email', 'whatsapp'],
-      puerta_entrada: 'formulario web',
-    }),
-  });
+  const marca = 'Prueba' + Date.now().toString().slice(-7);
+  const correo = `nuevo.${marca.toLowerCase()}@example.org`;
+
+  // E1 · registro público
+  let r = await pedir('registrar', { method: 'POST', body: JSON.stringify({
+    sede: 'BOG-NORTE', nombre: `Nuevo ${marca}`, email: correo,
+    como_supo: 'amigo', es_cristiano: 'duda', autoriza: ['email', 'whatsapp'],
+  })});
   const creado = await r.json() as any;
-  reg(1, 'Registro publico crea la persona', '201 + etapa conoce',
-      `${r.status} ${creado.etapa ?? ''}`.trim(), r.status === 201 && creado.etapa === 'conoce');
+  reg(1, 'Registro publico entra a la bandeja', `${r.status} ${creado.estado ?? ''}`.trim(),
+      r.status === 201 && creado.estado === 'registrado');
 
-  // ── E2 · el consentimiento quedó por canal, con su fecha ───────────
-  const cons = await q(
-    `SELECT canal, acto FROM plataforma.consentimientos WHERE persona_id=$1 ORDER BY canal`, [creado.id]);
-  reg(2, 'Consentimiento guardado por canal', 'email + whatsapp',
-      cons.map((c: any) => c.canal).join(' + '), cons.length === 2);
+  // E2 · el mismo correo dos veces se rechaza con su codigo
+  r = await pedir('registrar', { method: 'POST', body: JSON.stringify({
+    sede: 'BOG-NORTE', nombre: 'Repetido', email: correo })});
+  const dupTexto = await r.text();
+  reg(2, 'Correo duplicado en la bandeja',
+      `${r.status} ${dupTexto.includes('EMAIL_DUPLICADO') ? 'EMAIL_DUPLICADO' : 'sin codigo'}`,
+      r.status === 409 && dupTexto.includes('EMAIL_DUPLICADO'));
 
-  // ── E3 · sin identidad, la API no responde datos ───────────────────
-  r = await pedir('nuevos');
-  reg(3, 'Peticion sin identidad', '401', String(r.status), r.status === 401);
+  // E3 · un registro sin correo NI telefono se rechaza
+  r = await pedir('registrar', { method: 'POST',
+    body: JSON.stringify({ sede: 'BOG-NORTE', nombre: 'Incontactable' })});
+  reg(3, 'Registro sin forma de contacto', String(r.status), r.status === 400);
 
-  // ── E4 · el pastor de Bogota SI lo ve ──────────────────────────────
-  r = await pedir('nuevos', {}, pastorBog);
-  const listaBog = await r.json() as any[];
-  const loVeBog = listaBog.some((x) => x.primer_apellido === marca);
-  reg(4, 'El pastor de su sede lo ve', 'true', String(loVeBog), loVeBog);
+  // E4 · sin identidad no hay datos
+  r = await pedir('dashboard');
+  reg(4, 'Peticion sin identidad', String(r.status), r.status === 401);
 
-  // ── E5 · el pastor de Medellin NO lo ve ────────────────────────────
-  r = await pedir('nuevos', {}, pastorMed);
-  const listaMed = await r.json() as any[];
-  const loVeMed = listaMed.some((x) => x.primer_apellido === marca);
-  reg(5, 'El pastor de OTRA sede no lo ve', 'false', String(loVeMed), !loVeMed);
+  // E5 · el pastor de su sede lo ve
+  r = await pedir('dashboard', {}, pastorBog);
+  const dashBog = await r.json() as any;
+  const loVeBog = (dashBog.nuevos ?? []).some((x: any) => x.nombre.includes(marca));
+  reg(5, 'El coordinador de su sede lo ve', String(loVeBog), loVeBog);
 
-  // ── E6 · ni siquiera pidiendo la ficha directa ─────────────────────
-  r = await pedir('nuevos/' + creado.id, {}, pastorMed);
-  reg(6, 'Ficha directa desde otra sede', '404', String(r.status), r.status === 404);
+  // E6 · el de otra sede NO
+  r = await pedir('dashboard', {}, pastorMed);
+  const dashMed = await r.json() as any;
+  const loVeMed = (dashMed.nuevos ?? []).some((x: any) => x.nombre.includes(marca));
+  reg(6, 'El de OTRA sede no lo ve', String(loVeMed), !loVeMed);
 
-  // ── E7 · el contexto no se filtra entre peticiones del pool ────────
-  // Se alternan a propósito para forzar la reutilización de conexiones.
+  // E7 · ni pidiendo el historial directo
+  r = await pedir(`${creado.id}/historial`, {}, pastorMed);
+  reg(7, 'Historial directo desde otra sede', String(r.status), r.status === 404);
+
+  // E8 · el contexto no se filtra entre peticiones del pool
   let fuga = false;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 8; i++) {
     const persona = i % 2 === 0 ? pastorMed : pastorBog;
-    const res = await pedir('nuevos', {}, persona);
-    const lista = await res.json() as any[];
-    if (persona === pastorMed && lista.some((x) => x.primer_apellido === marca)) fuga = true;
+    const res = await pedir('dashboard', {}, persona);
+    const d = await res.json() as any;
+    if (persona === pastorMed && (d.nuevos ?? []).some((x: any) => x.nombre.includes(marca))) fuga = true;
   }
-  reg(7, 'El contexto no se filtra entre peticiones', 'sin fuga',
-      fuga ? 'HUBO FUGA' : 'sin fuga', !fuga);
+  reg(8, 'El contexto no se filtra entre peticiones', fuga ? 'HUBO FUGA' : 'sin fuga', !fuga);
 
-  // ── E8 · contacto de seguimiento ───────────────────────────────────
-  r = await pedir(`nuevos/${creado.id}/contacto`, {
-    method: 'POST',
-    body: JSON.stringify({ tipo: 'LLAMADA', resumen: 'Primera llamada de bienvenida.' }),
-  }, pastorBog);
-  reg(8, 'Registrar contacto de seguimiento', '201', String(r.status), r.status === 201);
+  // E9 · registrar contacto, y el estado se deriva de la reaccion
+  r = await pedir(`${creado.id}/registrar-contacto`, { method: 'POST', body: JSON.stringify({
+    tipo_contacto: 'llamada', resumen: 'Primera llamada de bienvenida.',
+    reaccion: 'interesado', siguiente_paso: 'Invitar a grupo pequeño',
+  })}, pastorBog);
+  const cont = await r.json() as any;
+  reg(9, 'Contacto registrado y estado derivado', `${r.status} ${cont.estado_nuevo ?? ''}`.trim(),
+      r.status === 201 && cont.estado_nuevo === 'contactado');
 
-  // ── E9 · avanzar de etapa cierra la anterior ───────────────────────
-  r = await pedir(`nuevos/${creado.id}/etapa`, {
-    method: 'POST', body: JSON.stringify({ etapa: 'conectate', nota: 'Entró a un grupo' }),
-  }, pastorBog);
-  const abiertas = await q(
-    `SELECT count(*)::int AS n FROM crm.recorrido WHERE persona_id=$1 AND salio_en IS NULL`, [creado.id]);
-  reg(9, 'Al avanzar queda UNA sola etapa abierta', '1',
-      String(abiertas[0].n), r.status === 201 && abiertas[0].n === 1);
+  // E10 · convertir en miembro
+  r = await pedir(`${creado.id}/convertir-miembro`, { method: 'POST',
+    body: JSON.stringify({ notas: 'Decidió integrarse' })}, pastorBog);
+  const conv = await r.json() as any;
+  reg(10, 'Conversion a miembro', `${r.status} ${conv.recorrido_4c?.etapa ?? ''}`.trim(),
+      r.status === 201 && conv.recorrido_4c?.etapa === 'conoce');
 
-  // ── E10 · la ficha trae la memoria completa ────────────────────────
-  r = await pedir('nuevos/' + creado.id, {}, pastorBog);
-  const ficha = await r.json() as any;
-  reg(10, 'La ficha 360 trae recorrido y linea de tiempo', '>=2 hechos y 2 etapas',
-      `${ficha.linea_tiempo?.length ?? 0} hechos, ${ficha.recorrido?.length ?? 0} etapas`,
-      (ficha.linea_tiempo?.length ?? 0) >= 2 && (ficha.recorrido?.length ?? 0) === 2);
+  // E11 · el consentimiento viajo CON SU FECHA ORIGINAL
+  const cons = await q(
+    `SELECT c.canal, c.ocurrido_en, n.autorizado_en
+       FROM plataforma.consentimientos c
+       JOIN crm.nuevos_registros n ON n.persona_id = c.persona_id
+      WHERE n.id = $1 ORDER BY c.canal`, [creado.id]);
+  const fechaOk = cons.length === 2 &&
+    cons.every((x: any) => new Date(x.ocurrido_en).getTime() === new Date(x.autorizado_en).getTime());
+  reg(11, 'El consentimiento conserva su fecha original',
+      `${cons.length} canales, fecha ${fechaOk ? 'original' : 'reescrita'}`, fechaOk);
 
-  // ── E11 · la API no puede saltarse RLS ─────────────────────────────
-  const [{ bypass }] = await q(`SELECT rolbypassrls AS bypass FROM pg_roles WHERE rolname='casaroca_api_dev'`);
-  reg(11, 'El rol de conexion de la API no puede saltar RLS', 'false', String(bypass), bypass === false);
+  // E12 · convertir dos veces se rechaza
+  r = await pedir(`${creado.id}/convertir-miembro`, { method: 'POST', body: '{}' }, pastorBog);
+  reg(12, 'Convertir dos veces', String(r.status), r.status === 409);
+
+  // E13 · el rol de conexion de la API no puede saltar RLS
+  const [{ bypass }] = await q(`SELECT rolbypassrls AS bypass FROM pg_roles WHERE rolname=$1`,
+    [process.env.PGUSER]);
+  reg(13, 'El rol de la API no puede saltar RLS', String(bypass), bypass === false);
 
   await admin.end();
   await app.close();
 
   console.log('\n===== API · MODULO DE NUEVOS (extremo a extremo) =====');
-  const ancho = Math.max(...R.map((x) => x.nombre.length));
+  const w = Math.max(...R.map((x) => x.nombre.length));
   for (const x of R) {
-    console.log(
-      ` ${String(x.n).padStart(2)} | ${x.nombre.padEnd(ancho)} | ${x.obtenido.padEnd(22)} | ` +
-      (x.paso ? 'PASA' : 'FALLA'),
-    );
+    console.log(` ${String(x.n).padStart(2)} | ${x.nombre.padEnd(w)} | ${x.obtenido.padEnd(30)} | ${x.paso ? 'PASA' : 'FALLA'}`);
   }
-  const pasan = R.filter((x) => x.paso).length;
-  console.log(`\n pasan | fallan | total\n ${pasan}     | ${R.length - pasan}      | ${R.length}\n`);
-  process.exit(pasan === R.length ? 0 : 1);
+  const p = R.filter((x) => x.paso).length;
+  console.log(`\n pasan | fallan | total\n ${p}     | ${R.length - p}      | ${R.length}\n`);
+  process.exit(p === R.length ? 0 : 1);
 }
-
 main().catch((e) => { console.error(e); process.exit(1); });

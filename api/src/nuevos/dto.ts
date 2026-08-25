@@ -1,25 +1,32 @@
-/** Lo que llega del formulario público de casaroca.org. */
-export interface RegistroPublico {
-  sede_codigo: string;
-  primer_nombre: string;
-  primer_apellido: string;
-  segundo_nombre?: string;
-  segundo_apellido?: string;
+/**
+ * Contratos del Módulo de Nuevos.
+ * Los nombres de campo son los del documento M-Nuevos del equipo 100p:
+ * el contrato es suyo porque construyen el frontend.
+ */
+
+export interface RegistrarNuevo {
+  nombre: string;
   email?: string;
   telefono?: string;
-  fecha_nacimiento?: string;
-  puerta_entrada?: string;
-  /** Autorizaciones marcadas en el formulario, por canal. */
+  como_supo?: 'google' | 'amigo' | 'evento' | 'redes' | 'otro';
+  es_cristiano?: 'si' | 'no' | 'duda';
+  comentarios?: string;
+  /** Código de sede: 'BOG-CHICO', 'MED'… No texto libre. */
+  sede: string;
+  /** Canales que la persona autorizó en el formulario. */
   autoriza?: Array<'email' | 'sms' | 'whatsapp' | 'llamada'>;
 }
 
-export interface RegistroContacto {
-  tipo: 'LLAMADA' | 'VISITA_PASTORAL' | 'PRIMERA_VISITA';
+export interface RegistrarContacto {
+  tipo_contacto: 'llamada' | 'visita' | 'email' | 'whatsapp' | 'mensaje';
   resumen: string;
-  ocurrido_en?: string;
+  reaccion: 'interesado' | 'dudoso' | 'no_interesado' | 'no_contesto';
+  siguiente_paso?: string;
+  fecha_siguiente_contacto?: string;
+  notas?: string;
 }
 
-export interface CambioEtapa {
-  etapa: 'conoce' | 'conectate' | 'crece' | 'sirve';
-  nota?: string;
+export interface ConvertirMiembro {
+  fecha_conversion?: string;
+  notas?: string;
 }
