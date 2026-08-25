@@ -209,6 +209,68 @@ BEGIN
     COALESCE(v_lista, '0 secuencias'), v_n = 0);
 END $$;
 
+-- ═══════════ EL ESLABÓN DEL SEGMENTO ═══════════
+
+-- C17 · Un alcance de segmento EXIGE su identificador.
+DO $$
+DECLARE v_p uuid;
+BEGIN
+  SELECT id INTO v_p FROM nucleo.personas LIMIT 1;
+  BEGIN
+    INSERT INTO identidad.asignaciones (persona_id,rol,alcance_tipo,alcance_id,nivel_max)
+    VALUES (v_p,'DIRECTOR_SEGMENTO','segmento',NULL,2);
+    PERFORM pg_temp.rg(17,'Alcance de segmento sin identificador','RECHAZADO','ACEPTADO',false);
+  EXCEPTION WHEN check_violation THEN
+    PERFORM pg_temp.rg(17,'Alcance de segmento sin identificador','RECHAZADO','RECHAZADO como debe',true);
+  END;
+END $$;
+
+-- C18 · Un director de segmento resuelve a la sede de SU segmento, y a ninguna otra.
+DO $$
+DECLARE v_seg uuid; v_sede uuid; v_p uuid; v_sedes uuid[];
+BEGIN
+  SELECT id, sede_id INTO v_seg, v_sede FROM org.segmentos WHERE codigo='LEGADO';
+  INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
+  VALUES (v_sede,'Director','Legado',DATE '1988-06-06') RETURNING id INTO v_p;
+  INSERT INTO identidad.asignaciones (persona_id,rol,alcance_tipo,alcance_id,nivel_max)
+  VALUES (v_p,'DIRECTOR_SEGMENTO','segmento',v_seg,2);
+
+  SELECT identidad.sedes_de(v_p) INTO v_sedes;
+  PERFORM pg_temp.rg(18,'El director de segmento resuelve a UNA sede','1 sede, la suya',
+    array_length(v_sedes,1)||' sede(s)',
+    array_length(v_sedes,1) = 1 AND v_sedes[1] = v_sede);
+END $$;
+
+-- C19 · No hay segmento si el ministerio no está activo en esa sede.
+DO $$
+DECLARE v_sede uuid; v_min uuid;
+BEGIN
+  SELECT id INTO v_sede FROM org.sedes WHERE codigo='CHIA';
+  SELECT id INTO v_min FROM org.ministerios WHERE codigo='TMT';
+  BEGIN
+    INSERT INTO org.segmentos (sede_id,ministerio_id,codigo,nombre)
+    VALUES (v_sede,v_min,'PULSO','Pulso');
+    PERFORM pg_temp.rg(19,'Segmento de un ministerio apagado','RECHAZADO','ACEPTADO',false);
+  EXCEPTION WHEN check_violation THEN
+    PERFORM pg_temp.rg(19,'Segmento de un ministerio apagado','RECHAZADO','RECHAZADO como debe',true);
+  END;
+END $$;
+
+-- C20 · Un grupo no puede colgar de un segmento de OTRA sede.
+DO $$
+DECLARE v_seg uuid; v_otra uuid;
+BEGIN
+  SELECT id INTO v_seg FROM org.segmentos WHERE codigo='PULSO';
+  SELECT id INTO v_otra FROM org.sedes WHERE codigo='MED';
+  BEGIN
+    INSERT INTO grupos.grupos (sede_id,tipo,nombre,segmento_id)
+    VALUES (v_otra,'pequeno','Grupo cruzado',v_seg);
+    PERFORM pg_temp.rg(20,'Grupo colgado de un segmento de otra sede','RECHAZADO','ACEPTADO',false);
+  EXCEPTION WHEN check_violation THEN
+    PERFORM pg_temp.rg(20,'Grupo colgado de un segmento de otra sede','RECHAZADO','RECHAZADO como debe',true);
+  END;
+END $$;
+
 \echo ''
 \echo '===== CONSOLA DE SISTEMAS ====='
 SELECT n AS "#", nombre AS "invariante", obtenido AS "resultado",

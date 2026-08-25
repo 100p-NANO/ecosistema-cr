@@ -145,6 +145,10 @@ DO
 DO
 DO
 DO
+DO
+DO
+DO
+DO
 
 ===== CONSOLA DE SISTEMAS =====
  #  |                   invariante                    |      resultado      | veredicto 
@@ -165,11 +169,15 @@ DO
  14 | Toda vista con security_invoker                 | 0 vistas expuestas  | PASA
  15 | Sin objetos ilegibles para la aplicacion        | 0 objetos           | PASA
  16 | Sin secuencias sin conceder                     | 0 secuencias        | PASA
-(16 rows)
+ 17 | Alcance de segmento sin identificador           | RECHAZADO como debe | PASA
+ 18 | El director de segmento resuelve a UNA sede     | 1 sede(s)           | PASA
+ 19 | Segmento de un ministerio apagado               | RECHAZADO como debe | PASA
+ 20 | Grupo colgado de un segmento de otra sede       | RECHAZADO como debe | PASA
+(20 rows)
 
  pasan | fallan | total 
 -------+--------+-------
-    16 |      0 |    16
+    20 |      0 |    20
 (1 row)
 
 CREATE TABLE
@@ -195,7 +203,7 @@ DO
   3 | Anular un aporte certificado                    | RECHAZADO como debe     | PASA
   4 | Certificado con monedas mezcladas               | RECHAZADO como debe     | PASA
   5 | Permiso nombrado fuera de su modulo             | RECHAZADO como debe     | PASA
-  6 | Verbos genericos conviven con los nombrados     | 123 filas               | PASA
+  6 | Verbos genericos conviven con los nombrados     | 146 filas               | PASA
   7 | Rol COORDINADOR_NUEVOS con permisos             | 5                       | PASA
   8 | Nuevo sin ninguna forma de contacto             | RECHAZADO como debe     | PASA
   9 | El 4C arranca en la fecha de llegada, no de hoy | hace 20 dias            | PASA

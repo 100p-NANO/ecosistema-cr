@@ -208,8 +208,11 @@ DO $$
 DECLARE v_sede uuid; v_min uuid; v_p uuid;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-CHICO';
+  -- El ministerio ya viene del seed de segmentos; se reutiliza si existe.
   INSERT INTO org.ministerios (codigo,nombre,clase,nivel_dato)
-  VALUES ('ROCAKIDS','RocaKids','congregacional',4) RETURNING id INTO v_min;
+  VALUES ('ROCAKIDS','RocaKids','congregacional',4)
+  ON CONFLICT (codigo) DO UPDATE SET nombre = EXCLUDED.nombre
+  RETURNING id INTO v_min;
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
   VALUES (v_sede,'Voluntario','Nuevo',CURRENT_DATE - interval '24 years') RETURNING id INTO v_p;
   BEGIN
