@@ -73,7 +73,14 @@
     if (!pid) return null;                 // sin persona declarada, no se filtra
     const persona = (d.personas || []).find(p => p.id === pid);
     const asig = d.asignaciones.filter(a => a.personaId === pid);
-    return { persona, asignaciones: asig };
+    /* Lo que la IGLESIA tiene encendido. Sin esto, apagar un módulo en
+       una sede no tendría ningún efecto sobre quien la opera. */
+    const ms = d.modsede || [];
+    const activoEnSede = (sedeId, modulo) => {
+      const r = ms.find(x => x.sede === sedeId && x.modulo === modulo);
+      return !!(r && r.activo);
+    };
+    return { persona, asignaciones: asig, activoEnSede };
   }
 
   const ctx = contexto();
@@ -81,7 +88,8 @@
     console.info("[permisos] sin persona declarada: el panel se muestra completo.");
     return;
   }
-  const alcanzados = I.permisoEfectivo(ctx.asignaciones).map(x => x.modulo);
+  const alcanzados = I.permisoEfectivo(ctx.asignaciones, null, null, ctx.activoEnSede)
+    .map(x => x.modulo);
   const permitido = id => {
     const m = mapa[id];
     return !m || alcanzados.indexOf(m) >= 0;

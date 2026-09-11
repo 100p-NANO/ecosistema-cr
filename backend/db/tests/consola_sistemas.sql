@@ -165,15 +165,21 @@ BEGIN
 END $$;
 
 -- C11 · La filial nace con los 3 modulos legales APAGADOS.
+-- ⛔ Esta afirmaba el numero 3 y se rompio al anadir «oracion», que
+-- tambien exige compuerta legal. Es la CUARTA prueba que se cae por fijar
+-- un valor de catalogo en vez de la regla. Lo que importa no es cuantos
+-- son: es que NINGUNO nazca encendido.
 DO $$
-DECLARE v_n bigint;
+DECLARE v_encendidos text;
 BEGIN
-  SELECT count(*) INTO v_n
+  SELECT string_agg(m.codigo, ', ') INTO v_encendidos
   FROM sistema.modulos_sede ms
   JOIN org.sedes s ON s.id = ms.sede_id
   JOIN sistema.modulos m ON m.codigo = ms.modulo
-  WHERE s.codigo='BCN' AND m.exige_compuerta_legal AND NOT ms.activo;
-  PERFORM pg_temp.rg(11,'Filial nace con los modulos legales apagados','3', v_n::text, v_n = 3);
+  WHERE s.codigo='BCN' AND m.exige_compuerta_legal AND ms.activo;
+  PERFORM pg_temp.rg(11,'Filial nace con los modulos legales apagados',
+    'ninguno encendido', COALESCE('encendidos sin evidencia: '||v_encendidos,'ninguno encendido'),
+    v_encendidos IS NULL);
 END $$;
 
 -- C12 · NADIE puede exportar datos de menores.

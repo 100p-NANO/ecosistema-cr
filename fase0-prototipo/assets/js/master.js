@@ -1191,6 +1191,38 @@
     </div>
 
     ${(() => {
+      /* ⭐ «cambio los permisos pero no puedo comprobar cómo se ve».
+         Aquí está el botón. Entrar a un panel exige decir QUIÉN entra,
+         porque el permiso es de una persona, no de la iglesia. Se ofrece
+         a sus pastores primero, que es lo natural, y a quien más tenga
+         acceso después. */
+      const candidatos = aqui.map(x => {
+        const per = M.persona(x.personaId);
+        const pn = I.panelesDe([x], (sid, mo) => M.moduloActivo(sid, mo)).filter(y => y.abre);
+        return per && pn.length ? { per, asg:x, paneles:pn,
+          esPastor: x.rol === "PASTOR_CONGREGACIONAL" } : null;
+      }).filter(Boolean).sort((a2, b2) => (b2.esPastor ? 1 : 0) - (a2.esPastor ? 1 : 0));
+
+      if (!candidatos.length) return `<div class="ms-nota ms-nota--ojo" style="margin-top:14px">
+        <b>No hay a quién entrar todavía.</b> Para comprobar cómo se ve esta iglesia hace falta
+        alguien con un rol vigente aquí: el permiso es de una persona, no de la sede.</div>`;
+
+      return `<div class="ms-comprobar">
+        <div>
+          <div class="ms-lbl" style="margin:0 0 2px">Comprobar cómo se ve</div>
+          <div class="ms-sub" style="font-family:var(--ui)">Entra al panel real con los permisos de
+            esa persona, tal como los acaba de dejar arriba.</div>
+        </div>
+        <div class="ms-comprobar__b">
+          ${candidatos.slice(0, 4).map(c => `<button class="ms-btn ms-btn--peq ${c.esPastor ? "ms-btn--primario" : ""}"
+            data-accion="abrirpanel" data-url="${esc(c.paneles[0].url)}"
+            data-lbl="${esc(c.paneles[0].nombre)}" data-persona="${esc(c.per.id)}">
+            Entrar como ${esc(c.per.nombre.split(" ").slice(0, 2).join(" "))}</button>`).join("")}
+        </div>
+      </div>`;
+    })()}
+
+    ${(() => {
       /* ⭐ La pregunta de Daniel: «activamos módulos que no pueden verse,
          ¿por qué?». Porque encender un módulo es SOLO UNA de tres puertas.
          Hacen falta las tres: encendido en la iglesia, que alguien tenga

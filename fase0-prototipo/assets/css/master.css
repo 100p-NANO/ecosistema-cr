@@ -766,3 +766,11 @@ kbd{
   display:grid; place-items:center; margin-left:auto}
 .ms-x:hover{background:var(--pel-bg); color:var(--pel); border-color:#f5cdc9}
 @media (max-width:900px){ .ms-rolfila{grid-template-columns:1fr 1fr} }
+
+/* ---------- comprobar como se ve ---------- */
+.ms-comprobar{
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--e3);
+  margin-top:var(--e4); padding:var(--e3) var(--e4);
+  background:var(--ac-suave); border:1px solid #ccd8ee; border-radius:var(--r-lg);
+}
+.ms-comprobar__b{display:flex; flex-wrap:wrap; gap:var(--e2)}

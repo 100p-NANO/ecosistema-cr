@@ -43,7 +43,15 @@
       equipos:     [],
       rolesX:      [],   // roles creados a mano, encima del catálogo
       modulosX:    [],   // módulos nuevos
-      modsede:     I.MODSEDE_SEED.slice(),
+      /* Se resuelve el CÓDIGO a identificador en el momento de sembrar.
+         Así el archivo del motor no depende del UUID que toque hoy. */
+      modsede:     (function () {
+        const porCod = {};
+        I.SEDES_FULL.forEach(x => { porCod[x.codigo] = x.id; });
+        return I.MODSEDE_SEED.map(r => ({ sede: porCod[r.sedeCodigo] || r.sede,
+          modulo: r.modulo, activo: r.activo, evidencia: r.evidencia }))
+          .filter(r => r.sede);
+      })(),
       vinculos: [],
       /* La línea de tiempo. Cada módulo escribe aquí y sigue con lo
          suyo; el CRM es la LECTURA de esta línea, no una capa encima
