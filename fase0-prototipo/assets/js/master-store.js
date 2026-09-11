@@ -165,15 +165,66 @@
        La iglesia nunca nombra un pastor solo, ni en la general ni en una
        local. Por eso esto no recibe una persona: recibe una PAREJA, y de
        cada uno la hoja de vida completa. */
-    HOJA_VIDA: [
-      { k:"nombre",   l:"Nombre completo",            req:true },
-      { k:"documento",l:"Documento",                  req:true },
-      { k:"fechaNac", l:"Fecha de nacimiento",        req:true,  tipo:"date" },
-      { k:"celular",  l:"Celular",                    req:true },
-      { k:"correo",   l:"Correo",                     req:false },
-      { k:"anioFe",   l:"Año de nacimiento en la Fe", req:true,  ayuda:"El año de su conversión" },
-      { k:"foto",     l:"Fotografía del rostro",      req:true,  tipo:"url", ayuda:"Enlace a la foto" },
+    /* ⭐⭐ LA FICHA, COLUMNA POR COLUMNA DE `nucleo.personas`.
+       Esto NO es una lista inventada: es la tabla real del backend tras
+       la migración 0032, que añadió los seis campos que se acordaron con
+       el pastor y no estaban. Si el formulario y la tabla no coinciden,
+       el usuario llena tres cosas y luego ve seis en «sin registrar»:
+       exactamente el defecto que Daniel encontró el 11 de septiembre.
+
+       `col` es el nombre EXACTO de la columna. Cuando el frontend hable
+       con la API, el mapeo es directo y no hay que adivinar.
+       `n` es el nivel de sensibilidad: gobierna quién puede verlo. */
+    FICHA: [
+      { g:"Nombre",     k:"primerNombre",    col:"primer_nombre",     l:"Primer nombre",   req:true },
+      { g:"Nombre",     k:"segundoNombre",   col:"segundo_nombre",    l:"Segundo nombre" },
+      { g:"Nombre",     k:"primerApellido",  col:"primer_apellido",   l:"Primer apellido", req:true },
+      { g:"Nombre",     k:"segundoApellido", col:"segundo_apellido",  l:"Segundo apellido",
+        ayuda:"En Colombia se usa. Por eso el nombre va partido en cuatro y no en un solo campo." },
+      { g:"Documento",  k:"tipoDocumento",   col:"tipo_documento",    l:"Tipo",
+        opciones:["CC","TI","CE","PP","PE","NUIP"] },
+      { g:"Documento",  k:"documento",       col:"numero_documento",  l:"Número" },
+      { g:"Personal",   k:"fechaNac",        col:"fecha_nacimiento",  l:"Fecha de nacimiento", tipo:"date", n:2 },
+      { g:"Personal",   k:"genero",          col:"genero",            l:"Género", n:2,
+        opciones:[["M","Masculino"],["F","Femenino"],["O","Otro"]] },
+      { g:"Personal",   k:"estadoCivil",     col:"estado_civil",      l:"Estado civil", n:2,
+        opciones:[["soltero","Soltero"],["casado","Casado"],["union_libre","Unión libre"],
+                  ["separado","Separado"],["divorciado","Divorciado"],["viudo","Viudo"]] },
+      { g:"Contacto",   k:"celular",         col:"telefono_movil",    l:"Celular", n:2 },
+      { g:"Contacto",   k:"telefonoFijo",    col:"telefono_fijo",     l:"Teléfono fijo" },
+      { g:"Contacto",   k:"correo",          col:"email_principal",   l:"Correo", n:2,
+        ayuda:"OPCIONAL a propósito. Muchos menores y adultos mayores no tienen, y exigirlo los deja fuera del registro." },
+      { g:"Contacto",   k:"direccion",       col:"direccion",         l:"Dirección" },
+      { g:"Vida de fe", k:"nivelCompromiso", col:"nivel_compromiso",  l:"Nivel de compromiso", n:1,
+        opciones:[["visitante","Visitante"],["miembro","Miembro"],["lider","Líder"]],
+        ayuda:"Arranca en visitante. Nadie nace miembro." },
+      { g:"Vida de fe", k:"anioFe",          col:"fecha_conversion",  l:"Nacimiento en la Fe", tipo:"date", n:2,
+        ayuda:"La fecha de su conversión. Es dato propio de una iglesia, no de un CRM genérico." },
+      { g:"Vida de fe", k:"bautizado",       col:"ha_sido_bautizado", l:"¿Bautizado?", n:2,
+        opciones:[["si","Sí"],["no","No"]] },
+      { g:"Vida de fe", k:"fechaBautismo",   col:"fecha_bautismo",    l:"Fecha de bautismo", tipo:"date", n:2 },
+      { g:"Identidad",  k:"foto",            col:"foto_url",          l:"Fotografía del rostro", n:2,
+        ayuda:"Enlace a la foto." },
+      { g:"Identidad",  k:"sedeId",          col:"sede_id",           l:"Iglesia a la que pertenece", req:true,
+        ayuda:"La columna es NOT NULL: toda persona pertenece a una sede. Sin esto no hay aislamiento entre iglesias." },
     ],
+    /* Para el nombramiento pastoral se exige más que para una ficha
+       corriente: es lo que Daniel pidió. */
+    OBLIGATORIO_PASTOR: ["primerNombre","primerApellido","documento","fechaNac",
+                         "celular","anioFe","foto"],
+    validarFicha(x, quien, exigidos) {
+      const f = [], req = exigidos || this.FICHA.filter(c => c.req).map(c => c.k);
+      req.forEach(k => {
+        const c = this.FICHA.find(y => y.k === k);
+        if (!(x && x[k])) f.push(`${quien}: falta ${c ? c.l.toLowerCase() : k}.`);
+      });
+      /* La regla de la 0032: no se pone fecha de bautismo si no está bautizado. */
+      if (x && x.fechaBautismo && x.bautizado !== "si")
+        f.push(`${quien}: hay fecha de bautismo pero no está marcado como bautizado.`);
+      if (x && x.anioFe && x.fechaNac && x.anioFe < x.fechaNac)
+        f.push(`${quien}: el nacimiento en la Fe no puede ser anterior al nacimiento.`);
+      return f;
+    },
     validarHoja(x, quien) {
       const f = [];
       this.HOJA_VIDA.forEach(c => { if (c.req && !(x && x[c.k])) f.push(`${quien}: falta ${c.l.toLowerCase()}.`); });
@@ -182,7 +233,8 @@
 
     crearParejaPastoral(d) {
       const st = cargar();
-      const f = this.validarHoja(d.el, "Pastor").concat(this.validarHoja(d.ella, "Pastora"));
+      const f = this.validarFicha(d.el, "Pastor", this.OBLIGATORIO_PASTOR)
+        .concat(this.validarFicha(d.ella, "Pastora", this.OBLIGATORIO_PASTOR));
       if (f.length) return { ok:false, fallos:f };
       const el   = this.crearPersona(d.el.nombre,   d.el.documento,   d.el.correo,   d.el);
       const ella = this.crearPersona(d.ella.nombre, d.ella.documento, d.ella.correo, d.ella);
@@ -252,6 +304,79 @@
         `${a.delega ? "Se otorgó" : "Se retiró"} a ${per ? per.nombre : a.personaId} la potestad de ` +
         `nombrar y cerrar accesos como ${a.rol}.`);
       return { ok:true, delega:a.delega };
+    },
+
+    /* Afinar el nivel de UN módulo dentro de una asignación.
+       `null` devuelve el módulo al nivel general de la asignación. */
+    nivelDeModulo(idAsignacion, codModulo, nivel) {
+      const st = cargar(), a = st.asignaciones.find(x => x.id === idAsignacion);
+      if (!a) return { ok:false, fallos:["No existe esa asignación."] };
+      const r = I.rol(a.rol), m = I.modulo(codModulo);
+      if (nivel != null && r && nivel > r.techo) return { ok:false, fallos:[
+        `Pidió N${nivel} y el techo de «${r.nombre}» es N${r.techo}. ` +
+        `El techo del rol no se negocia módulo por módulo: cámbiele el rol si de verdad lo necesita.`] };
+      a.nivelPorModulo = a.nivelPorModulo || {};
+      if (nivel == null || nivel === a.nivelMax) delete a.nivelPorModulo[codModulo];
+      else a.nivelPorModulo[codModulo] = +nivel;
+      if (!Object.keys(a.nivelPorModulo).length) delete a.nivelPorModulo;
+      guardar();
+      const per = this.persona(a.personaId);
+      anotar("CAMBIO_PERMISO", "master",
+        nivel == null || nivel === a.nivelMax
+          ? `«${m ? m.nombre : codModulo}» vuelve al nivel general N${a.nivelMax} para ${per ? per.nombre : ""}.`
+          : `«${m ? m.nombre : codModulo}» queda en N${nivel} para ${per ? per.nombre : ""}, ` +
+            `distinto del nivel general N${a.nivelMax} de esa asignación.`);
+      return { ok:true };
+    },
+
+    /* Sumar o quitar un destino del alcance. Un pastor regional cubre
+       tres iglesias con UNA asignación, no con tres iguales. */
+    alternarAlcance(idAsignacion, destinoId) {
+      const st = cargar(), a = st.asignaciones.find(x => x.id === idAsignacion);
+      if (!a) return { ok:false, fallos:["No existe esa asignación."] };
+      const t = I.alcance(a.alcanceTipo);
+      if (!t || !t.exigeId) return { ok:false, fallos:[
+        `El alcance «${t ? t.nombre : a.alcanceTipo}» no lleva destinos: cubre lo que cubre.`] };
+      let l = I.alcancesDe(a);
+      const i = l.indexOf(destinoId);
+      if (i >= 0) l.splice(i, 1); else l.push(destinoId);
+      if (!l.length) return { ok:false, fallos:[
+        "No puede quedarse sin ningún destino: sería un alcance vacío, y eso la base lo rechaza."] };
+      a.alcanceIds = l; delete a.alcanceId;
+      guardar();
+      const per = this.persona(a.personaId);
+      const sd = st.sedes.find(x => x.id === destinoId);
+      const mn = st.ministerios.find(x => x.codigo === destinoId);
+      anotar("CAMBIO_PERMISO", "master",
+        `${i >= 0 ? "Quitado" : "Sumado"} «${(sd && sd.nombre) || (mn && mn.nombre) || destinoId}» al alcance de ` +
+        `${per ? per.nombre : a.personaId} como ${(I.rol(a.rol) || {}).nombre || a.rol}. ` +
+        `Ahora cubre ${l.length} destino(s).`);
+      return { ok:true, total:l.length };
+    },
+
+    /* Encender o apagar un módulo A ESTA PERSONA, dentro de su techo.
+       No se le inventa un rol nuevo: se ajusta su asignación. */
+    alternarModuloPersona(idAsignacion, codModulo) {
+      const st = cargar(), a = st.asignaciones.find(x => x.id === idAsignacion);
+      if (!a) return { ok:false, fallos:["No existe esa asignación."] };
+      const m = I.modulo(codModulo);
+      if (!m) return { ok:false, fallos:["No existe ese módulo."] };
+      if (a.nivelMax < m.nivel) return { ok:false, fallos:[
+        `«${m.nombre}» maneja dato N${m.nivel} y esta asignación tiene techo N${a.nivelMax}. ` +
+        `El techo no se negocia por excepción: si de verdad debe verlo, súbale el techo o cámbiele el rol.`] };
+      a.modulos = a.modulos || {};
+      const daba = I.MATRIZ.some(p2 => p2.rol === a.rol && p2.modulo === codModulo);
+      const estaba = a.modulos[codModulo] === undefined ? daba : a.modulos[codModulo];
+      a.modulos[codModulo] = !estaba;
+      /* Si la excepción coincide con lo que ya daba el rol, se borra:
+         no se guardan excepciones que no excepcionan nada. */
+      if (a.modulos[codModulo] === daba) delete a.modulos[codModulo];
+      guardar();
+      const per = this.persona(a.personaId);
+      anotar("CAMBIO_PERMISO", "master",
+        `${!estaba ? "Encendido" : "Apagado"} «${m.nombre}» para ${per ? per.nombre : a.personaId} ` +
+        `como ${(I.rol(a.rol) || {}).nombre || a.rol}. Es una excepción de esta persona, no del rol.`);
+      return { ok:true, activo:!estaba };
     },
 
     /* ⭐ PROMOVER O TRASLADAR · de líder a director, de una sede a otra.

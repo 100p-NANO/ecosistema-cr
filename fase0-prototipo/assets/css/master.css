@@ -745,3 +745,10 @@ kbd{
 .ms-etapa--conecta{background:#efe9f7; color:#5b3a94; border-color:#ded2ee}
 .ms-etapa--crece  {background:var(--ok-bg); color:var(--ok); border-color:#bfdfcd}
 .ms-etapa--sirve  {background:var(--avi-bg); color:var(--avi); border-color:#f0ddb4}
+
+/* ---------- ficha generada desde la definicion de la tabla ---------- */
+.ms-grupo{padding-bottom:var(--e4); margin-bottom:var(--e4); border-bottom:1px solid var(--fil)}
+.ms-grupo:last-child{border-bottom:0; margin-bottom:0; padding-bottom:0}
+.ms-grid-campos{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:var(--e3)}
+.ms-ayuda{display:block; margin-top:3px; font-size:11px; line-height:15px; color:var(--tin-dim)}
+@media (max-width:640px){ .ms-grid-campos{grid-template-columns:1fr} }

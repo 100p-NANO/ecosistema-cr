@@ -88,13 +88,18 @@
     const x = I.nivel(n) || { codigo:"N?" };
     return `<span class="ms-niv ms-niv--${n}" title="${esc(x.desc || "")}">${esc(x.codigo)}</span>`;
   }
+  function nombreDestino(id) {
+    const s = M.sedes().find(x => x.id === id);
+    const m = M.ministerios().find(x => x.codigo === id);
+    return (s && s.nombre) || (m && m.nombre) || id;
+  }
   function nombreAlcance(a) {
     const t = I.alcance(a.alcanceTipo);
     if (!t) return esc(a.alcanceTipo);
-    if (!a.alcanceId) return esc(t.nombre);
-    const s = I.SEDES.find(x => x.id === a.alcanceId);
-    const m = I.MINISTERIOS.find(x => x.codigo === a.alcanceId);
-    return esc(t.nombre) + " · " + esc((s && s.nombre) || (m && m.nombre) || a.alcanceId);
+    const l = I.alcancesDe(a);
+    if (!l.length) return esc(t.nombre);
+    if (l.length === 1) return esc(t.nombre) + " · " + esc(nombreDestino(l[0]));
+    return esc(t.nombre) + " · " + esc(l.length + " destinos: " + l.map(nombreDestino).join(", "));
   }
   function vigencia(a) {
     if (!a.hasta) return `<span class="ms-vig ms-vig--ok">Vigente desde ${esc(a.desde)}</span>`;
@@ -198,6 +203,116 @@
 
 
 
+
+
+  /* ============================================================ AFINAR UNA ASIGNACIÓN
+     Los tres ejes, modulares, para UNA persona:
+       · qué módulos ve       (excepción sobre lo que da su rol)
+       · sobre qué destinos   (una sede, tres sedes)
+       · con qué nivel        (uno general, o afinado por módulo)
+
+     Lo único rígido, a propósito, es el TECHO DEL ROL. Todo lo demás
+     se ajusta persona por persona sin inventar roles nuevos. */
+  function vAfinar() {
+    const b = b_();
+    const a = M.asignaciones().find(x => x.id === b.afinarId);
+    if (!a) return head("Afinar acceso", "No hay ninguna asignación seleccionada.");
+    const p = M.persona(a.personaId), r = I.rol(a.rol);
+    const t = I.alcance(a.alcanceTipo);
+    const destinos = I.alcancesDe(a);
+    const modular = b.modularNivel || !!a.nivelPorModulo;
+    const fuente = t && t.exigeId
+      ? (t.fuente === "ministerios" ? M.ministerios().map(m => ({ id:m.codigo, nombre:m.nombre }))
+        : t.fuente === "sedes" ? M.sedes() : [])
+      : [];
+
+    return `<div class="ms-ancho--lectura">` + head("Afinar el acceso de " + esc(p ? p.nombre : ""),
+      `Como <b>${esc(r ? r.nombre : a.rol)}</b>. Los preestablecidos ya están puestos; aquí se ajusta lo que haga falta para esta persona, sin inventarle un rol nuevo.`) + `
+
+    <div class="ms-alerta ms-alerta--ambar">
+      <b>Lo único que no se ajusta es el techo del rol:</b> ${pastilla(r ? r.techo : 0)}.
+      Por debajo de ahí todo es modular. Por encima, no hay excepción que valga: habría que
+      cambiarle el rol.
+    </div>
+
+    <div class="ms-paso"><h3><i>1</i> Qué módulos ve</h3>
+      <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
+        Marcado es lo que ve. Lo que venga de su rol ya está marcado; desmarcar es una excepción
+        <b>de esta persona</b>, no del rol.</p>
+      <div class="ms-sel">
+        ${I.MODULOS.map(m => {
+          const porTecho = (r ? r.techo : 0) >= m.nivel;
+          const daRol = M.matriz().some(x => x.rol === a.rol && x.modulo === m.codigo);
+          const perm = I.moduloPermitido(a, m.codigo, m.nivel);
+          const on = daRol && perm.ok;
+          const exc = a.modulos && a.modulos[m.codigo] !== undefined;
+          return `<label class="ms-opt ${on ? "is-on" : ""} ${porTecho ? "" : "is-off"}">
+            <input type="checkbox" ${on ? "checked" : ""} ${porTecho ? "" : "disabled"}
+              data-modpersona="${esc(m.codigo)}">
+            <div><b>${esc(m.nombre)}</b> ${pastilla(m.nivel)}
+              <small>${!porTecho ? "fuera del techo del rol"
+                : exc ? "excepción de esta persona"
+                : daRol ? "lo da su rol" : "el rol no lo da"}</small></div></label>`;
+        }).join("")}
+      </div>
+    </div>
+
+    ${t && t.exigeId ? `<div class="ms-paso"><h3><i>2</i> Sobre qué destinos</h3>
+      <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
+        Un pastor regional cubre tres iglesias con UNA asignación, no con tres iguales.
+        Cubre ahora <b>${destinos.length}</b>.</p>
+      <div class="ms-sel">
+        ${fuente.map(f => {
+          const on = destinos.indexOf(f.id) >= 0;
+          return `<label class="ms-opt ${on ? "is-on" : ""}">
+            <input type="checkbox" ${on ? "checked" : ""} data-destino="${esc(f.id)}">
+            <div><b>${esc(f.nombre)}</b>${f.codigo ? `<small>${esc(f.codigo)}</small>` : ""}</div></label>`;
+        }).join("") || "<i>No hay destinos cargados.</i>"}
+      </div>
+    </div>` : `<div class="ms-paso"><h3><i>2</i> Sobre qué destinos</h3>
+      <div class="ms-nota">El alcance «${esc(t ? t.nombre : a.alcanceTipo)}» no lleva destinos:
+        ${esc(t ? t.ayuda : "")}</div></div>`}
+
+    <div class="ms-paso"><h3><i>3</i> Con qué nivel de dato</h3>
+      <div class="ms-nota">Nivel general de esta asignación: ${pastilla(a.nivelMax)}.
+        Vale para todos los módulos mientras no se afine ninguno.</div>
+      <label class="ms-opt ${modular ? "is-on" : ""}" style="max-width:420px">
+        <input type="checkbox" ${modular ? "checked" : ""} data-accion-chk="modular">
+        <div><b>Afinar el nivel módulo por módulo</b>
+          <small>Para casos como «N2 en general, pero N3 en aportes».</small></div></label>
+      ${modular ? `<div class="ms-permsel" style="margin-top:12px">
+        <div class="ms-permsel__cab" style="grid-template-columns:minmax(0,1fr) repeat(5,54px)">
+          <span class="ms-lbl" style="margin:0">Módulo</span>
+          ${I.NIVELES.map(n => `<span class="ms-lbl" style="margin:0;text-align:center">N${n.nivel}</span>`).join("")}
+        </div>
+        ${I.MODULOS.map(m => {
+          const act = I.nivelEn(a, m.codigo);
+          const exc = a.nivelPorModulo && a.nivelPorModulo[m.codigo] !== undefined;
+          return `<div class="ms-permsel__f" style="grid-template-columns:minmax(0,1fr) repeat(5,54px)">
+            <div class="ms-permsel__m"><b>${esc(m.nombre)}</b> ${pastilla(m.nivel)}
+              ${exc ? `<span class="ms-chip">afinado</span>` : ""}</div>
+            ${I.NIVELES.map(n => {
+              const bloq = r && n.nivel > r.techo;
+              return `<label class="ms-radio ${act === n.nivel ? "is-on" : ""}">
+                <input type="radio" name="niv_${esc(m.codigo)}" ${act === n.nivel ? "checked" : ""}
+                  ${bloq ? "disabled" : ""} data-nivmod="${esc(m.codigo)}" data-niv="${n.nivel}"></label>`;
+            }).join("")}
+          </div>`;
+        }).join("")}
+      </div>` : ""}
+    </div>
+
+    <div class="ms-lbl" style="margin-top:18px">Con esto, hoy alcanza</div>
+    <div class="ms-chips">${(() => {
+      const ef = I.permisoEfectivo([a]);
+      return ef.length ? ef.map(x => `<span class="ms-chip">${esc(x.nombre)} ${pastilla(x.nivelModulo)}</span>`).join("")
+        : "<i>ningún módulo</i>";
+    })()}</div>
+
+    <div class="ms-acciones" style="margin-top:18px">
+      <button class="ms-btn ms-btn--primario" data-accion="verpersona" data-id="${esc(a.personaId)}">Listo</button>
+    </div></div>`;
+  }
 
   /* ============================================================ PROMOVER O TRASLADAR
      De líder a director, de una sede a otra. La fila vieja NO se
@@ -599,6 +714,7 @@
               <label class="ms-opt ${a.delega ? "is-on" : ""}" style="padding:2px 8px" title="Potestad de nombrar y cerrar accesos dentro de su alcance">
                 <input type="checkbox" ${a.delega ? "checked" : ""} data-delega="${esc(a.id)}">
                 <div><b style="font-size:11.5px">Puede nombrar</b></div></label>
+              <button class="ms-btn ms-btn--peq" data-accion="afinar" data-id="${esc(a.id)}">Afinar</button>
               <button class="ms-btn ms-btn--peq" data-accion="promover" data-id="${esc(a.id)}">Cambiar rol</button>
               <button class="ms-btn ms-btn--peq ms-btn--peligro" data-accion="revocar" data-id="${esc(a.id)}">Cerrar</button>
             </div>
@@ -865,25 +981,53 @@
       </div>`;
   }
 
-  /* ---------- PERSONA ---------- */
+  /* ---------- PERSONA ----------
+     El formulario se GENERA de `MSTORE.FICHA`, que es la copia exacta
+     de las columnas de `nucleo.personas`. Una sola fuente de verdad: si
+     mañana entra una columna nueva en la base, aparece aquí sola.
+
+     Ese es el arreglo del defecto que encontró Daniel: el formulario
+     pedía tres cosas y la ficha mostraba nueve en «sin registrar»,
+     porque cada uno tenía su propia lista. */
+  function campoFicha(c, pref) {
+    const b = b_(), k = (pref || "") + c.k, v = b[k] || "";
+    const req = c.req ? ' <b class="ms-req">obligatorio</b>' : "";
+    const niv = c.n != null ? " " + pastilla(c.n) : "";
+    let control;
+    if (c.opciones) {
+      control = `<select data-campo="${esc(k)}"><option value="">Elegir…</option>
+        ${c.opciones.map(o => { const val = Array.isArray(o) ? o[0] : o, txt = Array.isArray(o) ? o[1] : o;
+          return `<option value="${esc(val)}" ${v === val ? "selected" : ""}>${esc(txt)}</option>`; }).join("")}
+        </select>`;
+    } else if (c.k === "sedeId") {
+      control = `<select data-campo="${esc(k)}"><option value="">Elegir iglesia…</option>
+        ${M.sedes().map(x => `<option value="${esc(x.id)}" ${v === x.id ? "selected" : ""}>${esc(x.nombre)} · ${esc(x.codigo || "")}</option>`).join("")}
+        </select>`;
+    } else {
+      control = `<input type="${esc(c.tipo || "text")}" data-campo="${esc(k)}" value="${esc(v)}">`;
+    }
+    return `<label class="ms-campo"><span>${esc(c.l)}${req}${niv}</span>${control}
+      ${c.ayuda ? `<small class="ms-ayuda">${esc(c.ayuda)}</small>` : ""}</label>`;
+  }
+  function grupoFicha(grupo, pref) {
+    const cs = M.FICHA.filter(c => c.g === grupo);
+    if (!cs.length) return "";
+    return `<div class="ms-grupo"><div class="ms-lbl">${esc(grupo)}</div>
+      <div class="ms-grid-campos">${cs.map(c => campoFicha(c, pref)).join("")}</div></div>`;
+  }
+
   function vNPersona() {
-    const b = b_(), f = [];
-    if (!b.nombre) f.push("El nombre completo.");
-    return `<div class="ms-ancho--forma">` + head("Crear persona",
-      "La ficha por sí sola no da acceso a nada. El acceso se otorga después, o al crear la iglesia, el ministerio o el equipo donde va a servir.") + `
+    const b = b_();
+    const f = M.validarFicha(b, "Ficha");
+    const grupos = [...new Set(M.FICHA.map(c => c.g))];
+    return `<div class="ms-ancho--lectura">` + head("Crear persona",
+      "Los campos son exactamente las columnas de <code>nucleo.personas</code> en el backend. Lo que se llena aquí es lo que se verá en su ficha, sin sorpresas.") + `
       <div class="ms-paso">
-        <label class="ms-campo"><span>Nombre completo <b class="ms-req">obligatorio</b></span>
-          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Juan Carlos Pérez"></label>
-        <div class="ms-fila2">
-          <label class="ms-campo"><span>Documento</span>
-            <input data-campo="documento" value="${esc(b.documento || "")}" placeholder="Cédula"></label>
-          <label class="ms-campo"><span>Correo</span>
-            <input data-campo="correo" value="${esc(b.correo || "")}" placeholder="opcional"></label>
-        </div>
-        <div class="ms-nota">El correo es <b>opcional</b> a propósito. Muchos menores y adultos mayores
-          no tienen, y exigirlo los deja fuera del registro. Es una de las divergencias con el modelo
-          del equipo 100p, donde es obligatorio y único.</div>
-      </div>` + pie(f, "Crear persona", "hacer-persona") + `</div>`;
+        ${grupos.map(g => grupoFicha(g)).join("")}
+      </div>
+      <div class="ms-nota">La ficha por sí sola no da acceso a nada. El acceso se otorga después,
+        o al crear la iglesia, el ministerio o el equipo donde va a servir.</div>
+      ` + pie(f, "Crear persona", "hacer-persona") + `</div>`;
   }
 
   /* ---------- IGLESIA ---------- */
@@ -1586,6 +1730,7 @@
       case "comando":   html = vComando();  break;
       case "hecho":     html = vHecho();    break;
       case "promover":  html = vPromover();break;
+      case "afinar":    html = vAfinar();  break;
       case "persona":   html = vPersona();  break;
       case "iglesia":   html = vIglesia();  break;
       case "n-persona": html = vNPersona(); break;
@@ -1645,6 +1790,7 @@
     if (a === "verefectivo"){ b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
     if (a === "verefectivo2"){ b.verPersona = bt.dataset.id; vista = "efectivo"; pintar(); return; }
     if (a === "agregarrol") { borrador = { personaId: bt.dataset.id }; vista = "crear"; pintar(); return; }
+    if (a === "afinar") { borrador = { afinarId: bt.dataset.id }; vista = "afinar"; pintar(); return; }
     if (a === "promover") { const per = M.asignaciones().find(x => x.id === bt.dataset.id);
       borrador = { promId: bt.dataset.id, verPersona: per && per.personaId };
       vista = "promover"; pintar(); return; }
@@ -1698,7 +1844,11 @@
       vista = "hecho"; pintar();
     }
     if (a === "hacer-persona") {
-      const np = M.crearPersona(b.nombre, b.documento, b.correo);
+      const extra = {};
+      M.FICHA.forEach(c => { if (b[c.k]) extra[c.k] = b[c.k]; });
+      extra.nombre = [b.primerNombre, b.segundoNombre, b.primerApellido, b.segundoApellido]
+        .filter(Boolean).join(" ");
+      const np = M.crearPersona(extra.nombre, b.documento, b.correo, extra);
       borrador = { verPersona: np.id };
       logro = { que:"persona", personaId:np.id, codigo:np.codigo,
         detalle:`${np.nombre} ya tiene ficha. Todavía no abre nada: falta darle sus roles.` };
@@ -1760,6 +1910,18 @@
     }
   });
   document.addEventListener("change", e => {
+    const b3 = b_();
+    const mp = e.target.closest("[data-modpersona]");
+    if (mp) { const r3 = M.alternarModuloPersona(b3.afinarId, mp.dataset.modpersona);
+      if (!r3.ok) alert(r3.fallos.join("\n")); pintar(); return; }
+    const de = e.target.closest("[data-destino]");
+    if (de) { const r3 = M.alternarAlcance(b3.afinarId, de.dataset.destino);
+      if (!r3.ok) alert(r3.fallos.join("\n")); pintar(); return; }
+    const nm = e.target.closest("[data-nivmod]");
+    if (nm) { const r3 = M.nivelDeModulo(b3.afinarId, nm.dataset.nivmod, +nm.dataset.niv);
+      if (!r3.ok) alert(r3.fallos.join("\n")); pintar(); return; }
+    if (e.target.dataset && e.target.dataset.accionChk === "modular") {
+      b3.modularNivel = e.target.checked; pintar(); return; }
     const pr = e.target.closest("[data-perm-campo]");
     if (pr) {
       const b2 = b_(); const campo = pr.dataset.permCampo;

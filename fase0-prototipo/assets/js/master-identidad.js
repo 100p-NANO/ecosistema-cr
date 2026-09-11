@@ -287,15 +287,33 @@
     return { ok:true };
   }
 
+  /* ---------- ALCANCE MODULAR ----------
+     Una asignación podía apuntar a UNA sede. Pero un pastor regional
+     cubre tres iglesias, y un director puede llevar dos ministerios.
+     Obligarle a tener tres asignaciones iguales salvo el destino es
+     papeleo, no seguridad.
+
+     Ahora `alcanceIds` es una LISTA. `alcanceId` sigue funcionando para
+     lo de siempre (una sola), y las dos conviven sin romper nada. */
+  function alcancesDe(a) {
+    if (a.alcanceIds && a.alcanceIds.length) return a.alcanceIds.slice();
+    return a.alcanceId ? [a.alcanceId] : [];
+  }
+  function cubre(a, id) {
+    const l = alcancesDe(a);
+    return l.length ? l.indexOf(id) >= 0 : false;
+  }
+
   /* R2 · EL ALCANCE DEBE ESTAR IDENTIFICADO. Decir «alcance: sede» sin
      decir CUÁL sede deja la puerta abierta.
      (identidad.asignacion_alcance_identificado) */
-  function alcanceValido(codAlc, alcanceId) {
+  function alcanceValido(codAlc, alcanceId, alcanceIds) {
     const a = alcance(codAlc);
     if (!a) return { ok:false, razon:"Alcance inexistente" };
-    if (a.exigeId && !alcanceId) return { ok:false,
+    const n = (alcanceIds && alcanceIds.length) ? alcanceIds.length : (alcanceId ? 1 : 0);
+    if (a.exigeId && !n) return { ok:false,
       razon:`El alcance «${a.nombre}» exige decir cuál. Sin eso, la base rechaza la asignación.` };
-    if (!a.exigeId && alcanceId) return { ok:false,
+    if (!a.exigeId && n) return { ok:false,
       razon:`El alcance «${a.nombre}» no lleva identificador.` };
     return { ok:true };
   }
@@ -325,7 +343,7 @@
     const fallos = [];
     const r = rol(a.rol);
     if (!r) fallos.push("El rol no existe.");
-    const v2 = alcanceValido(a.alcanceTipo, a.alcanceId); if (!v2.ok) fallos.push(v2.razon);
+    const v2 = alcanceValido(a.alcanceTipo, a.alcanceId, a.alcanceIds); if (!v2.ok) fallos.push(v2.razon);
     const v4 = vigenciaValida(a.desde, a.hasta);          if (!v4.ok) fallos.push(v4.razon);
     if (r && a.nivelMax > r.techo)
       fallos.push(`Pidió N${a.nivelMax} y el techo de «${r.nombre}» es N${r.techo}.`);
@@ -341,6 +359,45 @@
   /* ---------- PERMISO EFECTIVO ----------
      Lo que una persona REALMENTE puede hacer: el cruce de sus
      asignaciones vigentes con la matriz, recortado por su nivel. */
+  /* ---------- EXCEPCIONES POR PERSONA ----------
+     El nivel N es un TECHO de seguridad: dice hasta qué sensibilidad
+     puede llegar alguien, y eso sí es rígido a propósito. Pero DENTRO
+     de ese techo, qué módulos ve cada persona debe poder ajustarse una
+     por una.
+
+     Caso real que lo motivó: un Pastor Director General alcanza los 12
+     módulos por su rol, pero se quiere que este en concreto NO vea
+     RocaKids. No hay que inventarle un rol nuevo ni bajarle el techo:
+     se le apaga ese módulo a él.
+
+     `asignacion.modulos` es un mapa de excepciones:
+        undefined  → hereda lo que diga la matriz del rol
+        false      → apagado para esta persona, aunque el rol lo dé
+        true       → encendido, siempre que el techo lo permita
+     Lo que NUNCA se puede es encender un módulo por encima del techo.
+     Esa es la línea que no se mueve. ---------- */
+  /* El nivel también es modular. Por defecto la asignación lleva UN
+     nivel (`nivelMax`) que vale para todo: es el preestablecido y
+     resuelve el 90% de los casos sin pensar.
+
+     Pero se puede afinar por módulo con `nivelPorModulo`: «N2 en
+     general, pero N3 en aportes». Lo que NO se puede es pasarse del
+     techo del rol. Esa línea no se mueve por excepción, ni aquí ni en
+     ningún otro sitio. */
+  function nivelEn(asignacion, codModulo) {
+    const ex = asignacion.nivelPorModulo && asignacion.nivelPorModulo[codModulo];
+    const n = (ex === undefined || ex === null) ? asignacion.nivelMax : ex;
+    const r = rol(asignacion.rol);
+    return r ? Math.min(n, r.techo) : n;    // el techo del rol siempre recorta
+  }
+
+  function moduloPermitido(asignacion, codModulo, nivelModulo) {
+    if (nivelEn(asignacion, codModulo) < nivelModulo) return { ok:false, razon:"techo" };
+    const ex = asignacion.modulos && asignacion.modulos[codModulo];
+    if (ex === false) return { ok:false, razon:"apagado a esta persona" };
+    return { ok:true, forzado: ex === true };
+  }
+
   function permisoEfectivo(asignaciones, hoy, matriz) {
     hoy = hoy || new Date().toISOString().slice(0, 10);
     /* Si el master ya editó la matriz, se usa la editada. El permiso
@@ -352,8 +409,9 @@
     vigentes.forEach(a => {
       MTZ.filter(p => p.rol === a.rol).forEach(p => {
         const m = modulo(p.modulo); if (!m) return;
-        const tope = Math.min(a.nivelMax, p.nivel == null ? 4 : p.nivel);
+        const tope = Math.min(nivelEn(a, p.modulo), p.nivel == null ? 4 : p.nivel);
         if (m.nivel > tope) return;               // el módulo pide más de lo que tiene
+        if (!moduloPermitido(a, p.modulo, m.nivel).ok) return;   // excepción de esta persona
         const k = p.modulo;
         mapa[k] = mapa[k] || { modulo:p.modulo, nombre:m.nombre, nivelModulo:m.nivel,
                                acciones:new Set(), porque:[] };
@@ -440,5 +498,6 @@
     rol, modulo, alcance, nivel,
     rolPuedeModulo, alcanceValido, puedeOtorgar, vigenciaValida, exigeActa,
     validarAsignacion, permisoEfectivo, puedeVer, puedeHacer, rolesQuePuedeCrear,
+    moduloPermitido, alcancesDe, cubre, nivelEn,
   };
 })();
