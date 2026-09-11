@@ -1,54 +1,61 @@
-# CasaRoca System · Backend Fase 1 — Base de datos
+# CasaRoca System · Ecosistema
 
-Implementación **ejecutable** de la arquitectura aprobada en la mesa de trabajo
-(Documentos 1 a 4, julio–agosto 2026). No es un diseño en papel: son migraciones
-SQL que corren, con un banco de pruebas que demuestra cada garantía.
+Todo el proyecto **Sistema 100p** en un solo repositorio: la base de datos que corre, la API
+sobre el contrato de los módulos, el prototipo navegable y el sitio desplegado.
 
-## Qué hay aquí
+Hasta ahora esto vivía en tres carpetas sueltas y en documentos de Drive. Aquí está junto y,
+sobre todo, **revisable línea por línea** — que es lo que pidió el CTO.
 
 ```
-db/migrations/   12 migraciones SQL planas, en orden, revisables línea a línea
-db/seeds/        catálogos (16 tipos de documento, 24 vínculos, 14 roles) + sedes demo
-db/tests/        banco de invariantes + prueba de aislamiento entre sedes
-scripts/         arrancar / migrar / probar
-entregas-drive/  documentos listos para subir al Drive «Sistema 100p», por carpeta
+backend/           Fase 1 · PostgreSQL 16 · 31 migraciones SQL + 83 pruebas + API NestJS
+fase0-prototipo/   El prototipo navegable: ~26.000 líneas de JS sin framework, 127 archivos
+web/               El sitio unificado que hoy está desplegado en Netlify
 ```
 
-## Cómo se corre (3 comandos)
+## Por dónde empezar según quién seas
+
+| Si eres… | Abre esto primero |
+|---|---|
+| **Jhon** (desarrollo e infraestructura) | `backend/db/migrations/` — las 31 migraciones en orden, y `backend/db/tests/` |
+| **Manuel** (testing y calidad) | `backend/db/tests/` — los 5 bancos de invariantes, y `backend/docs/EVIDENCIA-pruebas.txt` |
+| **Ps. Carlos Ricardo** (gerencia) | `backend/entregas-drive/` — los documentos de arquitectura, modelo financiero y plan |
+
+## Cómo se corre la base de datos (3 comandos, sin nube ni Docker)
 
 ```bash
-./scripts/arrancar.sh    # levanta PostgreSQL 16 local en el puerto 5433
-./scripts/migrar.sh      # recrea casaroca_dev y aplica las 12 migraciones + seeds
-./scripts/probar.sh      # corre las 25 pruebas
+cd backend
+./scripts/arrancar.sh    # PostgreSQL 16 local en el puerto 5433
+./scripts/migrar.sh      # recrea casaroca_dev: 31 migraciones + seeds
+./scripts/probar.sh      # 83 pruebas
 ```
 
-Requiere PostgreSQL 16 (Postgres.app). No hay dependencias de red ni de nube.
+Última corrida verificada: **11 de septiembre de 2026 · 31 migraciones limpias · 83/83 en verde.**
 
-## Las decisiones que están codificadas
+## Qué está demostrado, no solo diseñado
 
-| Decisión | Dónde vive |
-|---|---|
-| PostgreSQL 16, SQL plano, sin ORM propietario en las migraciones | `db/migrations/` |
-| Doble cerradura: motor de políticas + RLS con `SET LOCAL app.*` | `0008_rls_doble_cerradura.sql` |
-| Clasificación N0–N4 que **activa** controles, no que los describe | `0001`, `0011` |
-| Bitácora de **lectura** sobre N3/N4 | `0007_auditoria_bitacora.sql` |
-| Permiso = rol × alcance × sensibilidad × vigencia (14 roles) | `0006_identidad_permisos.sql` |
-| Habeas Data (Ley 1581) append-only con finalidad, canal y evidencia | `0005` |
-| Menor sin acudiente hace fallar la transacción | `0004_menores_acudientes.sql` |
-| Linaje de migración (`source_system` + `source_id`) en todo lo migrable | `0002`, `0003`, `0005`, `0009`, `0010` |
+Cada garantía del diseño tiene una prueba que falla si alguien la rompe:
 
-## Estado
+- **Aislamiento entre sedes.** RLS más contexto por transacción. Las pruebas corren como
+  `casaroca_app`, no como superusuario — probarlo como superusuario no demuestra nada.
+- **Menores.** Un menor sin acudiente hace fallar la transacción. La entrega exige acudiente
+  autorizado y código correcto, y el código va cifrado de verdad (nunca se devuelve).
+- **Habeas Data (Ley 1581).** Consentimiento append-only con finalidad, canal, evidencia y
+  fecha. Sin registro, `puede_contactar()` devuelve falso.
+- **Aportes.** La reconciliación es aritmética: una vista dice si lo migrado cuadra al peso.
+  Y el pastor congregacional ve hábito de aporte **sin ninguna columna de monto**.
+- **Auditoría.** Append-only e inmutable, con bitácora de lectura sobre los datos sensibles.
 
-- 12 migraciones aplican limpias sobre PostgreSQL 16.14.
-- 25 pruebas, 25 pasan (16 de invariantes + 9 de aislamiento).
-- Cubre los esquemas **Núcleo, 01 Organización, 02 Identidad, 04 CRM, 11 Línea de
-  tiempo y Plataforma transversal**. Faltan por construir: 03 Grupos, 05 Asistencia,
-  06 RocaKids, 07 Consejería, 08 Aportes, 09 Formación, 10 Talento.
-- La llave de cifrado N4 en desarrollo viene de un GUC. **En producción debe venir
-  del gestor de llaves (KMS), nunca del código ni de una tabla de la propia base.**
+## Lo que está abierto y necesita decisión de la mesa
 
-## Advertencia que va escrita en el Documento 1 y sigue vigente
+1. **`personas` sin `sede_id`.** En el modelo v1.1 del equipo no existe esa columna. Sin ella
+   no hay multi-tenancy ni RLS posible para las 36 sedes. Está detallado, con la corrección ya
+   implementada, en `backend/entregas-drive/01-Estructura-Datos/DIVERGENCIAS-Y-CORRECCIONES.md`.
+2. **Región de GCP.** São Paulo en vez de `us-east1` cuesta unos 575.000 COP/mes más. Depende
+   de la cláusula de residencia de datos. Ver `backend/entregas-drive/04-Infraestructura-Operacion/`.
+3. **La llave de cifrado.** En desarrollo viene de un GUC. **En producción debe venir del KMS**,
+   nunca del código ni de una tabla de la propia base.
 
-Esto certifica que **lo diseñado** cubre los controles. No certifica que lo
-construido los cumpla en producción: eso lo verifica la prueba de intrusión
-externa de la compuerta G5.
+## Advertencia que sigue vigente
+
+Esto certifica que **lo diseñado** cubre los controles. No certifica que lo construido los
+cumpla en producción: eso lo verifica la prueba de intrusión externa de la compuerta G5.
