@@ -1212,6 +1212,7 @@
         data-sede="${esc(id)}" data-cod="${esc(x.codigo)}">Aplicar «${esc(x.nombre)}»</button>`).join("")}
     </div>
 
+
     ${(() => {
       /* ⭐ «le active tres cosas a Barcelona y no puedo ver lo que puse,
          por que no esta el boton».
@@ -1311,6 +1312,74 @@
             : `<span class="ms-falta">sin responsable</span>`}</td></tr>`;
       }).join("")}
     </tbody></table>` : `<div class="ms-nota">Esta iglesia no tiene ministerios ni equipos creados.</div>`}
+
+    ${(() => {
+      /* ============================================================
+         MINISTERIOS Y GRUPOS PEQUEÑOS DE ESTA IGLESIA
+         ------------------------------------------------------------
+         Orden de Daniel, 11 de septiembre: «todo lo que se ponga allí es
+         lo que debe aparecer en las diferentes iglesias locales, y cada
+         pastor debe poder crear y modificar ministerios y grupos
+         pequeños, aunque desde el centro de mando también».
+
+         Las dos manos escriben en el mismo sitio: lo que abre el pastor
+         desde su panel aparece aquí, y lo que se abra aquí aparece en su
+         panel. Por eso se dice quién creó cada uno: en un sistema con dos
+         puertas, la autoría deja de ser un adorno.
+
+         Va pegado a la tabla de ministerios y equipos a propósito: los
+         tres son la misma pregunta, cómo está armada esta iglesia, y
+         partirla en dos sitios es como se acaba con dos verdades.
+         ============================================================ */
+      const mins = M.ministeriosDeSede(id);
+      const gps  = M.gruposDeSede(id);
+      const onGrupos = M.moduloActivo(id, "grupos");
+      return `
+      <div class="ms-lbl" style="margin-top:22px">Grupos pequeños (${gps.length})</div>
+      ${!onGrupos ? `<div class="ms-nota ms-nota--ojo">
+        <b>El módulo «Grupos y hogares» está apagado en esta iglesia.</b> Puede dejarlos escritos,
+        pero su pastor no los verá hasta que lo encienda arriba.</div>` : ""}
+      ${gps.length ? `<table class="ms-tabla"><thead><tr>
+        <th>Grupo</th><th>Código</th><th>Ministerio</th><th>Líder</th><th>Cuándo</th><th>Personas</th><th>Lo abrió</th><th></th>
+      </tr></thead><tbody>${gps.map(g => {
+        const mn = mins.find(x => x.codigo === g.ministerioCodigo);
+        const qn = g.creadoPor === "master" ? "el centro de mando" : ((M.persona(g.creadoPor) || {}).nombre || g.creadoPor);
+        return `<tr>
+          <td><b>${esc(g.nombre)}</b></td>
+          <td><span class="ms-codigo">${esc(g.codTrabajo)}</span></td>
+          <td>${esc(mn ? mn.nombre : "—")}</td>
+          <td>${esc(g.lider)}<span class="ms-sub">${esc(g.liderTel || "")}</span></td>
+          <td>${esc([g.dia, g.hora].filter(Boolean).join(" · ") || "—")}<span class="ms-sub">${esc(g.zona || "")}</span></td>
+          <td>${g.miembros || 0}${g.cupo ? " / " + g.cupo : ""}</td>
+          <td><span class="ms-sub">${esc(qn)}</span></td>
+          <td class="ms-acc-col"><button class="ms-btn ms-btn--peq ms-btn--peligro"
+            data-accion="gp-cerrar" data-id="${esc(g.id)}">Cerrar</button></td>
+        </tr>`; }).join("")}</tbody></table>`
+        : `<div class="ms-nota">Ninguno todavía. Los abre su pastor desde el panel, o usted aquí mismo.</div>`}
+
+      <div class="ms-crear" style="margin-top:12px">
+        <div class="ms-lbl" style="margin:0 0 6px">Abrir un grupo desde el centro de mando</div>
+        <div class="ms-datos">
+          <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
+            <input id="ms-gp-nombre" placeholder="Ej. Hogar Chapinero"></label>
+          <label class="ms-campo"><span>Líder <b class="ms-req">obligatorio</b></span>
+            <input id="ms-gp-lider" placeholder="Nombre y apellido"></label>
+          <label class="ms-campo"><span>Celular del líder</span>
+            <input id="ms-gp-tel" placeholder="+57 300 000 0000"></label>
+          <label class="ms-campo"><span>Ministerio</span>
+            <select id="ms-gp-min"><option value="">Sin ministerio</option>
+            ${mins.map(m => `<option value="${esc(m.codigo)}">${esc(m.nombre)}</option>`).join("")}</select></label>
+          <label class="ms-campo"><span>Día</span><input id="ms-gp-dia" placeholder="Miércoles"></label>
+          <label class="ms-campo"><span>Hora</span><input id="ms-gp-hora" placeholder="7:00 pm"></label>
+          <label class="ms-campo"><span>Zona</span><input id="ms-gp-zona" placeholder="Chapinero"></label>
+          <label class="ms-campo"><span>Cupo</span><input id="ms-gp-cupo" type="number" min="0" placeholder="20"></label>
+        </div>
+        <div class="ms-acciones" style="margin-top:10px">
+          <button class="ms-btn ms-btn--primario ms-btn--peq" data-accion="gp-crear"
+            data-sede="${esc(id)}">Abrir el grupo</button>
+        </div>
+      </div>`;
+    })()}
 
     ${(() => {
       /* El CRM DE ESTA IGLESIA. Sale de la misma línea de tiempo, no de
@@ -1620,6 +1689,25 @@
     }
     if (a === "cfg-sede")   { cfgSede = bt.dataset.id; pintar(); return; }
     if (a === "cfg-mod")    { M.alternarModulo(bt.dataset.sede, bt.dataset.mod); pintar(); return; }
+    if (a === "gp-crear") {
+      const v = i => { const e = $("#" + i); return e ? e.value.trim() : ""; };
+      /* El centro de mando escribe sin pedirle permiso a nadie, pero pasa
+         por las MISMAS validaciones: un grupo sin líder no se abre aquí
+         tampoco. Las reglas son del sistema, no de la pantalla. */
+      const r = M.crearGrupo({ sedeId: bt.dataset.sede, nombre: v("ms-gp-nombre"),
+        lider: v("ms-gp-lider"), liderTel: v("ms-gp-tel"),
+        ministerioCodigo: v("ms-gp-min") || null, dia: v("ms-gp-dia"),
+        hora: v("ms-gp-hora"), zona: v("ms-gp-zona"), cupo: v("ms-gp-cupo") }, null);
+      if (!r.ok) { alert("No se puede:\n\n" + r.fallos.join("\n")); return; }
+      pintar(); return;
+    }
+    if (a === "gp-cerrar") {
+      const motivo = prompt("Cerrar el grupo. ¿Por qué? (queda en la bitácora)");
+      if (motivo === null) return;
+      const r = M.cerrarGrupo(bt.dataset.id, null, motivo);
+      if (!r.ok) { alert("No se puede:\n\n" + r.fallos.join("\n")); return; }
+      pintar(); return;
+    }
     if (a === "cfg-plant")  { M.aplicarPlantilla(bt.dataset.sede, bt.dataset.cod); pintar(); return; }
 
     /* ---- creaciones: si vino nombre nuevo, se crea la ficha primero ---- */

@@ -180,6 +180,36 @@
   // Todos los grupos pequeños de la sede
   function gruposSede() {
     const out = [];
+
+    /* ⭐⭐ PRIMERO LO QUE DICE EL CENTRO DE MANDO.
+       Regla de Daniel, 11 de septiembre: «todo lo que se ponga allí es lo
+       que debe aparecer en las diferentes iglesias locales». Los grupos
+       que el pastor abre desde aquí, o que le ponen desde el centro de
+       mando, viven en el master y son los que mandan. Van primero porque
+       son los reales. */
+    const C = window.CENTRO;
+    if (C) {
+      const mins = C.ministerios();
+      C.grupos().forEach(g => {
+        const min = mins.find(m => m.codigo === g.ministerioCodigo);
+        out.push({ ministerioId: g.ministerioCodigo || "sin-min",
+          ministerio: min ? min.nombre : "Sin ministerio", ico: "🏠",
+          tipo: "congregacional", nombre: g.nombre, sub: "",
+          lider: { nombre: g.lider, tel: g.liderTel, email: g.liderEmail },
+          dia: g.dia || "—", hora: g.hora || "—", cupo: g.cupo || 0,
+          zona: g.zona || "—", miembros: g.miembros || 0,
+          delCentro: true, centroId: g.id, codTrabajo: g.codTrabajo });
+      });
+    }
+
+    /* ⛔ EL JUEGO SEMBRADO SOLO VALE EN SU PROPIA IGLESIA.
+       Antes se pintaba siempre, y por eso Barcelona nacía enseñando los
+       45 grupos de Bogotá Chicó, que no son suyos. Una iglesia nueva
+       tiene que empezar vacía: eso no es un hueco, es la verdad, y es lo
+       que empuja al pastor a construir la suya. */
+    const esSuPropiaDemo = !C || !C.sedeNombre || C.sedeNombre === P.SEDE_DEMO_NOMBRE;
+    if (!esSuPropiaDemo) return out;
+
     P.MIN_DEFS.forEach(m => {
       if (m.liveDirector) return;
       (m._grupos || []).forEach(g => {
@@ -1660,6 +1690,69 @@
   }
 
   /* ============================================================ 6. GRUPOS PEQUEÑOS */
+  /* ============================================================
+     GRUPOS PEQUEÑOS · el pastor arma su iglesia
+     ------------------------------------------------------------
+     Poder abrir un grupo NO es una excepción al permiso: es un permiso
+     más. Se pregunta antes de pintar el botón, para no ofrecer lo que la
+     escritura va a rechazar, y cuando no se puede se dice POR QUÉ. Un
+     botón que desaparece sin explicación se lee como sistema roto; ya
+     pasó hoy mismo con las pestañas.
+     ============================================================ */
+  function puedeGrupos()  { return !!(window.CENTRO && window.CENTRO.puede("grupos")); }
+  function motivoGrupos() {
+    if (!window.CENTRO) return "este panel no está conectado al centro de mando.";
+    return window.CENTRO.porQueNo("grupos") || "no tiene ese módulo otorgado.";
+  }
+
+  /* ⚠️ Se llama `modalGrupoEditor` y no `modalGrupo` a propósito: ya
+     existe un `modalGrupo(minId, nombre)` más abajo que abre la FICHA del
+     grupo para mirarlo. Como las dos son declaraciones de función en el
+     mismo ámbito, la de abajo gana y se comió a esta en silencio; el
+     botón de crear contestaba «No se encontró el grupo». Dos cosas
+     distintas, dos nombres distintos. */
+  function modalGrupoEditor(id) {
+    const C = window.CENTRO; if (!C) return;
+    const g = id ? C.grupos().find(x => x.id === id) : null;
+    const mins = C.ministerios();
+    const opts = `<option value="">Sin ministerio</option>` + mins.map(m =>
+      `<option value="${esc(m.codigo)}" ${g && g.ministerioCodigo === m.codigo ? "selected" : ""}>${esc(m.nombre)}</option>`).join("");
+    abrirModal(`
+      <h2 id="dr-modal-t">${g ? "Editar grupo" : "Nuevo grupo pequeño"} · ${esc(C.sedeNombre || "")}</h2>
+      <p class="dr-card__sub">${g
+        ? `Vive en el centro de mando con el código <b>${esc(g.codTrabajo)}</b>. Lo que cambie aquí lo ve toda la red.`
+        : "Queda escrito en el <b>centro de mando</b>, bajo su iglesia. No se inventa nada: el grupo existe desde que usted lo abre aquí."}</p>
+      <label class="dr-field"><span>Nombre del grupo</span>
+        <input id="ps-gp-nombre" class="dr-input" type="text" placeholder="Ej. Hogar Chapinero" value="${esc(g ? g.nombre : "")}" /></label>
+      <label class="dr-field"><span>Ministerio al que pertenece</span>
+        <select id="ps-gp-min" class="dr-input">${opts}</select></label>
+      <div class="dr-field-row">
+        <label class="dr-field"><span>Líder responsable</span>
+          <input id="ps-gp-lider" class="dr-input" type="text" placeholder="Nombre y apellido" value="${esc(g ? g.lider : "")}" /></label>
+        <label class="dr-field"><span>Celular del líder</span>
+          <input id="ps-gp-tel" class="dr-input" type="text" placeholder="+57 300 000 0000" value="${esc(g ? g.liderTel : "")}" /></label>
+      </div>
+      <div class="dr-field-row">
+        <label class="dr-field"><span>Día</span>
+          <input id="ps-gp-dia" class="dr-input" type="text" placeholder="Ej. Miércoles" value="${esc(g ? g.dia : "")}" /></label>
+        <label class="dr-field"><span>Hora</span>
+          <input id="ps-gp-hora" class="dr-input" type="text" placeholder="Ej. 7:00 pm" value="${esc(g ? g.hora : "")}" /></label>
+      </div>
+      <div class="dr-field-row">
+        <label class="dr-field"><span>Zona o lugar</span>
+          <input id="ps-gp-zona" class="dr-input" type="text" placeholder="Ej. Chapinero" value="${esc(g ? g.zona : "")}" /></label>
+        <label class="dr-field"><span>Cupo</span>
+          <input id="ps-gp-cupo" class="dr-input" type="number" min="0" placeholder="Ej. 20" value="${g && g.cupo ? g.cupo : ""}" /></label>
+      </div>
+      <label class="dr-field"><span>Personas hoy en el grupo</span>
+        <input id="ps-gp-miembros" class="dr-input" type="number" min="0" placeholder="0" value="${g && g.miembros ? g.miembros : ""}" /></label>
+      <div class="dr-modal__actions">
+        <button class="dr-btn dr-btn--primary" data-accion="grupo-guardar" data-id="${esc(id || "")}">${g ? "Guardar cambios" : "Abrir el grupo"}</button>
+        <button class="dr-btn dr-btn--ghost" data-accion="cerrar-modal">Cancelar</button>
+      </div>
+    `);
+  }
+
   function vistaGrupos() {
     let grupos = gruposSede();
     if (gruposMinFiltro !== "todos") grupos = grupos.filter(g => g.ministerioId === gruposMinFiltro);
@@ -1670,19 +1763,28 @@
       const cls = g.cupo && g.miembros >= g.cupo ? "ps-bad" : oc > 60 ? "ps-ok" : "ps-warn";
       const lider = g.lider || {};
       return `<div class="dr-card ps-group-card ps-group-card--click" data-accion="ver-grupo" data-min="${esc(g.ministerioId)}" data-grupo="${esc(g.nombre)}" role="button" tabindex="0" aria-label="Abrir el grupo ${esc(g.nombre)} y ver sus miembros">
-        <div class="ps-group-card__head"><span class="ps-group-ico">${g.ico}</span><div><b>${esc(g.nombre)}</b><small>${esc(g.ministerio)} ${g.live ? '<span class="ps-live-badge">🔗 en vivo</span>' : ""}</small></div>
+        <div class="ps-group-card__head"><span class="ps-group-ico">${g.ico}</span><div><b>${esc(g.nombre)}</b><small>${esc(g.ministerio)} ${g.live ? '<span class="ps-live-badge">🔗 en vivo</span>' : ""}${g.delCentro ? ` <span class="ps-live-badge" title="Vive en el centro de mando: ${esc(g.codTrabajo || "")}">🏛️ del sistema</span>` : ""}</small></div>
           <span class="ps-tag ${cls}">${g.miembros}${g.cupo ? "/" + g.cupo : ""}</span></div>
         <div class="ps-group-card__meta">🗓️ ${esc(g.dia)} · ${esc(g.hora)}<br>📍 ${esc(g.zona)}<br>🧑‍🤝‍🧑 Líder: ${esc(lider.nombre || "—")}</div>
         ${g.cupo ? `<div class="ps-progress"><span class="${cls}" style="width:${Math.min(100, oc)}%"></span></div>` : ""}
-        <div class="ps-group-card__foot"><span>👥 Ver miembros del grupo</span><span class="ps-group-card__arrow">→</span></div>
+        ${g.delCentro && puedeGrupos() ? `<div class="ps-group-card__foot" data-stop>
+            <button class="dr-btn dr-btn--ghost dr-btn--sm" data-accion="grupo-edit" data-id="${esc(g.centroId)}">✏️ Editar</button>
+            <button class="dr-btn dr-btn--ghost dr-btn--sm" data-accion="grupo-cerrar" data-id="${esc(g.centroId)}">Cerrar grupo</button>
+          </div>` : `<div class="ps-group-card__foot"><span>👥 Ver miembros del grupo</span><span class="ps-group-card__arrow">→</span></div>`}
       </div>`;
     }).join("");
     return shell(`
       <div class="dr-head"><div>
-        <h1 class="dr-h1">Grupos pequeños de la sede</h1>
-        <p class="dr-lead">Todos los grupos de todos los ministerios. ${grupos.length} grupos · ${totalMiem} personas conectadas.</p>
+        <h1 class="dr-h1">Grupos pequeños de ${esc((window.CENTRO && window.CENTRO.sedeNombre) || USER.sede)}</h1>
+        <p class="dr-lead">Todos los grupos de todos los ministerios. ${grupos.length} grupos · ${totalMiem} personas conectadas.
+          ${puedeGrupos()
+            ? "Los que abra aquí quedan escritos en el <b>centro de mando</b>, que es de donde bebe toda la red."
+            : `<span class="ps-warn">Solo lectura: ${esc(motivoGrupos())}</span>`}</p>
       </div>
-      <select class="dr-select" data-accion="grupos-min">${minOpts}</select></div>
+      <div class="dr-head__acc">
+        ${puedeGrupos() ? `<button class="dr-btn dr-btn--primary dr-btn--sm" data-accion="grupo-nuevo">+ Nuevo grupo</button>` : ""}
+        <select class="dr-select" data-accion="grupos-min">${minOpts}</select>
+      </div></div>
       ${panelPublicacion()}
       <div class="dr-grid2">${cards || '<p class="dr-card__sub">Sin grupos en este filtro.</p>'}</div>
     `);
@@ -1692,6 +1794,13 @@
      sede se muestran en el funnel público. Sincroniza vía STORE en vivo. */
   function panelPublicacion() {
     if (!L || !L.afinidadesDeSede || !S || !S.autorizado) return "";
+    /* ⛔ Este panel publica en el funnel público los grupos de la sede
+       SEMBRADA (`SEDE_CIUDAD` está fijo en Bogotá). Enseñárselo al pastor
+       de Barcelona sería ofrecerle decidir sobre los grupos de otra
+       iglesia, que es peor que no ofrecerle nada. Mientras el funnel no
+       sepa de más ciudades, solo se ve en su propia iglesia. */
+    const C = window.CENTRO;
+    if (C && C.sedeNombre && C.sedeNombre !== P.SEDE_DEMO_NOMBRE) return "";
     const grupos = L.afinidadesDeSede(SEDE_CIUDAD);
     if (!grupos.length) return "";
     const pub = grupos.filter(a => S.autorizado(a.id)).length;
@@ -2630,6 +2739,40 @@
     switch (a) {
       case "salir": ev.preventDefault(); sesion = false; vista = "analitica"; render(); return;
       case "ir": ev.preventDefault(); vista = el.dataset.vista; minDrill = null; proyDrill = null; temDrill = null; window.scrollTo(0, 0); render(); return;
+
+      /* GRUPOS PEQUEÑOS · escriben en el centro de mando */
+      case "grupo-nuevo": ev.preventDefault();
+        if (!puedeGrupos()) { toast(motivoGrupos(), false); return; }
+        modalGrupoEditor(null); return;
+      case "grupo-edit": ev.preventDefault(); ev.stopPropagation();
+        if (!puedeGrupos()) { toast(motivoGrupos(), false); return; }
+        modalGrupoEditor(id); return;
+      case "grupo-guardar": {
+        ev.preventDefault();
+        const datos = {
+          nombre: val("ps-gp-nombre"), ministerioCodigo: val("ps-gp-min") || null,
+          lider: val("ps-gp-lider"), liderTel: val("ps-gp-tel"),
+          dia: val("ps-gp-dia"), hora: val("ps-gp-hora"), zona: val("ps-gp-zona"),
+          cupo: val("ps-gp-cupo"), miembros: val("ps-gp-miembros"),
+        };
+        const r = id ? window.CENTRO.editarGrupo(id, datos) : window.CENTRO.crearGrupo(datos);
+        if (!r.ok) { toast(r.fallos.join(" "), false); return; }
+        cerrarModal(); render();
+        toast(id ? "Grupo actualizado ✓" : `Grupo abierto ✓ · ${r.grupo.codTrabajo}`, true);
+        return;
+      }
+      case "grupo-cerrar": {
+        ev.preventDefault(); ev.stopPropagation();
+        if (!puedeGrupos()) { toast(motivoGrupos(), false); return; }
+        /* Cerrar, no borrar: la historia de quién estuvo ahí es justo lo
+           que el CRM lee después para no tratar a nadie como desconocido. */
+        const motivo = window.prompt("Cerrar el grupo. ¿Por qué? (queda en la bitácora del sistema)");
+        if (motivo === null) return;
+        const r = window.CENTRO.cerrarGrupo(id, motivo);
+        if (!r.ok) { toast(r.fallos.join(" "), false); return; }
+        render(); toast("Grupo cerrado. Queda en la bitácora.", true);
+        return;
+      }
 
       /* CRM */
       case "crm-sort": { ev.preventDefault(); const col = el.dataset.col; if (crmSort === col) crmDir = -crmDir; else { crmSort = col; crmDir = 1; } render(); return; }

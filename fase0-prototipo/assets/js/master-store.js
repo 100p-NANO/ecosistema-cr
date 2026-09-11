@@ -41,6 +41,19 @@
                      /chic/i.test(x.nombre) ? "MAESTRA" : (x.tipo === "plantacion" ? "PLANTACION" : "FILIAL") }, x)),
       ministerios: I.MINISTERIOS.map(m => Object.assign({ sedeId:null }, m)),
       equipos:     [],
+      /* ⭐⭐ LOS GRUPOS PEQUEÑOS VIVEN AQUÍ, NO EN CADA PANEL.
+         Orden de Daniel, 11 de septiembre: «todo debe funcionar desde el
+         centro de mando, todo lo que se ponga allí es lo que debe
+         aparecer en las diferentes iglesias locales, y cada pastor debe
+         poder crear y modificar ministerios y grupos pequeños».
+
+         Hasta hoy los grupos solo existían dentro del juego de datos
+         sembrado del panel del pastor, así que ninguna iglesia nueva
+         podía tener uno: nacían con los de la sede de demostración o con
+         nada. Ahora son del sistema, cuelgan de una sede y los escribe
+         quien tenga otorgado el módulo, sea el pastor desde su panel o
+         el centro de mando desde la ficha de la iglesia. */
+      grupos:      [],
       rolesX:      [],   // roles creados a mano, encima del catálogo
       modulosX:    [],   // módulos nuevos
       /* Se resuelve el CÓDIGO a identificador en el momento de sembrar.
@@ -133,10 +146,21 @@
     return c;
   }
   let D = null;
+  /* Un master guardado ayer no tiene las colecciones de hoy. Sin esto, la
+     primera lectura de `grupos` revienta justo en quien ya venía usando el
+     sistema, que es el peor momento para estrenar un fallo. */
+  function migrar(d) {
+    let toco = false;
+    ["ministerios", "equipos", "grupos", "vinculos", "hechos"].forEach(k => {
+      if (!Array.isArray(d[k])) { d[k] = []; toco = true; }
+    });
+    return toco;
+  }
   function cargar() {
     if (D) return D;
     try { const c = localStorage.getItem(LLAVE); D = c ? JSON.parse(c) : semilla(); }
     catch (e) { D = semilla(); }
+    if (migrar(D)) guardar();
     return D;
   }
   function guardar() {
@@ -519,6 +543,7 @@
     sedes:       () => cargar().sedes.slice(),
     ministerios: () => cargar().ministerios.slice(),
     equipos:     () => cargar().equipos.slice(),
+    grupos:      () => cargar().grupos.slice(),
     rolesTodos:  () => I.ROLES.concat(cargar().rolesX),
     modulosTodos:() => I.MODULOS.concat(cargar().modulosX),
 
@@ -593,6 +618,103 @@
         `Ministerio «${d.nombre}» (${codTrabajo}) creado en ${s2 ? s2.nombre : d.sedeId}, ` +
         `con ${(this.persona(d.liderId) || {}).nombre || "su director"} al frente.`);
       return { ok:true, codigo };
+    },
+
+    /* ============================================================
+       GRUPOS PEQUEÑOS · el centro de mando manda, el pastor construye
+       ------------------------------------------------------------
+       Las tres puertas de siempre, en este orden:
+         1. ¿el grupo cuelga de una iglesia?          (sin sede no hay grupo)
+         2. ¿esa iglesia tiene encendido el módulo?   (techo de la sede)
+         3. ¿quien lo escribe alcanza ese módulo?     (permiso de la persona)
+       La tercera la comprueba `puedeEnSede`, que recibe la asignación de
+       quien actúa. Si no se pasa nadie, actúa el centro de mando, que es
+       el único que puede escribir sin pedir permiso a nadie.
+       ============================================================ */
+    gruposDeSede(sedeId) {
+      return cargar().grupos.filter(g => g.sedeId === sedeId && !g.cerrado);
+    },
+    ministeriosDeSede(sedeId) {
+      return cargar().ministerios.filter(m => m.sedeId === sedeId);
+    },
+    /* ¿Puede esta persona escribir este módulo en esta sede? Devuelve el
+       porqué cuando no, para poder decirlo en pantalla en vez de un «no». */
+    puedeEnSede(personaId, sedeId, modulo) {
+      if (!personaId) return { ok:true, quien:"el centro de mando" };
+      if (!this.moduloActivo(sedeId, modulo))
+        return { ok:false, razon:"Esa iglesia tiene el módulo apagado en el centro de mando." };
+      const asg = this.deLaPersona(personaId).filter(a =>
+        a.alcanceTipo === "sede" ? a.alcanceId === sedeId : a.alcanceTipo === "organizacion");
+      const alcanza = I.permisoEfectivo(asg, null, null, (sid, mo) => this.moduloActivo(sid, mo))
+        .some(x => x.modulo === modulo);
+      if (!alcanza) return { ok:false, razon:"No se le ha otorgado ese módulo en esta iglesia." };
+      return { ok:true, quien:(this.persona(personaId) || {}).nombre || personaId };
+    },
+
+    crearGrupo(d, porPersonaId) {
+      const st = cargar();
+      const fallos = [];
+      if (!d.nombre)  fallos.push("Falta el nombre del grupo.");
+      if (!d.sedeId)  fallos.push("Un grupo pequeño pertenece a una iglesia. Elija cuál.");
+      if (!d.lider)   fallos.push("Un grupo no se abre sin líder: alguien responde por esas personas.");
+      if (fallos.length) return { ok:false, fallos };
+      const v = this.puedeEnSede(porPersonaId, d.sedeId, "grupos");
+      if (!v.ok) return { ok:false, fallos:[v.razon] };
+      const sede = st.sedes.find(x => x.id === d.sedeId);
+      const g = {
+        id: "g-" + Math.random().toString(36).slice(2, 8),
+        codTrabajo: codUnidad("GP", sede && sede.codigo, st.grupos.map(x => x.codTrabajo).filter(Boolean)),
+        sedeId: d.sedeId,
+        ministerioCodigo: d.ministerioCodigo || null,
+        nombre: d.nombre,
+        lider: d.lider, liderTel: d.liderTel || "", liderEmail: d.liderEmail || "",
+        dia: d.dia || "", hora: d.hora || "", zona: d.zona || "",
+        cupo: d.cupo != null && d.cupo !== "" ? +d.cupo : null,
+        miembros: d.miembros != null && d.miembros !== "" ? +d.miembros : 0,
+        creadoPor: porPersonaId || "master",
+        creadoEn: new Date().toISOString().slice(0, 10),
+        cerrado: false,
+      };
+      st.grupos.push(g); guardar();
+      anotar("CREACION", porPersonaId || "master",
+        `Grupo pequeño «${g.nombre}» (${g.codTrabajo}) abierto en ${sede ? sede.nombre : d.sedeId}, ` +
+        `con ${g.lider} al frente. Lo creó ${v.quien}.`);
+      return { ok:true, grupo:g };
+    },
+
+    editarGrupo(id, cambios, porPersonaId) {
+      const st = cargar();
+      const g = st.grupos.find(x => x.id === id);
+      if (!g) return { ok:false, fallos:["Ese grupo ya no existe."] };
+      const v = this.puedeEnSede(porPersonaId, g.sedeId, "grupos");
+      if (!v.ok) return { ok:false, fallos:[v.razon] };
+      if (cambios.nombre === "") return { ok:false, fallos:["El grupo no puede quedarse sin nombre."] };
+      if (cambios.lider === "")  return { ok:false, fallos:["El grupo no puede quedarse sin líder."] };
+      ["nombre","lider","liderTel","liderEmail","dia","hora","zona","ministerioCodigo"]
+        .forEach(k => { if (cambios[k] !== undefined) g[k] = cambios[k]; });
+      ["cupo","miembros"].forEach(k => {
+        if (cambios[k] !== undefined) g[k] = cambios[k] === "" || cambios[k] === null ? null : +cambios[k];
+      });
+      guardar();
+      anotar("CAMBIO", porPersonaId || "master", `Grupo «${g.nombre}» (${g.codTrabajo}) actualizado por ${v.quien}.`);
+      return { ok:true, grupo:g };
+    },
+
+    /* ⛔ No se borra: se CIERRA. Un grupo que desaparece se lleva consigo
+       la historia de quién estuvo ahí, y esa historia es justamente lo que
+       el CRM de comando lee para no tratar a nadie como un desconocido. */
+    cerrarGrupo(id, porPersonaId, motivo) {
+      const st = cargar();
+      const g = st.grupos.find(x => x.id === id);
+      if (!g) return { ok:false, fallos:["Ese grupo ya no existe."] };
+      const v = this.puedeEnSede(porPersonaId, g.sedeId, "grupos");
+      if (!v.ok) return { ok:false, fallos:[v.razon] };
+      g.cerrado = true; g.cerradoEn = new Date().toISOString().slice(0, 10);
+      g.cerradoMotivo = motivo || "";
+      guardar();
+      anotar("CIERRE", porPersonaId || "master",
+        `Grupo «${g.nombre}» (${g.codTrabajo}) cerrado por ${v.quien}${motivo ? ": " + motivo : "."}`);
+      return { ok:true };
     },
 
     crearEquipo(d) {
