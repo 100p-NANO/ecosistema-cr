@@ -57,6 +57,16 @@
       analitica:"analitica", bucket:"crm", equipo:"talento",
       organigrama:"organizacion", peticiones:"peticiones", calendario:"calendario",
     },
+    "lider.html": {
+      resumen:"grupos", grupo:"grupos", analisis:"analitica",
+      tematicas:"tematicas", tematicaDetalle:"tematicas",
+      peticiones:"peticiones", notis:"peticiones", app:"grupos",
+    },
+    "rocakids-domingo.html":  { "*":"rocakids" },
+    "rocakids-director.html": { "*":"rocakids" },
+    "consejeria-consejero.html":   { "*":"consejeria" },
+    "consejeria-coordinador.html": { "*":"consejeria" },
+    "consejeria-director.html":    { "*":"consejeria" },
   };
 
   const archivo = location.pathname.split("/").pop() || "";
@@ -96,21 +106,62 @@
   }
 
   const ctx = contexto();
+
+  /* ⛔⛔ ESTO ESTABA AL REVÉS Y ERA EL DEFECTO DE FONDO.
+     Antes, si no se sabía quién entraba, el panel se abría COMPLETO.
+     Eso es «permitir por defecto», y en permisos la regla es la
+     contraria: lo que no está otorgado, no se ve.
+
+     Daniel lo dijo exacto: «si yo no le activo, él no debería ver nada».
+     Tiene razón, y no es un matiz: con el criterio viejo bastaba con
+     abrir pastor.html directamente, sin pasar por el master, para verlo
+     todo. El control no servía de nada.
+
+     Ahora sin sesión declarada no se muestra ni una pestaña, y se
+     explica por qué en vez de dejar una pantalla muda. */
   if (!ctx) {
-    console.info("[permisos] sin persona declarada: el panel se muestra completo.");
+    cerrarTodo("Este panel no tiene sesión.",
+      "Ábralo desde el sistema master, que es donde se dice quién entra y qué alcanza. " +
+      "Abrirlo directamente no da acceso a nada: lo que no está otorgado, no se ve.");
     return;
   }
   if (ctx.previa) document.documentElement.setAttribute("data-vista-previa", "1");
   const alcanzados = I.permisoEfectivo(ctx.asignaciones, null, null, ctx.activoEnSede)
     .map(x => x.modulo);
+  /* Si el mapa dice "*", la app entera depende de un solo módulo. */
+  const moduloDeLaApp = mapa["*"] || null;
+  const sinMapear = [];
   const permitido = id => {
+    if (moduloDeLaApp) return alcanzados.indexOf(moduloDeLaApp) >= 0;
     const m = mapa[id];
-    return !m || alcanzados.indexOf(m) >= 0;
+    if (!m) { if (sinMapear.indexOf(id) < 0) sinMapear.push(id); return false; }
+    return alcanzados.indexOf(m) >= 0;
   };
 
   /* ---------- 3 · aplicar, y volver a aplicar ----------
      Las apps redibujan su menú entero en cada navegación, así que no
      basta con filtrar una vez: hay que observar el DOM. */
+  function cerrarTodo(titulo, detalle) {
+    const pinta = () => {
+      if (document.getElementById("cr-sin-sesion")) return;
+      const d = document.createElement("div");
+      d.id = "cr-sin-sesion";
+      d.style.cssText = "position:fixed;inset:0;z-index:99999;background:#fafafa;" +
+        "display:grid;place-items:center;padding:24px;" +
+        "font:400 14px/21px Inter,system-ui,sans-serif;color:#57575e";
+      d.innerHTML = "<div style='max-width:420px;text-align:center;background:#fff;" +
+        "border:1px solid #e6e6e9;border-radius:12px;padding:32px'>" +
+        "<div style='width:40px;height:40px;margin:0 auto 16px;border-radius:10px;" +
+        "background:#134291;color:#fff;display:grid;place-items:center;font-weight:600'>CR</div>" +
+        "<div style='font-size:17px;font-weight:600;color:#1c1c1f;margin-bottom:8px'>" + titulo + "</div>" +
+        "<div style='font-size:13px;line-height:20px'>" + detalle + "</div></div>";
+      document.body.appendChild(d);
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", pinta);
+    else pinta();
+    new MutationObserver(pinta).observe(document.documentElement, { childList: true, subtree: true });
+  }
+
   function aplicar() {
     let ocultas = 0;
     document.querySelectorAll("[data-vista]").forEach(el => {
@@ -149,7 +200,21 @@
     document.body.appendChild(d);
   }
 
-  function ciclo() { aviso(aplicar()); }
+  function ciclo() {
+    const n = aplicar();
+    const quedan = Array.from(document.querySelectorAll("[data-vista]"))
+      .filter(el => el.style.display !== "none").length;
+    /* Si no alcanza ni una sola pestaña, no se deja una app vacía y
+       confusa: se dice claramente que no tiene nada otorgado aquí. */
+    if (!quedan && document.querySelectorAll("[data-vista]").length) {
+      cerrarTodo((ctx.persona ? ctx.persona.nombre : "Esta persona") + " no tiene nada aquí.",
+        "No se le ha otorgado ningún módulo de este panel. Se otorgan en el sistema master, " +
+        "en la ficha de la persona o en la de su iglesia.");
+      return;
+    }
+    if (sinMapear.length) console.info("[permisos] pestañas sin mapear, ocultas por defecto:", sinMapear);
+    aviso(n);
+  }
   document.addEventListener("DOMContentLoaded", ciclo);
   if (document.readyState !== "loading") ciclo();
   new MutationObserver(() => aplicar()).observe(document.documentElement,

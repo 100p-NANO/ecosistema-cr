@@ -254,11 +254,17 @@
     PANELES.forEach(pn => {
       const a = vig.find(x => x.rol === pn.rol);
       if (!a) return;
+      /* El panel abre solo si la persona ALCANZA de verdad el módulo del
+         que depende. Antes se miraba el techo a secas, y un panel podía
+         decir «abre» con cero módulos otorgados. */
       const m = modulo(pn.modulo);
-      const porTecho = !m || a.nivelMax >= m.nivel;
+      const ef = permisoEfectivo([a], null, null, moduloActivoEnSede);
+      const porTecho = !m || ef.some(x => x.modulo === pn.modulo);
       const encendido = !moduloActivoEnSede || !a.alcanceId
         ? true : moduloActivoEnSede(a.alcanceId, pn.modulo);
-      out.push(Object.assign({}, pn, { asignacion:a, porTecho, encendido,
+      const razon = !encendido ? "módulo apagado en su iglesia"
+        : !porTecho ? "no se le ha otorgado ese módulo" : "";
+      out.push(Object.assign({}, pn, { asignacion:a, porTecho, encendido, razon,
         abre: porTecho && encendido }));
     });
     return out;
@@ -462,8 +468,25 @@
            concesión por módulo, sí. */
         const nivelFila = (p.nivel == null) ? nivelEn(a, p.modulo) : p.nivel;
         if (m.nivel > nivelFila) return;
+        /* ⭐⭐ LO QUE VE UNA PERSONA NO ES LO QUE TIENE SU IGLESIA.
+           Daniel: «lo que puede ver el pastor no es lo que la iglesia
+           tiene asignado, es importante que sea modular».
+
+           Tiene razón, y antes estaba mal: los módulos le llegaban en
+           bloque por su rol, y lo único que se podía hacer era quitar.
+           Ahora la asignación lleva su PROPIA lista (`modulos`), y
+           manda ella:
+
+             modulosExplicitos = true  → solo lo marcado en true. Lo que
+                                         no se active, no se ve. Punto.
+             sin esa marca             → comportamiento antiguo, para no
+                                         romper asignaciones viejas.
+
+           La iglesia sigue siendo un techo: por mucho que se le active
+           algo a una persona, si la sede lo tiene apagado no lo ve. */
         const ex = a.modulos && a.modulos[p.modulo];
-        if (ex === false) return;                 // apagado a esta persona
+        if (a.modulosExplicitos) { if (ex !== true) return; }
+        else if (ex === false) return;
 
         /* Tercera puerta: ¿lo tiene encendido su iglesia? */
         if (activoEnSede && a.alcanceTipo === "sede") {

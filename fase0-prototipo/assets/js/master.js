@@ -241,8 +241,13 @@
 
     <div class="ms-paso"><h3><i>1</i> Qué módulos ve</h3>
       <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
-        Marcado es lo que ve. Lo que venga de su rol ya está marcado; desmarcar es una excepción
-        <b>de esta persona</b>, no del rol.</p>
+        Esta lista es <b>de esta persona</b>, no de su rol ni de su iglesia. Lo que no esté
+        marcado, no lo ve: su panel aparece sin esa pestaña. El rol solo sugiere el arranque;
+        la iglesia es un techo, porque lo que la sede tenga apagado no se ve aunque aquí esté marcado.</p>
+      <div class="ms-acciones" style="margin-bottom:12px">
+        <button class="ms-btn ms-btn--peq" data-accion="mods-todos" data-id="${esc(a.id)}" data-v="1">Marcar todo lo que su rol permite</button>
+        <button class="ms-btn ms-btn--peq ms-btn--peligro" data-accion="mods-todos" data-id="${esc(a.id)}" data-v="0">Dejar en cero</button>
+      </div>
       <div class="ms-sel">
         ${I.MODULOS.map(m => {
           const filas = M.matriz().filter(x => x.rol === a.rol && x.modulo === m.codigo);
@@ -748,7 +753,7 @@
               </div>
               ${x.abre
                 ? `<button class="ms-btn ms-btn--peq ms-btn--primario" data-accion="abrirpanel" data-url="${esc(x.url)}" data-lbl="${esc(x.nombre)}" data-persona="${esc(id)}">Entrar</button>`
-                : `<span class="ms-vig ms-vig--fin">${x.encendido ? "techo insuficiente" : "módulo apagado en su iglesia"}</span>`}
+                : `<span class="ms-vig ms-vig--fin">${esc(x.razon || "sin acceso")}</span>`}
               ${x.crea && x.crea.length ? `<div class="ms-panelc__crea">Desde ahí crea: ${esc(x.crea.join(", "))}</div>` : ""}
             </div>`;
           }).join("")}</div>`;
@@ -1259,7 +1264,7 @@
             <td>${esc((I.rol(a.rol)||{}).nombre || a.rol)}</td>
             <td><button class="ms-enlace" data-accion="verpersona" data-id="${esc(a.personaId)}">${esc(per ? per.nombre : "")}</button></td>
             <td>${x.abre ? `<span class="ms-vig ms-vig--ok">Abre</span>`
-                         : `<span class="ms-vig ms-vig--fin">${x.encendido ? "techo insuficiente" : "módulo apagado"}</span>`}</td>
+                         : `<span class="ms-vig ms-vig--fin">${esc(x.razon || "sin acceso")}</span>`}</td>
             <td class="ms-acc-col">${x.abre
               ? `<button class="ms-btn ms-btn--peq" data-accion="abrirpanel" data-url="${esc(x.url)}" data-lbl="${esc(x.nombre)}" data-persona="${esc(id)}">Entrar</button>` : ""}</td>
           </tr>`);
@@ -1525,6 +1530,9 @@
       if (g.sedeId && bt.dataset.vista === "iglesia")    nb.verSede = g.sedeId;
       borrador = nb; vista = bt.dataset.vista; pintar();
       const m = $("#ms-main"); if (m) m.focus(); return;
+    }
+    if (a === "mods-todos") {
+      M.fijarModulos(bt.dataset.id, bt.dataset.v === "1"); pintar(); return;
     }
     if (a === "previa") {
       /* La vista previa no crea nada ni toca la base: arma una asignación

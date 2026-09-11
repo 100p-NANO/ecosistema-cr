@@ -283,7 +283,21 @@
          alcance. Tener el rol no la trae: el Pastor Principal la otorga
          aparte. Un pastor de sede sin ella opera su iglesia pero no puede
          desactivar a un líder. */
+      /* La asignación nace con SU lista de módulos, pre-rellenada con lo
+         que el rol sugiere. Desde ese momento manda la lista, no el rol:
+         así lo que se apague se queda apagado, y un módulo nuevo del
+         catálogo NO aparece solo en el panel de nadie. */
       const fila = Object.assign({ id: "a-" + Math.random().toString(36).slice(2, 8), delega:false }, a);
+      if (!fila.modulos) {
+        fila.modulos = {};
+        const arranqueVacio = a.arrancarEnCero === true;
+        I.MODULOS.forEach(m => {
+          const daRol = I.MATRIZ.some(x => x.rol === fila.rol && x.modulo === m.codigo);
+          const cabe = I.nivelDelRolEn(fila.rol, m.codigo, fila.nivelMax) >= m.nivel;
+          fila.modulos[m.codigo] = !arranqueVacio && daRol && cabe;
+        });
+        fila.modulosExplicitos = true;
+      }
       d.asignaciones.push(fila); guardar();
       const per = this.persona(a.personaId);
       const rl  = I.rol(a.rol), al = I.alcance(a.alcanceTipo);
@@ -337,6 +351,32 @@
       return { ok:true };
     },
 
+    /* Encender o apagar TODOS los módulos de una asignación de una vez.
+       «Ninguno» es lo que deja el panel en cero, que es como debe
+       arrancar quien todavía no tiene nada otorgado. */
+    /* ⚠️ Se llamaba `modulosTodos` y chocaba con el catálogo de módulos
+       que ya existía con ese nombre. Uno pisaba al otro y la función no
+       hacía nada, en silencio. Renombrada a `fijarModulos`. */
+    fijarModulos(idAsignacion, encender) {
+      const st = cargar(), a = st.asignaciones.find(x => x.id === idAsignacion);
+      if (!a) return { ok:false, fallos:["No existe esa asignación."] };
+      a.modulos = {}; a.modulosExplicitos = true;
+      if (encender) {
+        I.MODULOS.forEach(m => {
+          const daRol = I.MATRIZ.some(x => x.rol === a.rol && x.modulo === m.codigo);
+          const cabe = I.nivelDelRolEn(a.rol, m.codigo, a.nivelMax) >= m.nivel;
+          if (daRol && cabe) a.modulos[m.codigo] = true;
+        });
+      }
+      guardar();
+      const per = this.persona(a.personaId);
+      anotar("CAMBIO_PERMISO", "master",
+        (encender ? "Se encendieron todos los módulos que su rol permite a "
+                  : "Se dejó en CERO el acceso de ") + (per ? per.nombre : a.personaId) +
+        " como " + ((I.rol(a.rol) || {}).nombre || a.rol) + ".");
+      return { ok:true, n:Object.keys(a.modulos).length };
+    },
+
     /* Sumar o quitar un destino del alcance. Un pastor regional cubre
        tres iglesias con UNA asignación, no con tres iguales. */
     alternarAlcance(idAsignacion, destinoId) {
@@ -376,9 +416,7 @@
       const daba = I.MATRIZ.some(p2 => p2.rol === a.rol && p2.modulo === codModulo);
       const estaba = a.modulos[codModulo] === undefined ? daba : a.modulos[codModulo];
       a.modulos[codModulo] = !estaba;
-      /* Si la excepción coincide con lo que ya daba el rol, se borra:
-         no se guardan excepciones que no excepcionan nada. */
-      if (a.modulos[codModulo] === daba) delete a.modulos[codModulo];
+      a.modulosExplicitos = true;   // desde que se toca a mano, manda la lista
       guardar();
       const per = this.persona(a.personaId);
       anotar("CAMBIO_PERMISO", "master",
