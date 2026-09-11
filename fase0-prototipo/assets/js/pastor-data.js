@@ -666,6 +666,10 @@
      Exponemos constantes/seed en window.PASTOR
      ============================================================ */
   window.PASTOR = {
+    /* El nombre ORIGINAL de la sede sembrada. El puente con el centro de
+       mando reescribe SEDE.nombre para saludar con la iglesia correcta,
+       así que hace falta recordar de quién son de verdad estas cifras. */
+    SEDE_DEMO_NOMBRE: SEDE.nombre,
     SEDE, PASTOR_USER, MIN_DEFS, ESPACIOS, EQUIPOS_ADMIN,
     DIRECTORIO_PASTORES: genPastores(), DIRECTORIO_ADMIN: DIR_ADMIN,
     CONSEJERIAS, AYUDAS_MAS, ASISTENCIA,

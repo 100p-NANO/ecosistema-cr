@@ -1122,7 +1122,22 @@
 
     const filaAcceso = a => {
       const p = M.persona(a.personaId), r = I.rol(a.rol);
-      const ef = I.permisoEfectivo([a]);
+      /* ⛔⛔ ESTA COLUMNA MENTÍA, Y ERA EL DEFECTO QUE DANIEL VIO EL 11 DE
+         SEPTIEMBRE: «le asigno permisos a la iglesia de Barcelona y pongo
+         un pastor, y aparecen todas las pestañas activadas».
+
+         El alcance se calculaba SIN pasarle la cuarta puerta del motor,
+         la que pregunta si el módulo está encendido EN ESA IGLESIA. Por
+         eso la ficha de Barcelona listaba los 20 módulos que concede el
+         rol mientras la sede tenía uno solo encendido. No era un adorno
+         mal pintado: era la ficha diciendo lo contrario de lo que el
+         panel iba a hacer, que es la peor forma de equivocarse.
+
+         Ahora enseña lo EFECTIVO, y lo que el rol da pero la iglesia
+         retiene se dice aparte, en vez de ocultarlo o de fingir que se
+         otorga. */
+      const ef = I.permisoEfectivo([a], null, null, (sid, mo) => M.moduloActivo(sid, mo));
+      const frenados = I.permisoEfectivo([a]).length - ef.length;
       return `<tr>
         <td><button class="ms-enlace ms-nom" data-accion="verpersona" data-id="${esc(a.personaId)}">${esc(p ? p.nombre : a.personaId)}</button>
             <span class="ms-sub">${esc((p || {}).codigo || "")}</span></td>
@@ -1130,7 +1145,9 @@
         <td>${pastilla(a.nivelMax)}</td>
         <td><div class="ms-chips">${ef.length
           ? ef.map(x => `<span class="ms-chip">${esc(x.nombre)}</span>`).join("")
-          : "<i>ninguno</i>"}</div></td>
+          : "<i>ninguno</i>"}</div>${frenados > 0
+          ? `<div class="ms-sub">+${frenados} que su rol concede y esta iglesia tiene apagados</div>`
+          : ""}</td>
         <td>${a.delega ? `<span class="ms-vig ms-vig--ok">Puede nombrar</span>` : `<span class="ms-sub">no nombra</span>`}</td>
         <td>${vigencia(a)}</td>
         <td class="ms-acc-col"><button class="ms-btn ms-btn--peq ms-btn--peligro" data-accion="revocar" data-id="${esc(a.id)}">Cerrar</button></td>

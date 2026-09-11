@@ -94,7 +94,7 @@
     try { sim = JSON.parse(localStorage.getItem("casaroca_panel_simulado") || "null"); } catch (e) {}
     if (sim && sim.rol) {
       return { persona: { nombre: sim.etiqueta || "Vista previa" },
-               asignaciones: [sim], activoEnSede: activo, previa: true };
+               asignaciones: [sim], activoEnSede: activo, previa: true, datos: d };
     }
 
     let pid = null;
@@ -102,7 +102,7 @@
     if (!pid) return null;                 // sin persona declarada, no se filtra
     const persona = (d.personas || []).find(p => p.id === pid);
     const asig = d.asignaciones.filter(a => a.personaId === pid);
-    return { persona, asignaciones: asig, activoEnSede: activo };
+    return { persona, asignaciones: asig, activoEnSede: activo, datos: d };
   }
 
   const ctx = contexto();
@@ -126,6 +126,71 @@
     return;
   }
   if (ctx.previa) document.documentElement.setAttribute("data-vista-previa", "1");
+
+  /* ============================================================
+     2 bis · QUIÉN DICE EL PANEL QUE ENTRÓ
+     ------------------------------------------------------------
+     Segundo defecto que Daniel encontró el 11 de septiembre, y es
+     hermano del anterior: «aparece un tal Camilo». Tenía razón.
+
+     Cada app de Fase 0 trae cableada su propia identidad de
+     demostración (PASTOR_USER, DIRECTOR_USER, NICO_USER, la USER de
+     central) y su pantalla de entrada la usaba sin preguntarle a
+     nadie. Resultado: el centro de mando decía «entra Julián Prieto,
+     pastor de Barcelona» y el panel saludaba a Camilo Restrepo, de
+     Bogotá Chicó. El master mandaba y el panel no lo escuchaba, que es
+     justo lo contrario de la regla: lo que se pone en el centro de
+     mando es lo que se ve en la iglesia local.
+
+     Se puede arreglar sin tocar las cuatro apps porque todas toman su
+     usuario POR REFERENCIA (`const USER = P.PASTOR_USER`). Basta con
+     reescribir ESE objeto antes del primer dibujo: este archivo es
+     síncrono y las apps pintan en DOMContentLoaded.
+     ============================================================ */
+  const IDENT = {
+    "pastor.html":   () => window.PASTOR  && window.PASTOR.PASTOR_USER,
+    "director.html": () => window.DIRECTOR && window.DIRECTOR.DIRECTOR_USER,
+    "nicodemo.html": () => window.NICO    && window.NICO.NICO_USER,
+    "central.html":  () => window.CENTRAL && window.CENTRAL.USER,
+  };
+
+  function iniciales(n) {
+    return String(n || "").trim().split(/\s+/).slice(0, 2)
+      .map(x => x.charAt(0).toUpperCase()).join("") || "CR";
+  }
+  function nombreSede(sedeId) {
+    const ss = (ctx.datos && ctx.datos.sedes) || [];
+    const s = ss.find(x => x.id === sedeId);
+    return s ? s.nombre : null;
+  }
+
+  /* La asignación que manda es la de esta app: la de mayor alcance que
+     traiga la persona. Con una sola, es esa. */
+  const asigMandante = (ctx.asignaciones || [])[0] || null;
+  let sedeDeclarada = null;
+
+  (function suplantar() {
+    const traer = IDENT[archivo];
+    const U = traer && traer();
+    if (!U || !asigMandante) return;
+
+    const rl = I.rol(asigMandante.rol);
+    const nom = (ctx.persona && ctx.persona.nombre) || (rl ? rl.nombre : "Sin nombre");
+    sedeDeclarada = asigMandante.alcanceTipo === "sede"
+      ? nombreSede(asigMandante.alcanceId) : null;
+
+    U.nombre = nom;
+    U.iniciales = iniciales(nom);
+    if (rl) U.rol = rl.nombre;
+    if (ctx.persona && ctx.persona.correo) U.email = ctx.persona.correo;
+    if (sedeDeclarada) U.sede = sedeDeclarada;
+
+    /* El nombre de la sede en el encabezado del panel del pastor vive
+       aparte del usuario. Se cambia solo la etiqueta, NUNCA el id: hay
+       datos colgados de ese id. */
+    const SD = window.PASTOR && window.PASTOR.SEDE;
+    if (SD && sedeDeclarada) SD.nombre = sedeDeclarada;
+  })();
   const alcanzados = I.permisoEfectivo(ctx.asignaciones, null, null, ctx.activoEnSede)
     .map(x => x.modulo);
   /* Si el mapa dice "*", la app entera depende de un solo módulo. */
@@ -185,19 +250,60 @@
   }, true);
 
   function aviso(n) {
-    if (!n || document.getElementById("cr-aviso-permisos")) return;
+    if (document.getElementById("cr-aviso-permisos")) return;
+    /* Puede llegar 0 porque en esta pasada no se ocultó nada nuevo, y
+       aun así haber secciones ocultas de antes. Se cuenta el total. */
+    const total = document.querySelectorAll("[data-permiso-oculto]").length || n;
+    if (!total) return;
+    n = total;
     const d = document.createElement("div");
     d.id = "cr-aviso-permisos";
     d.style.cssText = "position:fixed;bottom:12px;left:12px;z-index:9999;max-width:320px;" +
       "background:#fff;border:1px solid #e6e6e9;border-left:3px solid #134291;border-radius:8px;" +
       "padding:9px 12px;font:400 12px/17px Inter,system-ui,sans-serif;color:#57575e;" +
       "box-shadow:0 4px 12px rgba(20,20,24,.08)";
+    /* ⚠️ Decir la verdad sobre las CIFRAS, no solo sobre las pestañas.
+       El panel entra ya con el nombre y la iglesia correctos, pero los
+       números que pinta siguen siendo el conjunto sembrado de Fase 0.
+       Callarlo sería cambiar un engaño por otro: alguien leería que
+       Barcelona tiene 1.763 personas. Mientras los paneles no lean del
+       centro de mando, se avisa. */
+    const demo = window.PASTOR && window.PASTOR.SEDE_DEMO_NOMBRE;
+    const mezcla = sedeDeclarada && demo && sedeDeclarada !== demo;
     d.innerHTML = "<b style='color:#1c1c1f'>" + (ctx.persona ? ctx.persona.nombre : "Sesión") + "</b><br>" +
       n + " sección(es) ocultas porque " + (ctx.previa ? "este rol" : "su rol") + " no las alcanza. " +
       "<span style='color:#8b8b93'>" +
-      (ctx.previa ? "Vista previa: nadie ocupa este rol todavía." : "Se otorgan en el sistema master.") +
-      "</span>";
+      (ctx.previa ? "Vista previa: nadie ocupa este rol todavía." : "Se otorgan en el centro de mando.") +
+      "</span>" +
+      (mezcla ? "<br><span style='color:#8b8b93'>Las cifras siguen siendo el conjunto de prueba de " +
+        demo + ", no de " + sedeDeclarada + ".</span>" : "");
     document.body.appendChild(d);
+  }
+
+  /* ⛔⛔ ESCONDER EL BOTÓN NO ES QUITAR EL ACCESO.
+     Visto el 11 de septiembre con el panel ya corregido: a Julián le
+     quedaba una sola pestaña en la barra, «Directorio», y aun así la
+     pantalla mostraba la Analítica completa de la sede, con sus 1.763
+     personas y sus aportes. La razón es simple y fácil de pasar por
+     alto: cada app arranca en una vista fija (`analitica`), y nosotros
+     ocultábamos el botón que lleva a ella sin sacarlo de la pantalla.
+
+     Era el mismo defecto de fondo que Daniel ya había señalado antes,
+     «le desactivé CRM y aún lo podía ver», solo que por la puerta de
+     atrás: no por navegar, sino por quedarse donde el panel abre solo.
+
+     Si la vista en curso no está otorgada, se lleva a la primera que sí
+     lo esté. */
+  let llevado = false;
+  function llevarADondeSiAlcanza() {
+    const enCurso = document.querySelector('nav [data-vista][aria-current="page"]')
+      || document.querySelector("nav [data-vista].is-active");
+    if (enCurso && permitido(enCurso.dataset.vista)) { llevado = false; return; }
+    const destino = Array.from(document.querySelectorAll("nav [data-vista]"))
+      .find(el => permitido(el.dataset.vista));
+    if (!destino || llevado) return;
+    llevado = true;                      // un solo intento por render
+    destino.click();
   }
 
   function ciclo() {
@@ -213,10 +319,26 @@
       return;
     }
     if (sinMapear.length) console.info("[permisos] pestañas sin mapear, ocultas por defecto:", sinMapear);
+    llevarADondeSiAlcanza();
     aviso(n);
+  }
+  /* ⚠️ El aviso no llegaba nunca a verse, y era un fallo silencioso.
+     `ciclo()` corre al cargar, cuando el panel todavía enseña su pantalla
+     de entrada y no existe una sola pestaña que contar: se ocultaban 0 y
+     el aviso se callaba con razón. Después del login aparecían las 17 de
+     golpe, pero ahí ya solo corría `aplicar()`, que oculta y no explica.
+
+     Resultado: al pastor le faltaban 16 secciones y nadie le decía por
+     qué. Ocultar sin explicar es como no tener permisos: se lee como que
+     el sistema está roto. Ahora el observador vuelve a pasar el ciclo
+     entero, con freno para no encadenarse con sus propios cambios. */
+  let pendiente = null;
+  function reevaluar() {
+    if (pendiente) return;
+    pendiente = setTimeout(() => { pendiente = null; ciclo(); }, 60);
   }
   document.addEventListener("DOMContentLoaded", ciclo);
   if (document.readyState !== "loading") ciclo();
-  new MutationObserver(() => aplicar()).observe(document.documentElement,
-    { childList: true, subtree: true });
+  new MutationObserver(() => { aplicar(); reevaluar(); })
+    .observe(document.documentElement, { childList: true, subtree: true });
 })();
