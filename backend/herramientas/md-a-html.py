@@ -1,5 +1,6 @@
 import re, html, sys
 src, out, titulo = sys.argv[1], sys.argv[2], sys.argv[3]
+nota = sys.argv[4] if len(sys.argv) > 4 else ''   # nota al pie opcional, por documento
 md = open(src, encoding='utf-8').read()
 
 def inline(t):
@@ -35,19 +36,39 @@ while i < len(L):
         sal.append('</tbody></table>')
         continue
 
+    # bloque de codigo cercado con ``` : se respeta tal cual, sin interpretar
+    if s.startswith('```'):
+        cerrar(); i += 1; lineas = []
+        while i < len(L) and not L[i].strip().startswith('```'):
+            lineas.append(L[i]); i += 1
+        i += 1
+        sal.append('<pre><code>' + html.escape('\n'.join(lineas)) + '</code></pre>')
+        continue
+
     if re.match(r'^-{3,}$', s): cerrar(); sal.append('<hr>'); i+=1; continue
     m = re.match(r'^(#{1,4})\s+(.*)$', s)
     if m: cerrar(); n=len(m.group(1)); sal.append(f'<h{n}>{inline(m.group(2))}</h{n}>'); i+=1; continue
+    def continuacion(j):
+        # lineas sueltas que pertenecen al item anterior, no a un parrafo nuevo
+        cuerpo = []
+        while (j+1 < len(L) and L[j+1].strip()
+               and not re.match(r'^(#{1,4}\s|[-*]\s|\d+\.\s|-{3,}$|\||```)', L[j+1].strip())):
+            j += 1; cuerpo.append(L[j].strip())
+        return j, cuerpo
+
     m = re.match(r'^(\d+)\.\s+(.*)$', s)
     if m:
         if lista!='ol': cerrar(); sal.append('<ol>'); lista='ol'
-        sal.append(f'<li>{inline(m.group(2))}</li>'); i+=1; continue
+        i, extra = continuacion(i)
+        sal.append(f'<li>{inline(" ".join([m.group(2)] + extra))}</li>'); i+=1; continue
     m = re.match(r'^[-*]\s+(.*)$', s)
     if m:
         if lista!='ul': cerrar(); sal.append('<ul>'); lista='ul'
-        sal.append(f'<li>{inline(m.group(1))}</li>'); i+=1; continue
+        i, extra = continuacion(i)
+        sal.append(f'<li>{inline(" ".join([m.group(1)] + extra))}</li>'); i+=1; continue
     buf=[s]
-    while i+1 < len(L) and L[i+1].strip() and not re.match(r'^(#{1,4}\s|[-*]\s|\d+\.\s|-{3,}|\||\*\*)', L[i+1].strip()):
+    # una linea que arranca en negrita NO es un bloque nuevo: es el mismo parrafo
+    while i+1 < len(L) and L[i+1].strip() and not re.match(r'^(#{1,4}\s|[-*]\s|\d+\.\s|-{3,}$|\||```)', L[i+1].strip()):
         i+=1; buf.append(L[i].strip())
     cerrar(); sal.append('<p>'+inline(' '.join(buf))+'</p>'); i+=1
 cerrar()
@@ -74,12 +95,17 @@ th { background:#0d2b4e; color:#fff; text-align:left; padding:.45em .6em; font-w
 td { padding:.4em .6em; border-bottom:1px solid #e3e7ec; vertical-align:top; }
 tbody tr:nth-child(even) td { background:#f7f9fb; }
 td:not(:first-child) { text-align:right; } th:not(:first-child) { text-align:right; }
+pre { background:#f7f9fb; border:1px solid #e3e7ec; border-left:3px solid #0d2b4e;
+      padding:.7em .9em; margin:.6em 0 1.1em; border-radius:3px; overflow:hidden;
+      page-break-inside:avoid; }
+pre code { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:8.6pt; line-height:1.45;
+      background:none; padding:0; color:#12355b; white-space:pre-wrap; word-break:break-word; }
 .pie { margin-top:2.2em; padding-top:.7em; border-top:1px solid #d4d9e0; font-size:8.4pt;
        color:#5a6472; font-family:-apple-system,Arial,sans-serif; }
 </style></head><body>
 %s
-<p class="pie">Documento de la mesa de trabajo · CasaRoca System · Fase 1 · agosto de 2026.
-Precios de lista de Google Cloud, región us-east1, consultados en agosto de 2026: verificar en el calculador antes de presentar.</p>
+<p class="pie">Documento de la mesa de trabajo · CasaRoca System · Fase 1.%s</p>
 </body></html>"""
-open(out,'w',encoding='utf-8').write(plantilla % (html.escape(titulo), '\n'.join(sal)))
+open(out,'w',encoding='utf-8').write(
+    plantilla % (html.escape(titulo), '\n'.join(sal), (' ' + html.escape(nota)) if nota else ''))
 print("HTML:", out)
