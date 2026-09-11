@@ -435,6 +435,8 @@
       <div class="ms-marca"><div class="ms-logo">CR</div>
         <div><b>Casa Roca · Sistema Master</b><small>Dirección General · 36 iglesias</small></div></div>
       <div class="ms-sp"></div>
+      <button class="ms-ck" data-accion="abrircmd" title="Ir a cualquier parte">
+        <span>Buscar o ir a…</span><kbd>\u2318K</kbd></button>
       <div class="ms-yo"><div><b>${esc(YO.nombre)}</b><small>${esc(I.rol(YO.rol).nombre)} · techo N${YO.techo} · ${ef.length} módulos</small></div>
         <div class="ms-av">DG</div></div>
     </header>
@@ -449,6 +451,12 @@
            </button>`).join("")}
       </nav>
       <main class="ms-main" id="ms-main" tabindex="-1">${html}</main>
+    </div>
+    <div class="ms-cmd" id="ms-cmd" role="dialog" aria-modal="true" aria-label="Ir a">
+      <div class="ms-cmd__caja">
+        <input class="ms-cmd__in" id="ms-cmd-in" placeholder="Pestaña, persona o rol…" autocomplete="off">
+        <div class="ms-cmd__lista" id="ms-cmd-lista"></div>
+      </div>
     </div>`;
   }
 
@@ -476,6 +484,7 @@
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-accion]"); if (!b) return;
     const a = b.dataset.accion;
+    if (a === "abrircmd") { cmdAbrir(); return; }
     if (a === "ir") { vista = b.dataset.vista; pintar(); const m = $("#ms-main"); if (m) m.focus(); }
     if (a === "nivel")   { borrador.nivelMax = +b.dataset.n; pintar(); }
     if (a === "limpiar") { borrador = null; pintar(); }
@@ -508,6 +517,71 @@
   document.addEventListener("input", e => {
     const c = e.target.closest("[data-campo]");
     if (c && c.tagName === "INPUT") { borrador = borrador || {}; borrador[c.dataset.campo] = c.value; }
+  });
+
+  /* ============================================================
+     BARRA DE COMANDOS · el gesto de Linear.
+     Con 36 iglesias y 30 pestañas, el menú deja de servir: lo que
+     sirve es escribir tres letras. Indexa pestañas, personas y roles.
+     ============================================================ */
+  let cmdAbierta = false, cmdSel = 0, cmdRes = [];
+
+  function cmdIndice() {
+    const idx = [];
+    NAV.forEach(n => { if (!n.sep) idx.push({ t:"Pestaña", txt:n.lbl, ico:n.ico, ir:n.id }); });
+    M.personas().forEach(p => {
+      const vig = M.deLaPersona(p.id).filter(a => !a.hasta || a.hasta >= hoy());
+      idx.push({ t:"Persona", txt:p.nombre, ico:"👤",
+        pista: vig.length ? (I.rol(vig[0].rol)||{}).nombre : "sin acceso",
+        ir:"efectivo", persona:p.id });
+    });
+    I.ROLES.forEach(r => idx.push({ t:"Rol", txt:r.nombre, ico:"🎭",
+      pista:"techo N" + r.techo, ir:"roles" }));
+    return idx;
+  }
+  function cmdPintar(q) {
+    const norm = x => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const t = norm(q || "").trim();
+    cmdRes = cmdIndice().filter(x => !t || norm(x.txt).indexOf(t) >= 0 || norm(x.t).indexOf(t) >= 0)
+                        .slice(0, 40);
+    if (cmdSel >= cmdRes.length) cmdSel = 0;
+    const cont = document.getElementById("ms-cmd-lista"); if (!cont) return;
+    cont.innerHTML = cmdRes.length
+      ? cmdRes.map((x, i) => `<button class="ms-cmd__it ${i === cmdSel ? "is-sel" : ""}" data-cmd="${i}">
+          <span>${x.ico}</span><span>${esc(x.txt)}</span>
+          <em>${esc(x.pista || x.t)}</em></button>`).join("")
+      : `<div class="ms-cmd__vac">Nada coincide con «${esc(q)}».</div>`;
+  }
+  function cmdIr(i) {
+    const x = cmdRes[i]; if (!x) return;
+    if (x.persona) { borrador = borrador || {}; borrador.verPersona = x.persona; }
+    vista = x.ir; cmdCerrar(); pintar();
+  }
+  function cmdAbrir() {
+    const c = document.getElementById("ms-cmd"); if (!c) return;
+    cmdAbierta = true; cmdSel = 0; c.classList.add("is-on");
+    const inp = document.getElementById("ms-cmd-in");
+    inp.value = ""; cmdPintar(""); inp.focus();
+  }
+  function cmdCerrar() {
+    cmdAbierta = false;
+    const c = document.getElementById("ms-cmd"); if (c) c.classList.remove("is-on");
+  }
+  document.addEventListener("keydown", e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); cmdAbierta ? cmdCerrar() : cmdAbrir(); return; }
+    if (!cmdAbierta) return;
+    if (e.key === "Escape") { e.preventDefault(); cmdCerrar(); }
+    if (e.key === "ArrowDown") { e.preventDefault(); cmdSel = Math.min(cmdSel + 1, cmdRes.length - 1); cmdPintar(document.getElementById("ms-cmd-in").value); }
+    if (e.key === "ArrowUp")   { e.preventDefault(); cmdSel = Math.max(cmdSel - 1, 0); cmdPintar(document.getElementById("ms-cmd-in").value); }
+    if (e.key === "Enter")     { e.preventDefault(); cmdIr(cmdSel); }
+  });
+  document.addEventListener("input", e => {
+    if (e.target.id === "ms-cmd-in") { cmdSel = 0; cmdPintar(e.target.value); }
+  });
+  document.addEventListener("click", e => {
+    if (e.target.id === "ms-cmd") { cmdCerrar(); return; }
+    const it = e.target.closest("[data-cmd]");
+    if (it) cmdIr(+it.dataset.cmd);
   });
 
   document.addEventListener("DOMContentLoaded", pintar);
