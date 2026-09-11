@@ -1,0 +1,10 @@
+/* donaciones.css · Tablas e inmutabilidad del Módulo de Donaciones */
+.don__tabla td.monto { text-align:right; font-family:var(--fuente-datos);
+  font-variant-numeric:tabular-nums; }
+.don__fila--certificada { background:var(--superficie-2); }
+/* Una fila certificada no se edita: la base la rechaza (prueba 2 del
+   banco empalme_100p). El estilo lo hace evidente antes de intentarlo. */
+.don__fila--certificada .btn { pointer-events:none; opacity:.45; }
+.don__candado { color:var(--texto-tenue); font-size:var(--texto-xs); }
+.don__cuadre--ok   { color:var(--exito); }
+.don__cuadre--mal  { color:var(--peligro); font-weight:var(--peso-fuerte); }

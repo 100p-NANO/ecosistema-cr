@@ -1,0 +1,69 @@
+/* =====================================================================
+   variables.css · Diccionario Global (Design Tokens)
+   Estructura propuesta por Jhon: «Arquitectura Fronted y Backed» v1.0,
+   Drive Sistema 100p, 02 Modulos/CSS, 1 de septiembre de 2026.
+
+   ⚠️ Los VALORES salen del tokens.css que ya existe en el prototipo
+   Fase 0, para que la comparacion sea entre ESTRUCTURAS y no entre
+   paletas inventadas. Lo unico nuevo es la tipografia.
+   ===================================================================== */
+
+:root {
+  /* ---------- Tipografia ----------
+     El documento pide Geomanist. Es una fuente COMERCIAL de atipo
+     foundry: no esta instalada en este equipo y no se puede descargar
+     sin licencia. Se declara primero y se deja Inter como respaldo,
+     que es lo que el prototipo usa hoy. */
+  --fuente-base: "Geomanist", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fuente-datos: "JetBrains Mono", "SF Mono", Menlo, monospace;
+
+  --peso-regular: 400;
+  --peso-medio:   500;
+  --peso-fuerte:  600;
+
+  --texto-xs:  0.75rem;
+  --texto-sm:  0.875rem;
+  --texto-base: 1rem;
+  --texto-lg:  1.125rem;
+  --texto-xl:  1.5rem;
+  --texto-2xl: 2rem;
+
+  /* ---------- Paleta institucional ---------- */
+  --azul-900: #0A2A5E;
+  --azul-700: #134291;   /* primario de marca */
+  --azul-600: #1B53AD;
+  --azul-100: #E4ECFA;
+  --azul-50:  #F1F6FD;
+
+  --mostaza-600: #C8881A;
+  --mostaza-500: #E3A52C;   /* acento calido */
+  --mostaza-100: #FDF4DE;
+
+  --superficie:   #FFFFFF;
+  --superficie-2: #F1F2F5;
+  --canvas:       #F5F6F8;
+  --borde:        #E6E8EE;
+  --borde-fuerte: #D6D9E2;
+
+  --texto:       #161D2E;
+  --texto-suave: #58617A;
+  --texto-tenue: #8A92A6;
+
+  --exito:   #1E8A55;  --exito-bg:   #E5F5EC;
+  --aviso:   #B5790F;  --aviso-bg:   #FDF4DE;
+  --peligro: #C13A2B;  --peligro-bg: #FBEAE7;
+  --info:    #1B53AD;  --info-bg:    #E4ECFA;
+
+  /* ---------- Recorrido 4C ---------- */
+  --etapa-conoce:  #2A66C4;
+  --etapa-conecta: #7E57C2;
+  --etapa-crece:   #1E8A55;
+  --etapa-sirve:   #E3A52C;
+
+  /* ---------- Espacio, radio, sombra ---------- */
+  --e1: 4px;  --e2: 8px;  --e3: 12px; --e4: 16px; --e5: 24px; --e6: 32px;
+  --radio:    8px;
+  --radio-lg: 12px;
+  --sombra:    0 1px 2px rgba(22,29,46,.06), 0 1px 3px rgba(22,29,46,.10);
+  --sombra-lg: 0 4px 12px rgba(22,29,46,.10);
+}

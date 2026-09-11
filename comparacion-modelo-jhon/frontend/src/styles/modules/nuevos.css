@@ -1,0 +1,14 @@
+/* nuevos.css · Modal y tablas del Módulo de Nuevos */
+.nuevos__bandeja { display:grid; gap:var(--e4); }
+.nuevos__filtros { display:flex; flex-wrap:wrap; gap:var(--e2); }
+.nuevos__fila--atrasado { background:var(--peligro-bg); }
+.nuevos__modal { position:fixed; inset:0; display:grid; place-items:center;
+  background:rgba(10,42,94,.45); padding:var(--e4); }
+.nuevos__modal-caja { width:min(640px,94vw); background:var(--superficie);
+  border-radius:var(--radio-lg); padding:var(--e5); max-height:88vh; overflow:auto; }
+.nuevos__4c { display:flex; gap:var(--e1); }
+.nuevos__4c span { flex:1; height:6px; border-radius:99px; background:var(--superficie-2); }
+.nuevos__4c span.on:nth-child(1){ background:var(--etapa-conoce); }
+.nuevos__4c span.on:nth-child(2){ background:var(--etapa-conecta); }
+.nuevos__4c span.on:nth-child(3){ background:var(--etapa-crece); }
+.nuevos__4c span.on:nth-child(4){ background:var(--etapa-sirve); }

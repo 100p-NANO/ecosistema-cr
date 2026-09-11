@@ -1,0 +1,33 @@
+/* =====================================================================
+   ui-components.css · Botones, Tarjetas, Inputs y Badges reutilizables
+   ⭐ Esta capa NO existe hoy en el prototipo Fase 0: alli cada hoja de
+   estilo por rol repite sus propios botones y tarjetas. Es la mejor
+   idea de la propuesta de Jhon.
+   ===================================================================== */
+.btn { display:inline-flex; align-items:center; gap:var(--e2);
+  font:inherit; font-weight:var(--peso-medio); font-size:var(--texto-sm);
+  padding:var(--e2) var(--e4); border-radius:var(--radio);
+  border:1px solid transparent; cursor:pointer; }
+.btn--primario  { background:var(--azul-700); color:#fff; }
+.btn--primario:hover { background:var(--azul-900); }
+.btn--secundario{ background:var(--superficie); color:var(--texto); border-color:var(--borde-fuerte); }
+.btn--peligro   { background:var(--peligro); color:#fff; }
+
+.tarjeta { background:var(--superficie); border:1px solid var(--borde);
+  border-radius:var(--radio-lg); padding:var(--e5); box-shadow:var(--sombra); }
+.tarjeta__titulo { font-size:var(--texto-sm); color:var(--texto-suave);
+  text-transform:uppercase; letter-spacing:.04em; margin-bottom:var(--e2); }
+
+.campo { display:block; width:100%; font:inherit; padding:var(--e2) var(--e3);
+  border:1px solid var(--borde-fuerte); border-radius:var(--radio);
+  background:var(--superficie); color:var(--texto); }
+.campo:focus { outline:2px solid var(--azul-600); outline-offset:1px; border-color:var(--azul-600); }
+.etiqueta { display:block; font-size:var(--texto-sm); font-weight:var(--peso-medio);
+  color:var(--texto-suave); margin-bottom:var(--e1); }
+
+.insignia { display:inline-block; font-size:var(--texto-xs); font-weight:var(--peso-medio);
+  padding:2px var(--e2); border-radius:99px; }
+.insignia--exito  { background:var(--exito-bg);  color:var(--exito); }
+.insignia--aviso  { background:var(--aviso-bg);  color:var(--aviso); }
+.insignia--peligro{ background:var(--peligro-bg);color:var(--peligro); }
+.insignia--info   { background:var(--info-bg);   color:var(--info); }

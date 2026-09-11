@@ -1,0 +1,17 @@
+/* crm-pastoral.css · Seguimiento 4C y Notas Confidenciales */
+.past__recorrido { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--e2); }
+.past__etapa { padding:var(--e3); border-radius:var(--radio);
+  border:1px solid var(--borde); background:var(--superficie); }
+.past__etapa--conoce  { border-top:3px solid var(--etapa-conoce); }
+.past__etapa--conecta { border-top:3px solid var(--etapa-conecta); }
+.past__etapa--crece   { border-top:3px solid var(--etapa-crece); }
+.past__etapa--sirve   { border-top:3px solid var(--etapa-sirve); }
+
+/* Nota confidencial: el color no es decorativo, avisa de que el dato
+   esta clasificado N3/N4 y que su LECTURA queda en bitacora. */
+.past__nota--confidencial { border-left:3px solid var(--mostaza-500);
+  background:var(--mostaza-100); padding:var(--e3); border-radius:0 var(--radio) var(--radio) 0; }
+.past__nota--confidencial::before { content:"Confidencial · su lectura queda registrada";
+  display:block; font-size:var(--texto-xs); color:var(--mostaza-600);
+  font-weight:var(--peso-medio); margin-bottom:var(--e1); }
+@media (max-width:720px){ .past__recorrido{ grid-template-columns:repeat(2,1fr); } }

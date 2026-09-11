@@ -1,0 +1,117 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estructura de estilos propuesta por Jhon · vista</title>
+<link rel="stylesheet" href="src/styles/variables.css">
+<link rel="stylesheet" href="src/styles/base.css">
+<link rel="stylesheet" href="src/styles/modules/ui-components.css">
+<link rel="stylesheet" href="src/styles/modules/nuevos.css">
+<link rel="stylesheet" href="src/styles/modules/donaciones.css">
+<link rel="stylesheet" href="src/styles/modules/crm-pastoral.css">
+<style>
+  .envoltorio{max-width:1080px;margin:0 auto;padding:var(--e6) var(--e4)}
+  .seccion{margin-bottom:var(--e6)}
+  .aviso{background:var(--aviso-bg);border-left:3px solid var(--aviso);
+         padding:var(--e3) var(--e4);border-radius:0 var(--radio) var(--radio) 0;
+         font-size:var(--texto-sm);margin-bottom:var(--e5)}
+  .rejilla{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--e4)}
+  .fila-botones{display:flex;gap:var(--e3);flex-wrap:wrap;align-items:center}
+</style></head><body>
+<div class="envoltorio">
+
+<h1>Estructura de estilos propuesta por Jhon</h1>
+<p style="color:var(--texto-suave)">
+  Los archivos son los del documento «Arquitectura Fronted y Backed» v1.0 (1 sept 2026).
+  Los colores salen del <code>tokens.css</code> que ya existe en el prototipo, para que lo que
+  se compare sea la estructura y no la paleta.
+</p>
+
+<div class="aviso">
+  <strong>La tipografía no es la real.</strong> El documento pide <em>Geomanist</em>, que es una
+  fuente comercial y no está instalada aquí. Esta página cae al respaldo, Inter, que es lo que el
+  prototipo usa hoy. Para verla de verdad hace falta comprar la licencia o que Jhon comparta el
+  archivo de la fuente.
+</div>
+
+<section class="seccion">
+  <h2>ui-components.css</h2>
+  <p style="color:var(--texto-suave);font-size:var(--texto-sm)">
+    La capa compartida. Hoy el prototipo no la tiene: cada hoja de estilo por rol repite sus
+    propios botones y tarjetas. Es la mejor idea de la propuesta.</p>
+  <div class="fila-botones" style="margin-bottom:var(--e4)">
+    <button class="btn btn--primario">Guardar</button>
+    <button class="btn btn--secundario">Cancelar</button>
+    <button class="btn btn--peligro">Anular</button>
+    <span class="insignia insignia--exito">Al día</span>
+    <span class="insignia insignia--aviso">Por vencer</span>
+    <span class="insignia insignia--peligro">Atrasado</span>
+    <span class="insignia insignia--info">Nuevo</span>
+  </div>
+  <div class="rejilla">
+    <div class="tarjeta">
+      <div class="tarjeta__titulo">Personas activas</div>
+      <div class="num" style="font-size:var(--texto-2xl);font-weight:600">25.000</div>
+    </div>
+    <div class="tarjeta">
+      <label class="etiqueta" for="c1">Nombre completo</label>
+      <input class="campo" id="c1" value="Juan Carlos Pérez">
+    </div>
+  </div>
+</section>
+
+<section class="seccion">
+  <h2>nuevos.css</h2>
+  <div class="tarjeta">
+    <table class="nuevos__tabla">
+      <thead><tr><th>Persona</th><th>Llegada</th><th>Recorrido 4C</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr><td>Ana Restrepo</td><td>22 ago</td>
+          <td><div class="nuevos__4c"><span class="on"></span><span class="on"></span><span></span><span></span></div></td>
+          <td><span class="insignia insignia--exito">En seguimiento</span></td></tr>
+        <tr class="nuevos__fila--atrasado"><td>Luis Parra</td><td>2 ago</td>
+          <td><div class="nuevos__4c"><span class="on"></span><span></span><span></span><span></span></div></td>
+          <td><span class="insignia insignia--peligro">Atrasado</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="seccion">
+  <h2>donaciones.css</h2>
+  <div class="tarjeta">
+    <table class="don__tabla">
+      <thead><tr><th>Fecha</th><th>Persona</th><th style="text-align:right">Monto</th><th>Acción</th></tr></thead>
+      <tbody>
+        <tr><td>10 sept</td><td>Ana Restrepo</td><td class="monto">$ 120.000</td>
+            <td><button class="btn btn--secundario">Editar</button></td></tr>
+        <tr class="don__fila--certificada"><td>01 ago</td><td>Luis Parra</td>
+            <td class="monto">$ 950.000 <span class="don__candado">certificado</span></td>
+            <td><button class="btn btn--secundario">Editar</button></td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:var(--e3);font-size:var(--texto-sm)">
+      Cuadre del certificado: <span class="don__cuadre--ok">cuadra al peso</span></p>
+  </div>
+</section>
+
+<section class="seccion">
+  <h2>crm-pastoral.css</h2>
+  <div class="past__recorrido" style="margin-bottom:var(--e4)">
+    <div class="past__etapa past__etapa--conoce"><strong>Conoce</strong><div style="color:var(--texto-suave);font-size:var(--texto-sm)">412 personas</div></div>
+    <div class="past__etapa past__etapa--conecta"><strong>Conéctate</strong><div style="color:var(--texto-suave);font-size:var(--texto-sm)">288</div></div>
+    <div class="past__etapa past__etapa--crece"><strong>Crece</strong><div style="color:var(--texto-suave);font-size:var(--texto-sm)">176</div></div>
+    <div class="past__etapa past__etapa--sirve"><strong>Sirve</strong><div style="color:var(--texto-suave);font-size:var(--texto-sm)">94</div></div>
+  </div>
+  <div class="past__nota--confidencial">
+    Conversación de acompañamiento del 3 de septiembre. La familia atraviesa un duelo reciente.
+  </div>
+</section>
+
+<section class="seccion">
+  <h2>auth.css</h2>
+  <p style="color:var(--texto-suave);font-size:var(--texto-sm)">
+    No se muestra aquí porque ocupa la pantalla completa. Es capacidad
+    <strong>nueva</strong>: el prototipo de hoy no tiene autenticación, el ingreso es una
+    selección de rol. Abre <code>auth.html</code> para verla.</p>
+</section>
+
+</div></body></html>

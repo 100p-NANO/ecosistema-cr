@@ -1,0 +1,10 @@
+/* auth.css · Pantallas de Login y Recuperación
+   ⚠️ El prototipo Fase 0 NO tiene autenticación: el ingreso es una
+   seleccion de rol. Este modulo es capacidad NUEVA, no un rediseno. */
+.auth { min-height:100vh; display:grid; place-items:center; background:var(--azul-900); }
+.auth__caja { width:min(400px,92vw); background:var(--superficie);
+  border-radius:var(--radio-lg); padding:var(--e6); box-shadow:var(--sombra-lg); }
+.auth__marca { text-align:center; margin-bottom:var(--e5); }
+.auth__campo + .auth__campo { margin-top:var(--e4); }
+.auth__acciones { margin-top:var(--e5); display:grid; gap:var(--e3); }
+.auth__olvide { text-align:center; font-size:var(--texto-sm); }

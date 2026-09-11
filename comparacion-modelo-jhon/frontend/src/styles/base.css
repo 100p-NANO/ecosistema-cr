@@ -1,0 +1,29 @@
+/* =====================================================================
+   base.css · Reset global y estilos de cuerpo
+   ===================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--fuente-base);
+  font-size: var(--texto-base);
+  line-height: 1.55;
+  color: var(--texto);
+  background: var(--canvas);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { margin: 0 0 var(--e3); font-weight: var(--peso-fuerte); line-height: 1.25; }
+h1 { font-size: var(--texto-2xl); }
+h2 { font-size: var(--texto-xl); }
+h3 { font-size: var(--texto-lg); }
+p  { margin: 0 0 var(--e3); }
+a  { color: var(--azul-600); text-underline-offset: 2px; }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-weight: var(--peso-medio); color: var(--texto-suave);
+     font-size: var(--texto-sm); padding: var(--e2) var(--e3);
+     border-bottom: 1px solid var(--borde-fuerte); }
+td { padding: var(--e3); border-bottom: 1px solid var(--borde); }
+
+.num { font-family: var(--fuente-datos); font-variant-numeric: tabular-nums; }
