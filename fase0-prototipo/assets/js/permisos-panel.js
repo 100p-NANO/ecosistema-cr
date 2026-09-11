@@ -68,19 +68,31 @@
     let d = null;
     try { d = JSON.parse(localStorage.getItem("casaroca_master_v1") || "null"); } catch (e) {}
     if (!d || !d.asignaciones) return null;
+    /* Lo que la IGLESIA tiene encendido, primero: lo necesitan los dos
+       caminos, el real y la vista previa. */
+    const msRows = d.modsede || [];
+    const activo = (sedeId, modulo) => {
+      const r = msRows.find(x => x.sede === sedeId && x.modulo === modulo);
+      return !!(r && r.activo);
+    };
+
+    /* ⭐ VISTA PREVIA. El master la usa para comprobar la configuración de
+       una iglesia ANTES de que exista nadie a quien nombrar, que es
+       justo cuando hace falta mirarla. No crea nada: es una asignación
+       de mentira que vive en el navegador y se borra al salir. */
+    let sim = null;
+    try { sim = JSON.parse(localStorage.getItem("casaroca_panel_simulado") || "null"); } catch (e) {}
+    if (sim && sim.rol) {
+      return { persona: { nombre: sim.etiqueta || "Vista previa" },
+               asignaciones: [sim], activoEnSede: activo, previa: true };
+    }
+
     let pid = null;
     try { pid = localStorage.getItem("casaroca_panel_persona"); } catch (e) {}
     if (!pid) return null;                 // sin persona declarada, no se filtra
     const persona = (d.personas || []).find(p => p.id === pid);
     const asig = d.asignaciones.filter(a => a.personaId === pid);
-    /* Lo que la IGLESIA tiene encendido. Sin esto, apagar un módulo en
-       una sede no tendría ningún efecto sobre quien la opera. */
-    const ms = d.modsede || [];
-    const activoEnSede = (sedeId, modulo) => {
-      const r = ms.find(x => x.sede === sedeId && x.modulo === modulo);
-      return !!(r && r.activo);
-    };
-    return { persona, asignaciones: asig, activoEnSede };
+    return { persona, asignaciones: asig, activoEnSede: activo };
   }
 
   const ctx = contexto();
@@ -88,6 +100,7 @@
     console.info("[permisos] sin persona declarada: el panel se muestra completo.");
     return;
   }
+  if (ctx.previa) document.documentElement.setAttribute("data-vista-previa", "1");
   const alcanzados = I.permisoEfectivo(ctx.asignaciones, null, null, ctx.activoEnSede)
     .map(x => x.modulo);
   const permitido = id => {
@@ -129,8 +142,10 @@
       "padding:9px 12px;font:400 12px/17px Inter,system-ui,sans-serif;color:#57575e;" +
       "box-shadow:0 4px 12px rgba(20,20,24,.08)";
     d.innerHTML = "<b style='color:#1c1c1f'>" + (ctx.persona ? ctx.persona.nombre : "Sesión") + "</b><br>" +
-      n + " sección(es) ocultas porque su rol no las alcanza. " +
-      "<span style='color:#8b8b93'>Se otorgan en el sistema master.</span>";
+      n + " sección(es) ocultas porque " + (ctx.previa ? "este rol" : "su rol") + " no las alcanza. " +
+      "<span style='color:#8b8b93'>" +
+      (ctx.previa ? "Vista previa: nadie ocupa este rol todavía." : "Se otorgan en el sistema master.") +
+      "</span>";
     document.body.appendChild(d);
   }
 

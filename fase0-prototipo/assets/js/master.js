@@ -1191,54 +1191,59 @@
     </div>
 
     ${(() => {
-      /* ⭐ «cambio los permisos pero no puedo comprobar cómo se ve».
-         Aquí está el botón. Entrar a un panel exige decir QUIÉN entra,
-         porque el permiso es de una persona, no de la iglesia. Se ofrece
-         a sus pastores primero, que es lo natural, y a quien más tenga
-         acceso después. */
+      /* ⭐ «le active tres cosas a Barcelona y no puedo ver lo que puse,
+         por que no esta el boton».
+         Estaba condicionado a que hubiera alguien con acceso en la sede,
+         y Barcelona no tiene pastor. Logico, pero inutil: lo que se
+         quiere es ver la CONFIGURACION, haya gente o no.
+
+         Ahora el bloque esta SIEMPRE. Si hay personas, se entra con las
+         suyas. Si no, se entra en VISTA PREVIA simulando el rol que
+         correspondería, que es lo que hace falta para comprobar antes de
+         nombrar a nadie. */
       const candidatos = aqui.map(x => {
         const per = M.persona(x.personaId);
         const pn = I.panelesDe([x], (sid, mo) => M.moduloActivo(sid, mo)).filter(y => y.abre);
-        return per && pn.length ? { per, asg:x, paneles:pn,
-          esPastor: x.rol === "PASTOR_CONGREGACIONAL" } : null;
+        return per && pn.length ? { per, paneles:pn, esPastor: x.rol === "PASTOR_CONGREGACIONAL" } : null;
       }).filter(Boolean).sort((a2, b2) => (b2.esPastor ? 1 : 0) - (a2.esPastor ? 1 : 0));
 
-      if (!candidatos.length) return `<div class="ms-nota ms-nota--ojo" style="margin-top:14px">
-        <b>No hay a quién entrar todavía.</b> Para comprobar cómo se ve esta iglesia hace falta
-        alguien con un rol vigente aquí: el permiso es de una persona, no de la sede.</div>`;
+      const previas = [
+        { rol:"PASTOR_CONGREGACIONAL", url:"pastor.html",   lbl:"Pastor de sede" },
+        { rol:"DIRECTOR_MINISTERIO",   url:"director.html", lbl:"Director de ministerio" },
+        { rol:"COORDINADOR_NUEVOS",    url:"nicodemo.html", lbl:"Nicodemo · nuevos" },
+      ];
 
       return `<div class="ms-comprobar">
         <div>
           <div class="ms-lbl" style="margin:0 0 2px">Comprobar cómo se ve</div>
-          <div class="ms-sub" style="font-family:var(--ui)">Entra al panel real con los permisos de
-            esa persona, tal como los acaba de dejar arriba.</div>
+          <div class="ms-sub" style="font-family:var(--ui)">Entra al panel real con la
+            configuración que acaba de dejar arriba. ${activos.length} módulo(s) encendidos.</div>
         </div>
         <div class="ms-comprobar__b">
-          ${candidatos.slice(0, 4).map(c => `<button class="ms-btn ms-btn--peq ${c.esPastor ? "ms-btn--primario" : ""}"
+          ${candidatos.slice(0, 3).map(c => `<button class="ms-btn ms-btn--peq ${c.esPastor ? "ms-btn--primario" : ""}"
             data-accion="abrirpanel" data-url="${esc(c.paneles[0].url)}"
             data-lbl="${esc(c.paneles[0].nombre)}" data-persona="${esc(c.per.id)}">
             Entrar como ${esc(c.per.nombre.split(" ").slice(0, 2).join(" "))}</button>`).join("")}
         </div>
-      </div>`;
-    })()}
+      </div>
 
-    ${(() => {
-      /* ⭐ La pregunta de Daniel: «activamos módulos que no pueden verse,
-         ¿por qué?». Porque encender un módulo es SOLO UNA de tres puertas.
-         Hacen falta las tres: encendido en la iglesia, que alguien tenga
-         un rol con permiso, y que su nivel alcance. Aquí se dice cuál
-         falta, en vez de dejar al usuario adivinando. */
-      const huerfanos = I.MODULOS.filter(m => {
-        if (activos.indexOf(m.codigo) < 0) return false;
-        return !aqui.some(a2 => I.permisoEfectivo([a2]).some(x => x.modulo === m.codigo));
-      });
-      if (!huerfanos.length) return "";
-      return `<div class="ms-alerta ms-alerta--ambar" style="margin-top:18px">
-        <b>${huerfanos.length} módulo(s) encendidos que hoy no ve nadie en esta iglesia:</b>
-        ${esc(huerfanos.map(m => m.nombre).join(", "))}.
-        <div style="margin-top:6px">Encender un módulo es solo una de las tres puertas. Hacen falta
-        las tres: que esté encendido aquí, que alguien tenga un rol con permiso sobre él, y que su
-        nivel alcance el del dato. Falta la segunda o la tercera.</div></div>`;
+      ${!candidatos.length ? `<div class="ms-nota ms-nota--ojo">
+        <b>Esta iglesia todavía no tiene a nadie con acceso</b>, así que no hay permisos reales
+        que mirar. Use la vista previa: simula el rol y enseña exactamente lo que vería quien
+        lo ocupe, con los módulos que usted acaba de encender.</div>` : ""}
+
+      <div class="ms-lbl" style="margin-top:14px">Vista previa por rol</div>
+      <div class="ms-comprobar__b">
+        ${previas.map(v => {
+          const r2 = I.rol(v.rol); if (!r2) return "";
+          const finge = { rol:v.rol, alcanceTipo:"sede", alcanceId:id, nivelMax:r2.techo,
+            desde:"2000-01-01", hasta:null };
+          const n = I.permisoEfectivo([finge], null, null, (sid, mo) => M.moduloActivo(sid, mo)).length;
+          return `<button class="ms-btn ms-btn--peq" data-accion="previa"
+            data-url="${esc(v.url)}" data-lbl="${esc(v.lbl)}" data-rol="${esc(v.rol)}" data-sede="${esc(id)}">
+            Ver como ${esc(v.lbl)} <span class="ms-sub" style="font-family:var(--ui)">· ${n} módulos</span></button>`;
+        }).join("")}
+      </div>`;
     })()}
 
     <div class="ms-lbl" style="margin-top:22px">Paneles vivos en esta iglesia</div>
@@ -1521,7 +1526,24 @@
       borrador = nb; vista = bt.dataset.vista; pintar();
       const m = $("#ms-main"); if (m) m.focus(); return;
     }
+    if (a === "previa") {
+      /* La vista previa no crea nada ni toca la base: arma una asignación
+         de mentira en memoria, la deja escrita para el panel, y la borra
+         al salir. Sirve para comprobar la configuración de una iglesia
+         antes de que exista nadie a quien nombrar. */
+      const r3 = I.rol(bt.dataset.rol);
+      try {
+        localStorage.setItem("casaroca_panel_simulado", JSON.stringify({
+          rol: bt.dataset.rol, alcanceTipo:"sede", alcanceId: bt.dataset.sede,
+          nivelMax: r3 ? r3.techo : 2, desde:"2000-01-01", hasta:null,
+          etiqueta: (r3 ? r3.nombre : bt.dataset.rol) + " · vista previa" }));
+        localStorage.removeItem("casaroca_panel_persona");
+      } catch (e) {}
+      b.panelUrl = bt.dataset.url; b.panelLbl = bt.dataset.lbl + " · vista previa";
+      vista = "app-pastor"; pintar(); return;
+    }
     if (a === "abrirpanel") {
+      try { localStorage.removeItem("casaroca_panel_simulado"); } catch (e) {}
       /* ⭐ El panel tiene que saber QUIÉN entra, o se abriría completo.
          Se deja escrito antes de abrirlo; `permisos-panel.js` lo lee y
          oculta lo que esa persona no alcanza. */
