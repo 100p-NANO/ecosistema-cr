@@ -99,16 +99,40 @@ BEGIN
     CASE WHEN v_ok THEN 'ACEPTADO' ELSE 'RECHAZADO' END, v_ok);
 END $$;
 
--- C8 · Un rol con techo N2 no puede recibir permiso sobre un modulo N4.
+-- C8 · Un rol NO puede recibir permiso sobre un modulo por encima de su techo.
+--
+-- ⛔ Esta prueba fijaba 'PASTOR_CONGREGACIONAL' + 'rocakids' a mano, y es la
+-- TERCERA que se rompe por lo mismo el 11 de septiembre: la direccion subio
+-- ese techo, el permiso paso a ser legitimo, y el INSERT choco con la clave
+-- primaria y aborto el banco entero.
+--
+-- 👉 Patron que conviene no repetir: una prueba que fija valores de CATALOGO
+-- prueba la foto del dia en que se escribio, no la regla. El catalogo cambia
+-- por decisiones legitimas de la mesa; la regla no. Aqui el par se ELIGE.
 DO $$
+DECLARE v_rol text; v_techo smallint; v_mod text; v_niv smallint;
 BEGIN
-  BEGIN
-    INSERT INTO sistema.matriz_permisos (rol,modulo,accion)
-    VALUES ('PASTOR_CONGREGACIONAL','rocakids','ver');
-    PERFORM pg_temp.rg(8,'Permiso N4 a un rol con techo N2','RECHAZADO','ACEPTADO',false);
-  EXCEPTION WHEN check_violation THEN
-    PERFORM pg_temp.rg(8,'Permiso N4 a un rol con techo N2','RECHAZADO','RECHAZADO como debe',true);
-  END;
+  SELECT r.codigo, r.nivel_maximo, m.codigo, m.nivel_dato
+    INTO v_rol, v_techo, v_mod, v_niv
+  FROM identidad.roles r, sistema.modulos m
+  WHERE m.nivel_dato > r.nivel_maximo
+    AND NOT EXISTS (SELECT 1 FROM sistema.matriz_permisos p
+                    WHERE p.rol = r.codigo AND p.modulo = m.codigo AND p.accion = 'ver')
+  ORDER BY r.nivel_maximo ASC, m.nivel_dato DESC LIMIT 1;
+
+  IF v_rol IS NULL THEN
+    PERFORM pg_temp.rg(8,'Permiso por encima del techo del rol','RECHAZADO',
+      'sin pareja que probar: ningun rol esta por debajo de ningun modulo', true);
+  ELSE
+    BEGIN
+      INSERT INTO sistema.matriz_permisos (rol,modulo,accion) VALUES (v_rol,v_mod,'ver');
+      PERFORM pg_temp.rg(8,'Permiso por encima del techo del rol','RECHAZADO',
+        'ACEPTADO: '||v_rol||' (N'||v_techo||') sobre '||v_mod||' (N'||v_niv||')', false);
+    EXCEPTION WHEN check_violation THEN
+      PERFORM pg_temp.rg(8,'Permiso por encima del techo del rol','RECHAZADO',
+        'RECHAZADO como debe: '||v_rol||' (N'||v_techo||') sobre '||v_mod||' (N'||v_niv||')', true);
+    END;
+  END IF;
 END $$;
 
 -- C9 · No se enciende un modulo cuya dependencia esta apagada.
@@ -325,14 +349,27 @@ BEGIN
   PERFORM pg_temp.rg(23,'Nivel N3 sin vinculo pastoral','false', v_ve::text, NOT v_ve);
 END $$;
 
--- C24 · Y el pastor SIGUE sin ningun permiso sobre aportes.
+-- C24 · POLITICA CAMBIADA el 11 de septiembre de 2026 por decision de la
+-- direccion. Antes decia: «los pastores no alcanzan los aportes, solo el
+-- Director General». Ahora:
+--
+--   · El pastor de una iglesia VE los aportes DE SU IGLESIA.
+--   · El Pastor Principal, los de las 36 y de cada persona.
+--
+-- Lo que se verifica ya no es que no vean nada, sino que el pastor de sede
+-- siga ACOTADO a su sede. Eso no lo da la matriz: lo impone el RLS con el
+-- alcance de su asignacion. Si un dia alguien le pusiera alcance de
+-- organizacion, veria los aportes de toda la red, y eso SI seria el error.
 DO $$
-DECLARE v_n bigint;
+DECLARE v_mal bigint;
 BEGIN
-  SELECT count(*) INTO v_n FROM sistema.matriz_permisos
-   WHERE rol IN ('PASTOR_CONGREGACIONAL','PASTOR_PRINCIPAL') AND modulo='aportes';
-  PERFORM pg_temp.rg(24,'Los pastores no alcanzan los aportes','0 permisos',
-    v_n::text||' permisos', v_n = 0);
+  SELECT count(*) INTO v_mal
+  FROM identidad.asignaciones a
+  WHERE a.rol = 'PASTOR_CONGREGACIONAL'
+    AND a.alcance_tipo = 'organizacion'
+    AND (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE);
+  PERFORM pg_temp.rg(24,'Pastor de sede con alcance de toda la red','0',
+    v_mal::text, v_mal = 0);
 END $$;
 
 -- C25 · No se puede otorgar un permiso N3 sin declarar la elevacion.

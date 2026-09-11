@@ -159,12 +159,27 @@ BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-NORTE';
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
   VALUES (v_sede,'Pastor','Filial',CURRENT_DATE - interval '45 years') RETURNING id INTO v_p;
+  /* ⛔ Esta prueba escribia 'PASTOR_CONGREGACIONAL' a mano y se rompio el
+     11 de septiembre cuando la direccion subio su techo de N2 a N4: la
+     asignacion paso a ser legitima y la prueba fallo sin que la REGLA
+     hubiera cambiado.
+     Lo que se verifica es la regla, no un rol concreto. Asi que el rol se
+     ELIGE: se toma uno cuyo techo sea el mas bajo que exista, y se le
+     pide un nivel por encima. Si manana cambian todos los techos, la
+     prueba sigue probando lo mismo. */
+  DECLARE v_rol text; v_techo smallint;
   BEGIN
-    INSERT INTO identidad.asignaciones (persona_id,rol,alcance_tipo,alcance_id,nivel_max)
-    VALUES (v_p,'PASTOR_CONGREGACIONAL','sede',v_sede,3);
-    PERFORM pg_temp.registrar(12,'Asignacion por encima del techo del rol','RECHAZADA','ACEPTADA',false);
-  EXCEPTION WHEN check_violation THEN
-    PERFORM pg_temp.registrar(12,'Asignacion por encima del techo del rol','RECHAZADA','RECHAZADA como debe',true);
+    SELECT codigo, nivel_maximo INTO v_rol, v_techo
+      FROM identidad.roles ORDER BY nivel_maximo ASC, codigo LIMIT 1;
+    BEGIN
+      INSERT INTO identidad.asignaciones (persona_id,rol,alcance_tipo,alcance_id,nivel_max)
+      VALUES (v_p, v_rol, 'sede', v_sede, v_techo + 1);
+      PERFORM pg_temp.registrar(12,'Asignacion por encima del techo del rol','RECHAZADA',
+        'ACEPTADA para '||v_rol||' (techo N'||v_techo||')', false);
+    EXCEPTION WHEN check_violation THEN
+      PERFORM pg_temp.registrar(12,'Asignacion por encima del techo del rol','RECHAZADA',
+        'RECHAZADA como debe ('||v_rol||', techo N'||v_techo||')', true);
+    END;
   END;
 END $$;
 
