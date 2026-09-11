@@ -101,11 +101,23 @@ END $$;
 
 -- P7 · El coordinador de nuevos existe y tiene sus permisos.
 DO $$
-DECLARE v_n bigint;
+DECLARE v_falta text;
 BEGIN
-  SELECT count(*) INTO v_n FROM sistema.matriz_permisos
-   WHERE rol='COORDINADOR_NUEVOS';
-  PERFORM pg_temp.rg(7,'Rol COORDINADOR_NUEVOS con permisos','5', v_n::text, v_n = 5);
+  /* ⛔ Esta prueba afirmaba `count(*) = 5` y se rompio el 11 de septiembre
+     al anadir modulos legitimos que el rol tambien necesita. El numero no
+     era la regla: era una foto del dia que se escribio.
+
+     Lo que de verdad hay que garantizar es que el rol conserve los
+     permisos del CONTRATO del Modulo de Nuevos del equipo 100p. Si
+     manana se le suman diez permisos mas, eso no rompe nada; lo que
+     rompe es que le falte uno de estos. */
+  SELECT string_agg(x.modulo||'.'||x.accion, ', ') INTO v_falta
+  FROM (VALUES ('crm','ver'),('crm','crear'),('crm','REGISTRAR_CONTACTO'),
+               ('crm','CONVERTIR_MIEMBRO'),('personas','ver')) AS x(modulo,accion)
+  WHERE NOT EXISTS (SELECT 1 FROM sistema.matriz_permisos m
+                    WHERE m.rol='COORDINADOR_NUEVOS' AND m.modulo=x.modulo AND m.accion=x.accion);
+  PERFORM pg_temp.rg(7,'COORDINADOR_NUEVOS conserva el contrato del modulo',
+    'los 5 del contrato', COALESCE('le falta: '||v_falta,'los tiene todos'), v_falta IS NULL);
 END $$;
 
 -- ═══════════ BANDEJA DE NUEVOS ═══════════
