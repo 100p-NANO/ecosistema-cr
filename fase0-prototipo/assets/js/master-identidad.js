@@ -209,13 +209,16 @@
   /* ---------- PERMISO EFECTIVO ----------
      Lo que una persona REALMENTE puede hacer: el cruce de sus
      asignaciones vigentes con la matriz, recortado por su nivel. */
-  function permisoEfectivo(asignaciones, hoy) {
+  function permisoEfectivo(asignaciones, hoy, matriz) {
     hoy = hoy || new Date().toISOString().slice(0, 10);
+    /* Si el master ya editó la matriz, se usa la editada. El permiso
+       efectivo tiene que reflejar lo que se acaba de cambiar. */
+    const MTZ = matriz || (window.MSTORE && window.MSTORE.matriz ? window.MSTORE.matriz() : MATRIZ);
     const vigentes = (asignaciones || []).filter(a =>
       a.desde <= hoy && (!a.hasta || a.hasta >= hoy));
     const mapa = {};
     vigentes.forEach(a => {
-      MATRIZ.filter(p => p.rol === a.rol).forEach(p => {
+      MTZ.filter(p => p.rol === a.rol).forEach(p => {
         const m = modulo(p.modulo); if (!m) return;
         const tope = Math.min(a.nivelMax, p.nivel == null ? 4 : p.nivel);
         if (m.nivel > tope) return;               // el módulo pide más de lo que tiene

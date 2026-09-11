@@ -47,6 +47,7 @@
     { id:"crear",    ico:"➕", lbl:"Crear acceso",        mod:"identidad" },
     { id:"roles",    ico:"🎭", lbl:"Roles y techos",      mod:"identidad" },
     { id:"matriz",   ico:"🧮", lbl:"Matriz de permisos",  mod:"identidad" },
+    { id:"permisos", ico:"✅", lbl:"Qué puede hacer cada rol", mod:"identidad" },
     { id:"efectivo", ico:"🔎", lbl:"Qué ve cada persona", mod:"identidad" },
     { id:"bitacora", ico:"📜", lbl:"Bitácora de accesos", mod:"cumplimiento" },
     { id:"contraste",ico:"⚖️", lbl:"Contraste con el equipo 100p" },
@@ -257,9 +258,9 @@
       const prox = f.vig.filter(a => a.hasta).sort((x, y) => x.hasta < y.hasta ? -1 : 1)[0];
       return `<tr class="${ab ? "is-abierta" : ""}">
         <td><button class="ms-desp" data-accion="desplegar" data-id="${esc(f.p.id)}"
-             aria-expanded="${ab}" title="Ver detalle">${ab ? "\u2212" : "+"}</button></td>
-        <td><span class="ms-nom">${esc(f.p.nombre)}</span>
-            <span class="ms-sub">${esc(f.p.documento || "sin documento")}</span></td>
+             title="Abrir ficha">\u203A</button></td>
+        <td><button class="ms-enlace ms-nom" data-accion="verpersona" data-id="${esc(f.p.id)}">${esc(f.p.nombre)}</button>
+            <span class="ms-sub">${esc(f.p.codigo || "")} \u00b7 ${esc(f.p.documento || "sin documento")}</span></td>
         <td>${f.vig.length
             ? `<div class="ms-chips">${f.vig.map(a => `<span class="ms-chip">${esc((I.rol(a.rol)||{}).nombre || a.rol)}</span>`).join("")}</div>`
             : `<span class="ms-vig ms-vig--fin">Sin rol vigente</span>`}</td>
@@ -293,6 +294,131 @@
         </tbody></table></td></tr>` : ""}`;
     }).join("") : `<tr><td colspan="8" class="ms-vacio" style="padding:24px;text-align:center">Nadie coincide con la búsqueda.</td></tr>`}
     </tbody></table></div>`;
+  }
+
+
+  /* ============================================================ FICHA DE PERSONA
+     Hacer clic en alguien no debe desplegar una fila: debe abrir su
+     ficha. A la izquierda quién es; a la derecha qué puede hacer y
+     por qué. Todo lo que un pastor necesita saber antes de nombrarla
+     o de cerrarle el acceso, en una pantalla. */
+  function iniciales(n) {
+    return (n || "?").split(/\s+/).filter(w => w.length > 2).slice(0, 2)
+      .map(w => w[0]).join("").toUpperCase() || "?";
+  }
+  function edadDe(f) {
+    if (!f) return null;
+    const d = new Date(f), h = new Date();
+    let a = h.getFullYear() - d.getFullYear();
+    const m = h.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && h.getDate() < d.getDate())) a--;
+    return a >= 0 && a < 130 ? a : null;
+  }
+  function vPersona() {
+    const id = (borrador && borrador.verPersona) || M.personas()[0].id;
+    const p = M.persona(id);
+    if (!p) return head("Persona", "No existe esa ficha.");
+    const asg = M.deLaPersona(id);
+    const vig = asg.filter(a => !a.hasta || a.hasta >= hoy());
+    const cerradas = asg.filter(a => a.hasta && a.hasta < hoy());
+    const ef = I.permisoEfectivo(asg);
+    const conyuge = M.conyugeDe(id), hijos = M.hijosDe(id);
+    const pot = M.potestad(id);
+    const edad = edadDe(p.fechaNac);
+    const menor = edad != null && edad < 18;
+
+    const dato = (l, v, mono) => `<div class="ms-dato"><div class="ms-lbl">${esc(l)}</div>
+      <div class="ms-val ${mono ? "mono" : ""}">${v || '<span class="ms-falta">sin registrar</span>'}</div></div>`;
+
+    return `<div class="ms-ancho">` + `
+    <div class="ms-ficha__top">
+      <button class="ms-btn ms-btn--peq" data-accion="ir" data-vista="accesos">← Volver a la lista</button>
+      <div class="ms-barra__sp"></div>
+      <button class="ms-btn ms-btn--peq" data-accion="verefectivo2" data-id="${esc(id)}">Ver permiso detallado</button>
+      <button class="ms-btn ms-btn--peq ms-btn--primario" data-accion="agregarrol" data-id="${esc(id)}">+ Otorgar rol</button>
+    </div>
+
+    <div class="ms-ficha">
+      <aside class="ms-ficha__id">
+        <div class="ms-foto">${p.foto
+          ? `<img src="${esc(p.foto)}" alt="${esc(p.nombre)}">`
+          : `<span>${esc(iniciales(p.nombre))}</span>`}</div>
+        <h1>${esc(p.nombre)}</h1>
+        <div class="ms-codigo">${esc(p.codigo || "sin código")}</div>
+        ${menor ? `<div class="ms-alerta ms-alerta--roja" style="margin:12px 0 0">
+          <b>Es menor de edad.</b> Sus datos son N4: protección reforzada y acudiente obligatorio.</div>` : ""}
+
+        <div class="ms-lbl" style="margin-top:18px">Hoja de vida</div>
+        <div class="ms-datos">
+          ${dato("Documento", esc(p.documento), true)}
+          ${dato("Fecha de nacimiento", p.fechaNac ? esc(p.fechaNac) + (edad != null ? ` <small>(${edad} años)</small>` : "") : "")}
+          ${dato("Celular", esc(p.celular), true)}
+          ${dato("Correo", esc(p.correo), true)}
+          ${dato("Nacimiento en la Fe", esc(p.anioFe))}
+        </div>
+
+        <div class="ms-lbl" style="margin-top:18px">Familia</div>
+        <div class="ms-datos">
+          ${conyuge
+            ? `<div class="ms-dato"><div class="ms-lbl">Cónyuge</div>
+                 <button class="ms-enlace" data-accion="verpersona" data-id="${esc(conyuge.id)}">${esc(conyuge.nombre)}</button></div>`
+            : `<div class="ms-dato"><div class="ms-lbl">Cónyuge</div><div class="ms-val"><span class="ms-falta">sin vínculo registrado</span></div></div>`}
+          <div class="ms-dato"><div class="ms-lbl">Hijos (${hijos.length})</div>
+            <div class="ms-val">${hijos.length
+              ? hijos.map(h => `<button class="ms-enlace" data-accion="verpersona" data-id="${esc(h.id)}">${esc(h.nombre)}</button>`).join(" · ")
+              : '<span class="ms-falta">ninguno registrado</span>'}</div></div>
+        </div>
+      </aside>
+
+      <section class="ms-ficha__acc">
+        <div class="ms-kpis">
+          <div class="ms-kpi"><b>${vig.length}</b><span>roles vigentes</span></div>
+          <div class="ms-kpi"><b>${ef.length}</b><span>de ${I.MODULOS.length} módulos</span></div>
+          <div class="ms-kpi ${vig.some(a => a.nivelMax >= 3) ? "ms-kpi--ojo" : ""}">
+            <b>${vig.length ? "N" + Math.max.apply(null, vig.map(a => a.nivelMax)) : "—"}</b><span>techo alcanzado</span></div>
+          <div class="ms-kpi ${pot.puede ? "ms-kpi--ojo" : ""}"><b>${pot.puede ? "Sí" : "No"}</b><span>puede nombrar a otros</span></div>
+        </div>
+
+        ${!vig.length ? `<div class="ms-alerta ms-alerta--roja">
+          <b>Hoy no tiene acceso.</b> ${cerradas.length
+            ? `Tuvo ${cerradas.length} asignación(es) que ya cerraron. Sin rol vigente, el acceso queda bloqueado.`
+            : "Nunca se le otorgó ninguno."}</div>` : ""}
+
+        <div class="ms-lbl">Roles vigentes</div>
+        ${vig.length ? vig.map(a => {
+          const r = I.rol(a.rol);
+          return `<div class="ms-rolcard">
+            <div class="ms-rolcard__c">
+              <b>${esc(r ? r.nombre : a.rol)}</b>
+              <div class="ms-sub" style="font-family:var(--ui)">${nombreAlcance(a)}</div>
+            </div>
+            <div>${pastilla(a.nivelMax)}</div>
+            <div>${vigencia(a)}</div>
+            <div>${a.acta ? `<code>${esc(a.acta)}</code>` : `<span class="ms-falta">sin acta</span>`}</div>
+            <div class="ms-rolcard__a">
+              <label class="ms-opt ${a.delega ? "is-on" : ""}" style="padding:2px 8px" title="Potestad de nombrar y cerrar accesos dentro de su alcance">
+                <input type="checkbox" ${a.delega ? "checked" : ""} data-delega="${esc(a.id)}">
+                <div><b style="font-size:11.5px">Puede nombrar</b></div></label>
+              <button class="ms-btn ms-btn--peq ms-btn--peligro" data-accion="revocar" data-id="${esc(a.id)}">Cerrar</button>
+            </div>
+          </div>`;
+        }).join("") : ""}
+
+        <div class="ms-lbl" style="margin-top:20px">Qué puede hacer hoy</div>
+        ${ef.length ? `<div class="ms-modgrid">
+          ${ef.map(x => `<div class="ms-modmini">
+            <div class="ms-modmini__c"><b>${esc(x.nombre)}</b> ${pastilla(x.nivelModulo)}</div>
+            <div class="ms-chips">${x.acciones.slice(0, 6).map(ac => `<span class="ms-chip ms-chip--acc">${esc(ac)}</span>`).join("")}
+              ${x.acciones.length > 6 ? `<span class="ms-chip">+${x.acciones.length - 6}</span>` : ""}</div>
+          </div>`).join("")}</div>`
+          : `<div class="ms-nota">Ningún módulo alcanzable hoy.</div>`}
+
+        ${cerradas.length ? `<div class="ms-lbl" style="margin-top:20px">Historial cerrado (${cerradas.length})</div>
+          <table class="ms-tabla ms-tabla--mini"><thead><tr><th>Rol</th><th>Alcance</th><th>Cerró</th></tr></thead><tbody>
+          ${cerradas.map(a => `<tr class="ms-fila--cerrada"><td>${esc((I.rol(a.rol)||{}).nombre || a.rol)}</td>
+            <td>${nombreAlcance(a)}</td><td>${esc(a.hasta)}</td></tr>`).join("")}</tbody></table>` : ""}
+      </section>
+    </div></div>`;
   }
 
   /* ============================================================ CREAR ACCESO */
@@ -634,13 +760,13 @@
   /* ============================================================ MATRIZ */
   function vMatriz() {
     return head("Matriz de permisos",
-      `Las ${I.MATRIZ.length} filas reales de <code>sistema.matriz_permisos</code>. Una casilla en rojo no es un olvido: es el techo del rol impidiéndolo.`) + `
+      `Las ${M.matriz().length} filas de <code>sistema.matriz_permisos</code>. Una casilla en rojo no es un olvido: es el techo del rol impidiéndolo.`) + `
     <div class="ms-scroll"><table class="ms-tabla ms-matriz"><thead><tr><th>Rol</th>
     ${I.MODULOS.map(m => `<th title="${esc(m.nombre)}">${esc(m.codigo.slice(0,5))}<br>${pastilla(m.nivel)}</th>`).join("")}
     </tr></thead><tbody>
     ${I.ROLES.map(r => `<tr><td class="ms-rolcel"><b>${esc(r.nombre)}</b> ${pastilla(r.techo)}</td>
       ${I.MODULOS.map(m => {
-        const n = I.MATRIZ.filter(p => p.rol === r.codigo && p.modulo === m.codigo).length;
+        const n = M.matriz().filter(p => p.rol === r.codigo && p.modulo === m.codigo).length;
         const permitido = I.rolPuedeModulo(r.codigo, m.codigo).ok;
         if (!permitido) return `<td class="ms-cel ms-cel--veda" title="Techo N${r.techo} contra dato N${m.nivel}">—</td>`;
         return `<td class="ms-cel ${n ? "ms-cel--si" : "ms-cel--no"}">${n || ""}</td>`;
@@ -651,6 +777,71 @@
       <span><i class="ms-cel--no"></i> sin permisos, pero sería otorgable</span>
       <span><i class="ms-cel--veda"></i> vedado por techo: la base lo rechaza</span>
     </div>`;
+  }
+
+
+  /* ============================================================ PERMISOS DEL ROL
+     Aquí se habilita y se deshabilita, casilla por casilla, qué puede
+     hacer cada rol en cada módulo. La matriz es DATO: por eso se
+     edita sin tocar el sistema.
+
+     Lo único que no se puede saltar es el techo. Una casilla apagada
+     se puede encender; una VEDADA no, y dice por qué. */
+  function vPermisos() {
+    const rolSel = (borrador && borrador.rolPerm) || I.ROLES[0].codigo;
+    const r = I.rol(rolSel) || M.rolesTodos().find(x => x.codigo === rolSel);
+    const verbos = I.ACCIONES.filter(a => /^[a-z]/.test(a.codigo));   // ver, crear, editar…
+    const nombrados = I.ACCIONES.filter(a => /^[A-Z]/.test(a.codigo)); // ENTREGAR_MENOR…
+    const total = M.permisosDelRol(rolSel).length;
+
+    function celda(mod, acc) {
+      const veto = I.rolPuedeModulo(rolSel, mod.codigo);
+      const on = M.tienePermiso(rolSel, mod.codigo, acc);
+      if (!veto.ok) return `<td><button class="ms-sw is-veda" disabled title="${esc(veto.razon)}"></button></td>`;
+      return `<td><button class="ms-sw ${on ? "is-on" : ""}" data-accion="perm"
+        data-mod="${esc(mod.codigo)}" data-acc="${esc(acc)}"
+        title="${on ? "Quitar" : "Dar"} «${esc(acc)}» sobre ${esc(mod.nombre)}"
+        aria-pressed="${on}"></button></td>`;
+    }
+    function tabla(titulo, acciones, nota) {
+      return `<div class="ms-lbl" style="margin-top:18px">${esc(titulo)}</div>
+      ${nota ? `<div class="ms-nota">${esc(nota)}</div>` : ""}
+      <div class="ms-scroll"><table class="ms-grid-cfg"><thead><tr><th>Módulo</th>
+        ${acciones.map(a => `<th>${esc(a.codigo.replace(/_/g, " "))}</th>`).join("")}
+      </tr></thead><tbody>
+      ${I.MODULOS.map(m => `<tr>
+        <td><b>${esc(m.nombre)}</b> ${pastilla(m.nivel)}</td>
+        ${acciones.map(a => celda(m, a.codigo)).join("")}
+      </tr>`).join("")}</tbody></table></div>`;
+    }
+
+    return `<div class="ms-ancho">` + head("Qué puede hacer cada rol",
+      "Casilla por casilla. Lo que quede encendido es lo que el rol podrá hacer en cada módulo.") + `
+    <div class="ms-barra">
+      <label class="ms-campo" style="margin:0;min-width:280px"><span>Rol</span>
+        <select data-campo="rolPerm">
+        ${M.rolesTodos().map(x => `<option value="${esc(x.codigo)}" ${x.codigo === rolSel ? "selected" : ""}>${esc(x.nombre)} · techo N${x.techo}</option>`).join("")}
+        </select></label>
+      <div class="ms-barra__sp"></div>
+      <span class="ms-cuenta">${total} permiso(s) activos</span>
+    </div>
+
+    ${r ? `<div class="ms-alerta ${r.techo >= 3 ? "ms-alerta--ambar" : "ms-alerta--verde"}">
+      <b>${esc(r.nombre)}</b> tiene techo ${pastilla(r.techo)}.
+      Alcanza ${I.MODULOS.filter(m => I.rolPuedeModulo(rolSel, m.codigo).ok).length} de ${I.MODULOS.length} módulos.
+      Los demás le quedan vedados y no hay forma de encenderlos: el techo es del rol, no de la asignación.
+      ${r.techo >= 3 ? " Este rol toca dato sensible: cada permiso que le dé aquí queda en la bitácora." : ""}
+    </div>` : ""}
+
+    ${tabla("Verbos generales", verbos)}
+    ${tabla("Acciones nombradas", nombrados,
+      "Estas son las que de verdad importan en una iglesia: entregar un menor, ver notas confidenciales, anular un certificado. Un permiso de «editar» no las cubre.")}
+
+    <div class="ms-leyenda" style="margin-top:16px">
+      <span><i class="ms-sw is-on" style="pointer-events:none"></i> puede hacerlo</span>
+      <span><i class="ms-sw" style="pointer-events:none"></i> no, pero se puede encender</span>
+      <span><i class="ms-sw is-veda" style="pointer-events:none"></i> vedado por techo: no es otorgable</span>
+    </div></div>`;
   }
 
   /* ============================================================ PERMISO EFECTIVO */
@@ -807,10 +998,12 @@
       case "crear":     html = vCrear();   break;
       case "roles":     html = vRoles();   break;
       case "matriz":    html = vMatriz();  break;
+      case "permisos":  html = vPermisos();break;
       case "efectivo":  html = vEfectivo();break;
       case "bitacora":  html = vBitacora();break;
       case "contraste": html = vContraste();break;
       case "arranque":  html = vArranque(); break;
+      case "persona":   html = vPersona();  break;
       case "n-persona": html = vNPersona(); break;
       case "n-iglesia": html = vNIglesia(); break;
       case "n-ministerio": html = vNMinisterio(); break;
@@ -843,8 +1036,10 @@
       if (e) { b.nombre = e.nombre; b.ambito = e.ambito; b.roles = e.roles.slice(); }
       pintar(); return;
     }
-    if (a === "desplegar")  { abierta = abierta === bt.dataset.id ? null : bt.dataset.id; pintar(); return; }
-    if (a === "verefectivo"){ b.verPersona = bt.dataset.id; vista = "efectivo"; pintar(); return; }
+    if (a === "desplegar")  { b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
+    if (a === "verpersona") { b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
+    if (a === "verefectivo"){ b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
+    if (a === "verefectivo2"){ b.verPersona = bt.dataset.id; vista = "efectivo"; pintar(); return; }
     if (a === "agregarrol") { borrador = { personaId: bt.dataset.id }; vista = "crear"; pintar(); return; }
     if (a === "delegar")    { M.alternarDelegacion(bt.dataset.id); pintar(); return; }
     if (a === "cerrar-sel") {
@@ -852,6 +1047,12 @@
       if (!ids.length) return;
       if (!confirm(`Se cerrará el acceso de ${ids.length} asignación(es). Queda registrado en la bitácora y no se borra nada. ¿Continuar?`)) return;
       M.revocarVarios(ids, "cierre en lote desde el master"); pintar(); return;
+    }
+    if (a === "perm") {
+      const rs = (borrador && borrador.rolPerm) || I.ROLES[0].codigo;
+      const r2 = M.alternarPermiso(rs, bt.dataset.mod, bt.dataset.acc);
+      if (!r2.ok) alert(r2.fallos.join("\n"));
+      pintar(); return;
     }
     if (a === "cfg-sede")   { cfgSede = bt.dataset.id; pintar(); return; }
     if (a === "cfg-mod")    { M.alternarModulo(bt.dataset.sede, bt.dataset.mod); pintar(); return; }
@@ -897,6 +1098,8 @@
     }
   });
   document.addEventListener("change", e => {
+    const dl = e.target.closest("[data-delega]");
+    if (dl) { M.alternarDelegacion(dl.dataset.delega); pintar(); return; }
     const rc = e.target.closest("[data-rol]");
     if (rc) {
       const b = b_(); b.roles = b.roles || [];

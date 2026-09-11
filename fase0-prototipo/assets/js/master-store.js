@@ -413,6 +413,38 @@
         `Se aplicó la plantilla ${cod} a ${s ? s.nombre : sedeId}: ${mods.length} módulos.`);
     },
 
+    /* ---------- permisos del rol · qué puede y qué no ----------
+       La matriz es DATO, no código: por eso se puede editar sin tocar
+       el sistema. Lo único que no se puede saltar es el techo. */
+    matriz() {
+      const st = cargar();
+      st.matrizX = st.matrizX || I.MATRIZ.map(x => Object.assign({}, x));
+      return st.matrizX;
+    },
+    tienePermiso(rol, modulo, accion) {
+      return this.matriz().some(p => p.rol === rol && p.modulo === modulo && p.accion === accion);
+    },
+    alternarPermiso(rol, modulo, accion) {
+      const st = cargar(); const m = this.matriz();
+      const veto = I.rolPuedeModulo(rol, modulo);
+      if (!veto.ok) return { ok:false, fallos:[veto.razon] };
+      const i = m.findIndex(p => p.rol === rol && p.modulo === modulo && p.accion === accion);
+      const rl = I.rol(rol), md = I.modulo(modulo);
+      if (i >= 0) {
+        m.splice(i, 1); guardar();
+        anotar("CAMBIO_PERMISO", "master",
+          `Se quitó «${accion}» sobre ${md ? md.nombre : modulo} al rol ${rl ? rl.nombre : rol}.`);
+        return { ok:true, activo:false };
+      }
+      m.push({ rol, modulo, accion, nivel:md ? md.nivel : null }); guardar();
+      anotar("CAMBIO_PERMISO", "master",
+        `Se dio «${accion}» sobre ${md ? md.nombre : modulo} al rol ${rl ? rl.nombre : rol}.`);
+      return { ok:true, activo:true };
+    },
+    permisosDelRol(rol) {
+      return this.matriz().filter(p => p.rol === rol);
+    },
+
     anotar,
     reiniciar() { try { localStorage.removeItem(LLAVE); } catch (e) {} D = null; },
   };
