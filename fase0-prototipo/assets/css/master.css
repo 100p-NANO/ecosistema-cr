@@ -691,3 +691,26 @@ kbd{
   background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg);
   padding:var(--e4) var(--e5); margin-bottom:var(--e4);
 }
+
+/* ---------- contexto del CRM al dar acceso ---------- */
+.ms-paso--ctx{border-left:3px solid var(--ac)}
+.ms-paso--ctx h3 i{background:var(--ac-suave); color:var(--ac)}
+.ms-ctxkpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:var(--e2); margin-bottom:var(--e3)}
+.ms-ctxkpis>div{background:var(--pa); border:1px solid var(--fil); border-radius:var(--r); padding:var(--e2) var(--e3)}
+.ms-ctxkpis b{display:block; font-size:20px; line-height:24px; font-weight:500}
+.ms-ctxkpis span{font-size:10px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--tin-dim)}
+.ms-senal{font-size:12.5px; line-height:18px; padding:var(--e2) var(--e3); border-radius:var(--r);
+  margin-bottom:var(--e1); border-left:3px solid}
+.ms-senal--ok{background:var(--ok-bg); border-left-color:var(--ok); color:#1a5f3c}
+.ms-senal--aviso{background:var(--avi-bg); border-left-color:var(--avi); color:#7a4f0d}
+
+/* ---------- la linea de tiempo ---------- */
+.ms-linea{list-style:none; margin:var(--e2) 0 0; padding:0}
+.ms-linea li{
+  display:flex; align-items:baseline; gap:var(--e2); flex-wrap:wrap;
+  padding:var(--e2) 0; border-bottom:1px solid var(--fil); font-size:13px; line-height:19px;
+}
+.ms-linea li:last-child{border-bottom:0}
+.ms-linea__f{font-family:var(--mono); font-size:11px; color:var(--tin-dim); flex:none; width:78px}
+.ms-linea--grande{background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg);
+  padding:var(--e2) var(--e4)}

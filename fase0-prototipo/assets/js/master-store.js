@@ -45,6 +45,33 @@
       modulosX:    [],   // módulos nuevos
       modsede:     I.MODSEDE_SEED.slice(),
       vinculos: [],
+      /* La línea de tiempo. Cada módulo escribe aquí y sigue con lo
+         suyo; el CRM es la LECTURA de esta línea, no una capa encima
+         de cada proceso. */
+      hechos: [
+        { id:"h1", personaId:"p-pc",  tipo:"PRIMERA_VISITA", cuando:"2024-03-10", modulo:"crm",
+          resumen:"Primera visita a Bogotá Chicó." },
+        { id:"h2", personaId:"p-pc",  tipo:"INGRESO_GRUPO",  cuando:"2024-05-02", modulo:"grupos",
+          resumen:"Entró al grupo de hogar Chapinero." },
+        { id:"h3", personaId:"p-pc",  tipo:"CURSO_CERTIFICADO", cuando:"2024-11-20", modulo:"formacion",
+          resumen:"Certificó el curso ADN." },
+        { id:"h4", personaId:"p-pc",  tipo:"CAMBIO_ETAPA",   cuando:"2025-01-15", modulo:"crm",
+          resumen:"Pasó de Crece a Sirve en el recorrido 4C.", detalle:{ etapa:"sirve" } },
+        { id:"h5", personaId:"p-cs",  tipo:"CURSO_CERTIFICADO", cuando:"2025-06-01", modulo:"formacion",
+          resumen:"Certificó Consejería Nivel 1." },
+        { id:"h6", personaId:"p-cs",  tipo:"CASO_CONSEJERIA", cuando:"2026-08-14", modulo:"consejeria",
+          resumen:"Abrió caso de acompañamiento en duelo." },
+        { id:"h7", personaId:"p-dm",  tipo:"PRIMERA_VISITA", cuando:"2026-07-20", modulo:"crm",
+          resumen:"Primera visita. Llegó invitada por una vecina." },
+        { id:"h8", personaId:"p-dm",  tipo:"ASISTENCIA",     cuando:"2026-08-24", modulo:"asistencia",
+          resumen:"Asistió al servicio dominical." },
+        { id:"h9", personaId:"p-lg",  tipo:"PRIMERA_VISITA", cuando:"2026-02-02", modulo:"crm",
+          resumen:"Primera visita." },
+        { id:"h10", personaId:"p-lg", tipo:"INGRESO_GRUPO",  cuando:"2026-03-15", modulo:"grupos",
+          resumen:"Entró al grupo de jóvenes." },
+        { id:"h11", personaId:"p-tes",tipo:"APORTE",         cuando:"2026-08-01", modulo:"aportes",
+          resumen:"Registró el cierre de aportes de julio." },
+      ],
       bitacora: [
         { ts:"2026-01-01 08:00", tipo:"CREACION",  quien:"sistema", detalle:"Alta del Pastor Director General con alcance de organización." },
         { ts:"2026-02-01 10:22", tipo:"ASIGNACION",quien:"p-dg",    detalle:"Pastor Congregacional para Bogotá Chicó, techo N2." },
@@ -443,6 +470,64 @@
     },
     permisosDelRol(rol) {
       return this.matriz().filter(p => p.rol === rol);
+    },
+
+    /* ---------- CRM DE COMANDO ----------
+       La línea de tiempo es la ESPINA: un hecho por fila, venga del
+       módulo que venga. Nadie consulta siete módulos para saber qué
+       ha pasado con alguien. */
+    hechos:      () => (cargar().hechos || []).slice(),
+    hechosDe(id) {
+      return (cargar().hechos || []).filter(h => h.personaId === id)
+        .sort((a, b) => a.cuando < b.cuando ? 1 : -1);
+    },
+    registrarHecho(personaId, tipo, resumen, detalle) {
+      const st = cargar();
+      st.hechos = st.hechos || [];
+      st.hechos.push({ id:"h-" + Math.random().toString(36).slice(2, 8), personaId, tipo,
+        cuando:hoyIso(), modulo:(I.tipoHecho(tipo) || {}).modulo || "crm", resumen, detalle:detalle || null });
+      guardar();
+    },
+
+    /* ⭐⭐ LO QUE PIDIÓ DANIEL: al ir a dar acceso, que el sistema traiga
+       del CRM lo que importa para decidir. Nadie debería nombrar a
+       alguien sin saber cuánto lleva, en qué etapa va y si ya sirve.
+       Y sobre todo: si va a servir con menores, si sus antecedentes
+       están verificados. */
+    contextoPara(personaId) {
+      const p = this.persona(personaId);
+      if (!p) return null;
+      const h = this.hechosDe(personaId);
+      const asg = this.deLaPersona(personaId);
+      const vig = asg.filter(a => !a.hasta || a.hasta >= hoyIso());
+      const primera = h.filter(x => x.tipo === "PRIMERA_VISITA").sort((a,b) => a.cuando < b.cuando ? -1 : 1)[0];
+      const etapaH  = h.find(x => x.tipo === "CAMBIO_ETAPA");
+      const cursos  = h.filter(x => x.tipo === "CURSO_CERTIFICADO");
+      const ultimo  = h[0];
+      const meses = primera
+        ? Math.round((Date.now() - new Date(primera.cuando).getTime()) / 2629800000) : null;
+
+      const señales = [];
+      if (!h.length) señales.push({ t:"aviso",
+        txt:"No hay un solo hecho registrado sobre esta persona. Se le daría acceso a ciegas." });
+      if (meses != null && meses < 6) señales.push({ t:"aviso",
+        txt:`Lleva ${meses} mes(es) en la iglesia. Conviene preguntarse si es pronto para darle un rol.` });
+      if (etapaH && etapaH.detalle && etapaH.detalle.etapa === "sirve") señales.push({ t:"ok",
+        txt:"Ya está en la etapa Sirve del recorrido 4C." });
+      if (cursos.length) señales.push({ t:"ok",
+        txt:`Tiene ${cursos.length} curso(s) certificado(s): ${cursos.map(c => c.resumen.replace(/^Certificó (el curso )?/, "")).join(", ")}.` });
+      if (!vig.length && asg.length) señales.push({ t:"aviso",
+        txt:"Tuvo acceso antes y se le cerró. Vale la pena saber por qué antes de devolvérselo." });
+      if (ultimo) {
+        const d = Math.round((Date.now() - new Date(ultimo.cuando).getTime()) / 86400000);
+        if (d > 120) señales.push({ t:"aviso",
+          txt:`Su último movimiento fue hace ${d} días. Puede estar frío.` });
+      }
+      /* ⛔ El control que de verdad importa: servir con menores exige
+         antecedentes verificados y VIGENTES (caducan a los 2 años). */
+      const antecedentes = h.find(x => /antecedente/i.test(x.resumen || ""));
+      return { persona:p, hechos:h, meses, primera, cursos, ultimo, señales,
+        rolesVigentes:vig, antecedentes: antecedentes || null };
     },
 
     anotar,

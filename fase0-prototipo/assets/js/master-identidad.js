@@ -250,6 +250,22 @@
     return out;
   }
 
+
+  /* ---------- 12 · LOS HECHOS · la espina del CRM de comando ----------
+     Esta es la decisión de arquitectura que ya estaba tomada bien en el
+     backend, y conviene no romperla: **ningún módulo tiene su propio
+     CRM.** Cada uno escribe un HECHO en `crm.linea_tiempo` y sigue con
+     lo suyo. El CRM es la LECTURA de esa línea, no una capa encima de
+     cada proceso.
+
+     Por eso un aporte, una asistencia, un caso de consejería y un
+     check-in de RocaKids caben en la misma tabla: cambia el `tipo` y el
+     `detalle`, no la estructura. Y por eso se puede preguntar «qué ha
+     pasado con esta persona» sin consultar siete módulos.
+     ---------- */
+  const TIPOS_HECHO = [{"codigo": "APORTE", "nombre": "Aporte registrado", "modulo": "aportes"}, {"codigo": "ASISTENCIA", "nombre": "Asistencia a un servicio", "modulo": "asistencia"}, {"codigo": "CASO_CONSEJERIA", "nombre": "Apertura de caso de consejería", "modulo": "consejeria"}, {"codigo": "CAMBIO_ETAPA", "nombre": "Cambio de etapa del recorrido 4C", "modulo": "crm"}, {"codigo": "LLAMADA", "nombre": "Llamada de seguimiento", "modulo": "crm"}, {"codigo": "NOTA_PASTORAL", "nombre": "Nota pastoral", "modulo": "crm"}, {"codigo": "PRIMERA_VISITA", "nombre": "Primera visita", "modulo": "crm"}, {"codigo": "VISITA_PASTORAL", "nombre": "Visita pastoral", "modulo": "crm"}, {"codigo": "CURSO_CERTIFICADO", "nombre": "Certificación de curso", "modulo": "formacion"}, {"codigo": "CURSO_INICIADO", "nombre": "Inicio de curso", "modulo": "formacion"}, {"codigo": "INGRESO_GRUPO", "nombre": "Ingreso a un grupo", "modulo": "grupos"}, {"codigo": "CHECKIN_ROCAKIDS", "nombre": "Check-in de menor", "modulo": "rocakids"}, {"codigo": "ENTREGA_ROCAKIDS", "nombre": "Entrega de menor a acudiente", "modulo": "rocakids"}];
+  const tipoHecho = c => TIPOS_HECHO.find(t => t.codigo === c) || null;
+
   /* ============================================================
      LAS REGLAS. Cada una existe porque la base la impone; si la
      interfaz no las aplica, deja pedir cosas que van a fallar.
@@ -419,7 +435,7 @@
     PLANTILLAS, PLANTILLA_MODS, SEDES_FULL, MODSEDE_SEED, modulosDePlantilla, plantilla,
     PRESETS, preset, EQUIPOS,
     NIVELES_ACCESO, nivelAcceso, accionesDeNivel, nivelDeAcciones,
-    PANELES, panelesDe,
+    PANELES, panelesDe, TIPOS_HECHO, tipoHecho,
     DIVERGENCIAS, ADOPTAR_DE_JHON, DELEGACION,
     rol, modulo, alcance, nivel,
     rolPuedeModulo, alcanceValido, puedeOtorgar, vigenciaValida, exigeActa,

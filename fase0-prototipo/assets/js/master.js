@@ -40,6 +40,7 @@
   const NAV = [
     { sep:"Dirección" },
     { id:"arranque",ico:"🧭", lbl:"Puesta en marcha" },
+    { id:"comando", ico:"🛰️", lbl:"Centro de mando", mod:"crm" },
     { id:"tablero", ico:"🌐", lbl:"Tablero de la red" },
 
     { sep:"Identidad y accesos" },
@@ -192,6 +193,69 @@
           </div>
         </div>`).join("")}
     </div>`;
+  }
+
+
+  /* ============================================================ CENTRO DE MANDO
+     El CRM no es una capa encima de cada proceso: es la LECTURA de la
+     línea de tiempo donde todos los procesos escriben. Aquí se ve la
+     red entera moviéndose, y desde aquí se actúa.
+
+     Si mañana entra un módulo nuevo, no hay que tocar esta pantalla:
+     basta con que escriba sus hechos. Esa es toda la gracia. */
+  function vComando() {
+    const hs = M.hechos().sort((a, b) => a.cuando < b.cuando ? 1 : -1);
+    const porModulo = {};
+    hs.forEach(h => { const m = (I.tipoHecho(h.tipo) || {}).modulo || h.modulo;
+      porModulo[m] = (porModulo[m] || 0) + 1; });
+    const sinHechos = M.personas().filter(p => !M.hechosDe(p.id).length);
+    const frios = M.personas().map(p => {
+      const h = M.hechosDe(p.id)[0];
+      if (!h) return null;
+      const d = Math.round((Date.now() - new Date(h.cuando).getTime()) / 86400000);
+      return d > 120 ? { p, d, h } : null;
+    }).filter(Boolean).sort((a, b) => b.d - a.d);
+
+    return `<div class="ms-ancho">` + head("Centro de mando",
+      "Una sola línea de tiempo. Cada módulo escribe un hecho y sigue con lo suyo; esto es la lectura de esa línea, no una capa encima de cada proceso.") + `
+
+    <div class="ms-kpis">
+      <div class="ms-kpi"><b>${hs.length}</b><span>hechos registrados</span></div>
+      <div class="ms-kpi"><b>${Object.keys(porModulo).length}</b><span>módulos alimentando</span></div>
+      <div class="ms-kpi ${sinHechos.length ? "ms-kpi--ojo" : ""}"><b>${sinHechos.length}</b><span>personas sin un solo hecho</span></div>
+      <div class="ms-kpi ${frios.length ? "ms-kpi--ojo" : ""}"><b>${frios.length}</b><span>sin movimiento hace 4 meses</span></div>
+    </div>
+
+    ${sinHechos.length ? `<div class="ms-alerta ms-alerta--ambar">
+      <b>${sinHechos.length} persona(s) sin un solo hecho en su línea.</b>
+      Si se les da un rol, se les da a ciegas: ${esc(sinHechos.map(p => p.nombre).join(", "))}.</div>` : ""}
+
+    ${frios.length ? `<div class="ms-lbl">Se están enfriando</div>
+      <table class="ms-tabla"><thead><tr><th>Persona</th><th>Último movimiento</th><th>Hace</th><th></th></tr></thead><tbody>
+      ${frios.slice(0, 6).map(x => `<tr>
+        <td><button class="ms-enlace ms-nom" data-accion="verpersona" data-id="${esc(x.p.id)}">${esc(x.p.nombre)}</button></td>
+        <td>${esc(x.h.resumen)}</td><td class="num">${x.d} días</td>
+        <td class="ms-acc-col"><button class="ms-btn ms-btn--peq" data-accion="verpersona" data-id="${esc(x.p.id)}">Ver ficha</button></td>
+      </tr>`).join("")}</tbody></table>` : ""}
+
+    <div class="ms-lbl" style="margin-top:22px">Qué módulos están alimentando la línea</div>
+    <div class="ms-chips">${I.MODULOS.map(m => {
+      const n = porModulo[m.codigo] || 0;
+      return `<span class="ms-chip ${n ? "" : "ms-chip--veda"}">${esc(m.nombre)} · ${n}</span>`;
+    }).join("")}</div>
+    <div class="ms-nota">Los tachados todavía no escriben hechos. No es un defecto del CRM: es que ese
+      módulo aún no está conectado. Cuando lo esté, aparece aquí sin tocar esta pantalla.</div>
+
+    <div class="ms-lbl" style="margin-top:22px">La línea, toda la red</div>
+    <ul class="ms-linea ms-linea--grande">
+      ${hs.slice(0, 20).map(h => {
+        const p = M.persona(h.personaId), t = I.tipoHecho(h.tipo);
+        return `<li><span class="ms-linea__f">${esc(h.cuando)}</span>
+          <span class="ms-chip">${esc(t ? t.modulo : h.modulo)}</span>
+          <button class="ms-enlace" data-accion="verpersona" data-id="${esc(h.personaId)}">${esc(p ? p.nombre : "")}</button>
+          ${esc(h.resumen)}</li>`;
+      }).join("")}
+    </ul></div>`;
   }
 
   /* ============================================================ TABLERO */
@@ -483,6 +547,32 @@
           <input data-campo="documento" value="${esc(b.documento)}" placeholder="Cédula"></label>
       </section>
 
+      ${(() => {
+        const pid = b.personaId;
+        if (!pid) return "";
+        const c = M.contextoPara(pid);
+        if (!c) return "";
+        return `<section class="ms-paso ms-paso--ctx">
+          <h3><i>·</i> Lo que el CRM sabe de ${esc(c.persona.nombre)}</h3>
+          <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
+            Nadie debería nombrar a alguien a ciegas. Esto sale de la línea de tiempo, no de un formulario.</p>
+          <div class="ms-ctxkpis">
+            <div><b>${c.meses != null ? c.meses : "—"}</b><span>meses en la iglesia</span></div>
+            <div><b>${c.hechos.length}</b><span>hechos registrados</span></div>
+            <div><b>${c.cursos.length}</b><span>cursos certificados</span></div>
+            <div><b>${c.rolesVigentes.length}</b><span>roles vigentes</span></div>
+          </div>
+          ${c.señales.map(x => `<div class="ms-senal ms-senal--${esc(x.t)}">${esc(x.txt)}</div>`).join("")}
+          ${c.hechos.length ? `<div class="ms-lbl" style="margin-top:12px">Últimos movimientos</div>
+            <ul class="ms-linea">${c.hechos.slice(0, 5).map(h => {
+              const t = I.tipoHecho(h.tipo);
+              return `<li><span class="ms-linea__f">${esc(h.cuando)}</span>
+                <span class="ms-chip">${esc(t ? t.modulo : h.modulo)}</span>
+                ${esc(h.resumen)}</li>`;
+            }).join("")}</ul>` : ""}
+        </section>`;
+      })()}
+
       <section class="ms-paso"><h3><i>2</i> ¿Con qué rol?</h3>
         <label class="ms-campo"><span>Rol</span>
           <select data-campo="rol"><option value="">Elegir…</option>
@@ -533,6 +623,18 @@
           <input data-campo="acta" value="${esc(b.acta)}" placeholder="ACTA-JD-2026-000"></label>
       </section>
 
+      ${(() => {
+        const r2 = b.rol ? I.rol(b.rol) : null;
+        if (!r2 || r2.techo < 4 || !b.personaId) return "";
+        const c = M.contextoPara(b.personaId);
+        if (!c) return "";
+        return `<div class="ms-alerta ms-alerta--roja">
+          <b>Este rol toca datos de menores (N4).</b>
+          ${c.antecedentes
+            ? "Hay antecedentes registrados en su línea de tiempo: verifique que sigan vigentes (caducan a los 2 años)."
+            : "No hay ningún registro de antecedentes verificados en su línea de tiempo. La regla del módulo de Talento es explícita: nadie sirve con menores sin antecedentes verificados y vigentes."}
+        </div>`;
+      })()}
       ${validacion ? (validacion.ok
         ? `<div class="ms-alerta ms-alerta--verde"><b>Listo para otorgar.</b> La base aceptará esta asignación.</div>`
         : `<div class="ms-alerta ms-alerta--roja"><b>La base rechazaría esto:</b><ul>${
@@ -1281,6 +1383,7 @@
       case "bitacora":  html = vBitacora();break;
       case "contraste": html = vContraste();break;
       case "arranque":  html = vArranque(); break;
+      case "comando":   html = vComando();  break;
       case "persona":   html = vPersona();  break;
       case "iglesia":   html = vIglesia();  break;
       case "n-persona": html = vNPersona(); break;
