@@ -25,12 +25,13 @@
   let YO = { personaId:"p-dg", nombre:"Ps. Director General",
              rol:"PASTOR_DIRECTOR_GENERAL", techo:4 };
 
-  let vista = "tablero";
+  let vista = "arranque";   // el proceso, no el tablero
   let borrador = null;   // asistente de creación de acceso
   let filtro  = "";      // búsqueda de la lista
   let abierta = null;    // fila desplegada
   let cfgSede = null;    // iglesia que se está configurando
   let menuCrear = false; // desplegable de + Crear
+  let logro = null;      // lo que acaba de pasar, para encadenar el siguiente paso
 
   /* ============================================================
      NAVEGACIÓN · todas las pestañas del sistema
@@ -195,6 +196,141 @@
     </div>`;
   }
 
+
+
+
+  /* ============================================================ PROMOVER O TRASLADAR
+     De líder a director, de una sede a otra. La fila vieja NO se
+     edita: se cierra y se abre una nueva. Así la auditoría puede
+     responder «¿qué era esta persona en marzo?». */
+  function vPromover() {
+    const b = b_();
+    const a = M.asignaciones().find(x => x.id === b.promId);
+    if (!a) return head("Cambiar rol", "No hay ninguna asignación seleccionada.");
+    const p = M.persona(a.personaId), rv = I.rol(a.rol);
+    const puede = I.rolesQuePuedeCrear(YO.rol);
+    const rn = b.rol ? I.rol(b.rol) : null;
+    const al = b.alcanceTipo ? I.alcance(b.alcanceTipo) : null;
+    const v = (b.rol && b.alcanceTipo && b.nivelMax != null)
+      ? I.validarAsignacion({ personaId:a.personaId, rol:b.rol, alcanceTipo:b.alcanceTipo,
+          alcanceId:b.alcanceId || null, nivelMax:b.nivelMax, desde:hoy(), hasta:null, acta:b.acta }, YO)
+      : null;
+    let opciones = "";
+    if (al && al.exigeId) {
+      const fuente = al.fuente === "ministerios" ? M.ministerios().map(m => ({ id:m.codigo, nombre:m.nombre }))
+                   : al.fuente === "sedes" ? M.sedes() : [];
+      opciones = fuente.length
+        ? `<label class="ms-campo"><span>¿Cuál? <b class="ms-req">obligatorio</b></span>
+           <select data-campo="alcanceId"><option value="">Elegir…</option>
+           ${fuente.map(f => `<option value="${esc(f.id)}" ${b.alcanceId === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}
+           </select></label>`
+        : `<div class="ms-alerta ms-alerta--ambar">No hay ${esc(al.fuente)} cargados. Créelos antes.</div>`;
+    }
+    return `<div class="ms-ancho--forma">` + head("Cambiar el rol de " + esc(p ? p.nombre : ""),
+      "La asignación actual se cierra con fecha de hoy y se abre una nueva. Nunca se edita ni se borra: la auditoría tiene que poder decir qué era esta persona el mes pasado.") + `
+    <div class="ms-paso">
+      <div class="ms-lbl">Hoy es</div>
+      <div class="ms-val" style="margin-bottom:12px"><b>${esc(rv ? rv.nombre : a.rol)}</b> · ${nombreAlcance(a)} · ${pastilla(a.nivelMax)}
+        <span class="ms-sub" style="font-family:var(--ui)">desde ${esc(a.desde)}</span></div>
+      <div class="ms-lbl">Pasa a ser</div>
+      <label class="ms-campo"><span>Nuevo rol</span>
+        <select data-campo="rol"><option value="">Elegir…</option>
+        ${M.rolesTodos().filter(x => puede.indexOf(x.codigo) >= 0 && x.codigo !== a.rol)
+          .map(x => `<option value="${esc(x.codigo)}" ${b.rol === x.codigo ? "selected" : ""}>${esc(x.nombre)} · techo N${x.techo}</option>`).join("")}
+        </select></label>
+      ${rn ? `<div class="ms-nota ${rn.techo > (rv||{techo:0}).techo ? "ms-nota--ojo" : ""}">
+        ${rn.techo > (rv||{techo:0}).techo
+          ? `Sube de techo N${(rv||{}).techo} a N${rn.techo}: alcanzará datos que antes no veía.`
+          : rn.techo < (rv||{techo:0}).techo
+            ? `Baja de techo N${(rv||{}).techo} a N${rn.techo}: dejará de ver lo que veía.`
+            : `Mantiene el techo N${rn.techo}.`}</div>` : ""}
+      <label class="ms-campo"><span>Nuevo alcance</span>
+        <select data-campo="alcanceTipo"><option value="">Elegir…</option>
+        ${I.ALCANCES.map(x => `<option value="${esc(x.codigo)}" ${b.alcanceTipo === x.codigo ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}
+        </select></label>
+      ${al ? `<div class="ms-nota">${esc(al.ayuda)}</div>` : ""}
+      ${opciones}
+      <div class="ms-lbl" style="margin-top:12px">Hasta qué nivel de dato</div>
+      <div class="ms-niveles">
+        ${I.NIVELES.map(n => {
+          const bloq = (rn && n.nivel > rn.techo) || n.nivel > YO.techo;
+          return `<button class="ms-nivbtn ${b.nivelMax === n.nivel ? "is-on" : ""} ${bloq ? "is-off" : ""}"
+            ${bloq ? "disabled" : ""} data-accion="nivel" data-n="${n.nivel}">
+            ${pastilla(n.nivel)}<span>${esc(n["desc"])}</span></button>`; }).join("")}
+      </div>
+      <label class="ms-campo" style="margin-top:12px"><span>Acta que respalda el cambio
+        ${b.nivelMax >= 3 ? '<b class="ms-req">obligatoria para N3/N4</b>' : "(recomendada)"}</span>
+        <input data-campo="acta" value="${esc(b.acta || "")}" placeholder="ACTA-JD-2026-000"></label>
+    </div>
+    ${v ? (v.ok
+      ? `<div class="ms-alerta ms-alerta--verde"><b>Listo.</b> Se cerrará «${esc(rv ? rv.nombre : a.rol)}» hoy y se abrirá el nuevo.</div>`
+      : `<div class="ms-alerta ms-alerta--roja"><b>La base rechazaría esto:</b><ul>${v.fallos.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>`) : ""}
+    <div class="ms-acciones">
+      <button class="ms-btn ms-btn--primario" data-accion="hacer-promover" ${v && v.ok ? "" : "disabled"}>Cambiar el rol</button>
+      <button class="ms-btn" data-accion="verpersona" data-id="${esc(a.personaId)}">Cancelar</button>
+    </div></div>`;
+  }
+
+  /* ============================================================ HECHO · QUÉ SIGUE
+     El defecto que esto arregla: cada creación devolvía a una lista
+     distinta, y para el siguiente paso había que volver al menú y
+     adivinar cuál de treinta pestañas tocaba.
+
+     Ahora nada suelta al usuario en el menú. Cada acto termina
+     diciendo qué acaba de pasar y cuál es el paso lógico siguiente,
+     con el botón puesto. El flujo es el producto. */
+  const SIGUIENTES = {
+    persona:  { t:"Ficha creada", sig:[
+      { v:"crear",       l:"Darle sus roles y permisos", p:true, lleva:"persona",
+        d:"Una ficha sin rol no abre nada. Es el paso que falta, y va con ella ya elegida." },
+      { v:"n-persona",   l:"Crear otra persona" }] },
+    iglesia:  { t:"Iglesia creada y pastoreada", sig:[
+      { v:"crear",       l:"Otorgar roles en esta iglesia", p:true, lleva:"sede",
+        d:"Va con el alcance de esta sede ya puesto." },
+      { v:"n-ministerio",l:"Crear su primer ministerio", lleva:"sede",
+        d:"El pastor ya puede entrar. Lo siguiente es su equipo." },
+      { v:"iglesia",     l:"Ver la ficha de la iglesia" },
+      { v:"n-iglesia",   l:"Crear otra iglesia" }] },
+    ministerio:{ t:"Ministerio creado con su director", sig:[
+      { v:"crear",       l:"Nombrar líderes del ministerio", p:true, lleva:"sede",
+        d:"El director ya entra. Ahora sus líderes de grupo." },
+      { v:"n-ministerio",l:"Crear otro ministerio", lleva:"sede" }] },
+    equipo:   { t:"Equipo creado con su responsable", sig:[
+      { v:"crear",       l:"Sumar a alguien más al equipo", p:true },
+      { v:"n-equipo",    l:"Crear otro equipo" },
+      { v:"arranque",    l:"Volver al proceso" }] },
+    acceso:   { t:"Acceso otorgado", sig:[
+      { v:"persona",     l:"Ver qué abre esta persona", p:true,
+        d:"Compruebe que su panel abre de verdad." },
+      { v:"crear",       l:"Otorgar otro acceso" },
+      { v:"arranque",    l:"Volver al proceso" }] },
+    rol:      { t:"Rol creado", sig:[
+      { v:"permisos",    l:"Decir qué puede hacer", p:true,
+        d:"Un rol sin permisos no sirve de nada todavía." },
+      { v:"roles",       l:"Ver todos los roles" }] },
+    modulo:   { t:"Módulo creado", sig:[
+      { v:"permisos",    l:"Dar permisos sobre él", p:true },
+      { v:"modsede",     l:"Encenderlo en las iglesias" }] },
+  };
+
+  function vHecho() {
+    const g = logro || {};
+    const cfg = SIGUIENTES[g.que] || { t:"Listo", sig:[{ v:"arranque", l:"Volver al proceso", p:true }] };
+    return `<div class="ms-ancho--forma"><div class="ms-hecho">
+      <div class="ms-hecho__tic">✓</div>
+      <h1>${esc(cfg.t)}</h1>
+      <p>${esc(g.detalle || "")}</p>
+      ${g.codigo ? `<div class="ms-codigo" style="font-size:13px;padding:3px 10px">${esc(g.codigo)}</div>` : ""}
+    </div>
+    <div class="ms-lbl" style="margin-top:24px">Qué sigue</div>
+    <div class="ms-sig">
+      ${cfg.sig.map(x => `<button class="ms-sigb ${x.p ? "is-p" : ""}" data-accion="seguir"
+        data-vista="${esc(x.v)}" data-lleva="${esc(x.lleva || "")}">
+        <span class="ms-sigb__l">${esc(x.l)}</span>
+        ${x.d ? `<span class="ms-sigb__d">${esc(x.d)}</span>` : ""}
+        <span class="ms-sigb__f">→</span></button>`).join("")}
+    </div></div>`;
+  }
 
   /* ============================================================ CENTRO DE MANDO
      El CRM no es una capa encima de cada proceso: es la LECTURA de la
@@ -463,6 +599,7 @@
               <label class="ms-opt ${a.delega ? "is-on" : ""}" style="padding:2px 8px" title="Potestad de nombrar y cerrar accesos dentro de su alcance">
                 <input type="checkbox" ${a.delega ? "checked" : ""} data-delega="${esc(a.id)}">
                 <div><b style="font-size:11.5px">Puede nombrar</b></div></label>
+              <button class="ms-btn ms-btn--peq" data-accion="promover" data-id="${esc(a.id)}">Cambiar rol</button>
               <button class="ms-btn ms-btn--peq ms-btn--peligro" data-accion="revocar" data-id="${esc(a.id)}">Cerrar</button>
             </div>
           </div>`;
@@ -1265,6 +1402,69 @@
             : `<span class="ms-falta">sin responsable</span>`}</td></tr>`;
       }).join("")}
     </tbody></table>` : `<div class="ms-nota">Esta iglesia no tiene ministerios ni equipos creados.</div>`}
+
+    ${(() => {
+      /* El CRM DE ESTA IGLESIA. Sale de la misma línea de tiempo, no de
+         un CRM aparte: eso sería montar el CRM encima de cada proceso. */
+      const c = M.crmDeSede(id);
+      return `
+      <div class="ms-lbl" style="margin-top:26px">CRM de esta iglesia</div>
+      <div class="ms-nota">Los hechos de toda la gente con alcance aquí. Sale de la misma línea de
+        tiempo de la red, filtrada por esta sede.</div>
+      <div class="ms-kpis">
+        <div class="ms-kpi"><b>${c.hechos.length}</b><span>hechos</span></div>
+        <div class="ms-kpi"><b>${c.personas}</b><span>personas con alcance aquí</span></div>
+        <div class="ms-kpi ${c.frios.length ? "ms-kpi--ojo" : ""}"><b>${c.frios.length}</b><span>se están enfriando</span></div>
+        <div class="ms-kpi ${c.sinHechos.length ? "ms-kpi--ojo" : ""}"><b>${c.sinHechos.length}</b><span>sin un solo hecho</span></div>
+      </div>
+      ${c.sinHechos.length ? `<div class="ms-alerta ms-alerta--ambar">
+        <b>${c.sinHechos.length} persona(s) con acceso aquí y sin un solo hecho registrado:</b>
+        ${esc(c.sinHechos.map(p => p.nombre).join(", "))}.</div>` : ""}
+      ${c.frios.length ? `<table class="ms-tabla"><thead><tr>
+        <th>Se está enfriando</th><th>Último movimiento</th><th>Hace</th></tr></thead><tbody>
+        ${c.frios.slice(0, 5).map(x => `<tr>
+          <td><button class="ms-enlace ms-nom" data-accion="verpersona" data-id="${esc(x.persona.id)}">${esc(x.persona.nombre)}</button></td>
+          <td>${esc(x.ultimo.resumen)}</td><td class="num">${x.dias} días</td></tr>`).join("")}
+        </tbody></table>` : ""}
+      <div class="ms-chips" style="margin-bottom:10px">${I.MODULOS.map(m => {
+        const n = c.porModulo[m.codigo] || 0;
+        return `<span class="ms-chip ${n ? "" : "ms-chip--veda"}">${esc(m.nombre)} · ${n}</span>`;
+      }).join("")}</div>
+      <div class="ms-lbl" style="margin-top:18px">Las personas de esta iglesia y en qué van</div>
+      ${c.gente.length ? `<table class="ms-lista-t"><thead><tr>
+        <th>Persona</th><th style="width:110px">Etapa 4C</th><th>Grupo</th>
+        <th>Cursos certificados</th><th style="width:90px">Hechos</th>
+        <th style="width:150px">Último movimiento</th><th>Rol aquí</th>
+      </tr></thead><tbody>
+      ${c.gente.map(g => {
+        const eta = { conoce:"Conoce", conecta:"Conéctate", crece:"Crece", sirve:"Sirve" }[g.etapa];
+        return `<tr>
+          <td><button class="ms-enlace ms-nom" data-accion="verpersona" data-id="${esc(g.persona.id)}">${esc(g.persona.nombre)}</button>
+              <span class="ms-sub">${esc(g.persona.codigo || "")}${g.desde ? " · desde " + esc(g.desde) : ""}</span></td>
+          <td>${eta ? `<span class="ms-etapa ms-etapa--${esc(g.etapa)}">${esc(eta)}</span>` : `<span class="ms-sub">sin registrar</span>`}</td>
+          <td>${g.grupo ? esc(g.grupo) : `<span class="ms-sub">ninguno</span>`}</td>
+          <td>${g.cursos.length
+            ? `<div class="ms-chips">${g.cursos.map(x => `<span class="ms-chip">${esc(x.resumen.replace(/^Certificó (el curso )?/i, "").replace(/\.$/, ""))}</span>`).join("")}</div>`
+            : `<span class="ms-sub">ninguno</span>`}</td>
+          <td class="num">${g.hechos}</td>
+          <td>${g.ultimo
+            ? `<span class="ms-vig ${g.dias > 120 ? "ms-vig--fin" : "ms-vig--ok"}">hace ${g.dias} días</span>`
+            : `<span class="ms-vig ms-vig--fin">nunca</span>`}</td>
+          <td>${g.rol ? `<span class="ms-chip">${esc((I.rol(g.rol)||{}).nombre || g.rol)}</span>` : `<span class="ms-sub">—</span>`}</td>
+        </tr>`;
+      }).join("")}</tbody></table>` : `<div class="ms-nota">Nadie con alcance en esta iglesia todavía.</div>`}
+
+      <div class="ms-lbl" style="margin-top:18px">La línea de tiempo de esta iglesia</div>
+      ${c.hechos.length ? `<ul class="ms-linea ms-linea--grande">
+        ${c.hechos.slice(0, 12).map(h => {
+          const p = M.persona(h.personaId), t = I.tipoHecho(h.tipo);
+          return `<li><span class="ms-linea__f">${esc(h.cuando)}</span>
+            <span class="ms-chip">${esc(t ? t.modulo : h.modulo)}</span>
+            <button class="ms-enlace" data-accion="verpersona" data-id="${esc(h.personaId)}">${esc(p ? p.nombre : "")}</button>
+            ${esc(h.resumen)}</li>`;
+        }).join("")}</ul>`
+        : `<div class="ms-nota">Todavía no hay ningún hecho registrado en esta iglesia.</div>`}`;
+    })()}
     </div>`;
   }
 
@@ -1384,6 +1584,8 @@
       case "contraste": html = vContraste();break;
       case "arranque":  html = vArranque(); break;
       case "comando":   html = vComando();  break;
+      case "hecho":     html = vHecho();    break;
+      case "promover":  html = vPromover();break;
       case "persona":   html = vPersona();  break;
       case "iglesia":   html = vIglesia();  break;
       case "n-persona": html = vNPersona(); break;
@@ -1419,6 +1621,23 @@
       pintar(); return;
     }
     if (a === "desplegar")  { b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
+    if (a === "seguir") {
+      /* El encadenado ARRASTRA el contexto: si acaba de crear una
+         persona, el alta de acceso se abre con ella elegida; si acaba
+         de crear una iglesia, con el alcance de esa sede puesto. Sin
+         esto el usuario vuelve a buscar lo que acaba de crear. */
+      const g = logro || {}, lleva = bt.dataset.lleva;
+      const nb = {};
+      if (lleva === "persona" && g.personaId) { nb.personaId = g.personaId; nb.verPersona = g.personaId; }
+      if (lleva === "sede" && g.sedeId) {
+        nb.sedeId = g.sedeId; nb.verSede = g.sedeId;
+        if (bt.dataset.vista === "crear") { nb.alcanceTipo = "sede"; nb.alcanceId = g.sedeId; }
+      }
+      if (g.personaId && bt.dataset.vista === "persona") nb.verPersona = g.personaId;
+      if (g.sedeId && bt.dataset.vista === "iglesia")    nb.verSede = g.sedeId;
+      borrador = nb; vista = bt.dataset.vista; pintar();
+      const m = $("#ms-main"); if (m) m.focus(); return;
+    }
     if (a === "abrirpanel") { b.panelUrl = bt.dataset.url; b.panelLbl = bt.dataset.lbl;
       vista = "app-pastor"; pintar(); return; }
     if (a === "veriglesia") { b.verSede = bt.dataset.id; vista = "iglesia"; pintar(); return; }
@@ -1426,6 +1645,20 @@
     if (a === "verefectivo"){ b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
     if (a === "verefectivo2"){ b.verPersona = bt.dataset.id; vista = "efectivo"; pintar(); return; }
     if (a === "agregarrol") { borrador = { personaId: bt.dataset.id }; vista = "crear"; pintar(); return; }
+    if (a === "promover") { const per = M.asignaciones().find(x => x.id === bt.dataset.id);
+      borrador = { promId: bt.dataset.id, verPersona: per && per.personaId };
+      vista = "promover"; pintar(); return; }
+    if (a === "hacer-promover") {
+      const asg = M.asignaciones().find(x => x.id === b.promId);
+      const r2 = M.promover(b.promId, { rol:b.rol, alcanceTipo:b.alcanceTipo,
+        alcanceId:b.alcanceId || null, nivelMax:b.nivelMax, acta:b.acta }, YO);
+      if (!r2.ok) { alert("No se puede:\n\n" + r2.fallos.join("\n")); return; }
+      const per2 = asg && M.persona(asg.personaId);
+      borrador = { verPersona: asg && asg.personaId };
+      logro = { que:"acceso", personaId: asg && asg.personaId,
+        detalle:`${per2 ? per2.nombre : "La persona"} pasa a ${(I.rol(b.rol)||{}).nombre || b.rol}. El rol anterior quedó cerrado, no borrado.` };
+      vista = "hecho"; pintar(); return;
+    }
     if (a === "delegar")    { M.alternarDelegacion(bt.dataset.id); pintar(); return; }
     if (a === "cerrar-sel") {
       const ids = Array.from(document.querySelectorAll("[data-marca]:checked")).map(x => x.dataset.marca);
@@ -1457,21 +1690,52 @@
       const n = (b[campo + "_nueva"] || "").trim();
       return n ? M.crearPersona(n, "", "").id : "";
     }
-    function hecho(r, destino, msg) {
+    let logroSede = null;
+    function hecho(r, que, detalle, codigo) {
       if (!r.ok) { alert("No se puede crear:\n\n" + r.fallos.join("\n")); return; }
-      borrador = null; vista = destino; pintar();
+      borrador = null;
+      logro = { que, detalle, codigo, sedeId: logroSede || (b && b.sedeId) || null };
+      vista = "hecho"; pintar();
     }
-    if (a === "hacer-persona")  { M.crearPersona(b.nombre, b.documento, b.correo); borrador = null; vista = "accesos"; pintar(); return; }
-    if (a === "hacer-iglesia")  { hecho(M.crearIglesia({ nombre:b.nombre, ciudad:b.ciudad, pais:b.pais,
-                                    plantilla:b.plantilla, pastorId:resolverPersona("pastorId"),
-                                    otorgadoPor:YO.personaId }), "iglesias"); return; }
-    if (a === "hacer-ministerio"){ hecho(M.crearMinisterio({ nombre:b.nombre, sedeId:b.sedeId,
-                                    liderId:resolverPersona("liderId"), otorgadoPor:YO.personaId }), "accesos"); return; }
-    if (a === "hacer-equipo")   { hecho(M.crearEquipo({ nombre:b.nombre, ambito:b.ambito, sedeId:b.sedeId,
-                                    roles:b.roles || [], liderId:resolverPersona("liderId"),
-                                    otorgadoPor:YO.personaId }), "accesos"); return; }
-    if (a === "hacer-rol")      { hecho(M.crearRol({ nombre:b.nombre, techo:b.techo }), "roles"); return; }
-    if (a === "hacer-modulo")   { hecho(M.crearModulo({ nombre:b.nombre, nivel:b.nivel }), "matriz"); return; }
+    if (a === "hacer-persona") {
+      const np = M.crearPersona(b.nombre, b.documento, b.correo);
+      borrador = { verPersona: np.id };
+      logro = { que:"persona", personaId:np.id, codigo:np.codigo,
+        detalle:`${np.nombre} ya tiene ficha. Todavía no abre nada: falta darle sus roles.` };
+      vista = "hecho"; pintar(); return;
+    }
+    if (a === "hacer-iglesia") {
+      const nom = b.nombre, pl = I.plantilla(b.plantilla);
+      const r2 = M.crearIglesia({ nombre:nom, ciudad:b.ciudad, pais:b.pais,
+        plantilla:b.plantilla, pastorId:resolverPersona("pastorId"), otorgadoPor:YO.personaId });
+      if (r2.ok) borrador = { verSede:r2.id };
+      const sd = r2.ok && M.sedes().find(x => x.id === r2.id);
+      if (r2.ok) { logroSede = r2.id; }
+      hecho(r2, "iglesia",
+        `${nom} queda con plantilla ${pl ? pl.nombre : ""}: ${b.plantilla ? I.modulosDePlantilla(b.plantilla).length : 0} de ${I.MODULOS.length} módulos, y su pastor ya puede entrar.`,
+        sd && sd.codigo);
+      return;
+    }
+    if (a === "hacer-ministerio") {
+      const nom = b.nombre;
+      hecho(M.crearMinisterio({ nombre:nom, sedeId:b.sedeId, permisos:b.permisos,
+        liderId:resolverPersona("liderId"), otorgadoPor:YO.personaId }), "ministerio",
+        `${nom} ya tiene director nombrado. Puede empezar a crear sus líderes de grupo.`);
+      return;
+    }
+    if (a === "hacer-equipo") {
+      const nom = b.nombre;
+      hecho(M.crearEquipo({ nombre:nom, ambito:b.ambito, sedeId:b.sedeId, permisos:b.permisos,
+        roles:b.roles || [], liderId:resolverPersona("liderId"), otorgadoPor:YO.personaId }), "equipo",
+        `${nom} queda con su responsable, que ya recibió los roles del equipo.`);
+      return;
+    }
+    if (a === "hacer-rol") { const nom = b.nombre, t = b.techo;
+      hecho(M.crearRol({ nombre:nom, techo:t }), "rol",
+        `${nom} existe con techo N${t}, pero todavía no puede hacer nada: hay que darle permisos.`); return; }
+    if (a === "hacer-modulo") { const nom = b.nombre, n2 = b.nivel;
+      hecho(M.crearModulo({ nombre:nom, nivel:n2 }), "modulo",
+        `${nom} maneja dato N${n2}. Solo los roles con ese techo o mayor podrán alcanzarlo.`); return; }
     if (a === "ir") { if (borrador) { delete borrador.panelUrl; delete borrador.panelLbl; }
       vista = bt.dataset.vista; pintar(); const m = $("#ms-main"); if (m) m.focus(); }
     if (a === "nivel")   { b_().nivelMax = +bt.dataset.n; pintar(); }
@@ -1488,7 +1752,11 @@
         alcanceId:bo.alcanceId || null, nivelMax:bo.nivelMax, desde:bo.desde,
         hasta:bo.hasta || null, acta:bo.acta }, YO);
       if (!res.ok) { alert("La base rechazaría esto:\n\n" + res.fallos.join("\n")); return; }
-      borrador = null; vista = "accesos"; pintar();
+      const per = M.persona(pid);
+      borrador = { verPersona: pid };
+      logro = { que:"acceso", personaId:pid,
+        detalle:`${per ? per.nombre : "La persona"} queda como ${(I.rol(bo.rol) || {}).nombre || bo.rol}.` };
+      vista = "hecho"; pintar();
     }
   });
   document.addEventListener("change", e => {

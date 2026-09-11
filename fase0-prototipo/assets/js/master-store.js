@@ -254,6 +254,48 @@
       return { ok:true, delega:a.delega };
     },
 
+    /* ⭐ PROMOVER O TRASLADAR · de líder a director, de una sede a otra.
+       ⛔ NO se edita la fila existente. Se CIERRA la vieja con fecha de
+       fin y se ABRE una nueva. Es la regla en la que coinciden nuestro
+       modelo y el documento del equipo 100p: «cambio de rol = nueva
+       fila, nunca borras ni editas». Así la auditoría puede responder
+       «¿qué era esta persona en marzo?», que es justo lo que se pierde
+       cuando alguien edita la fila en sitio.
+       Y queda un HECHO en la línea de tiempo: el CRM se entera. */
+    promover(idAsignacion, nuevo, quienOtorga) {
+      const st = cargar();
+      const vieja = st.asignaciones.find(x => x.id === idAsignacion);
+      if (!vieja) return { ok:false, fallos:["No existe esa asignación."] };
+      if (vieja.hasta && vieja.hasta < hoyIso())
+        return { ok:false, fallos:["Esa asignación ya estaba cerrada. Otorgue una nueva."] };
+
+      const propuesta = {
+        personaId: vieja.personaId, rol: nuevo.rol,
+        alcanceTipo: nuevo.alcanceTipo, alcanceId: nuevo.alcanceId || null,
+        nivelMax: nuevo.nivelMax, desde: nuevo.desde || hoyIso(),
+        hasta: nuevo.hasta || null, acta: nuevo.acta || "" };
+      const v = I.validarAsignacion(propuesta, quienOtorga);
+      if (!v.ok) return v;
+
+      vieja.hasta = hoyIso();
+      const fila = Object.assign({ id:"a-" + Math.random().toString(36).slice(2, 8),
+        delega:false, otorgadoPor:(quienOtorga && quienOtorga.personaId) || "master" }, propuesta);
+      st.asignaciones.push(fila);
+      guardar();
+
+      const per = this.persona(vieja.personaId);
+      const rv = I.rol(vieja.rol), rn = I.rol(nuevo.rol);
+      const sube = rn && rv ? rn.techo > rv.techo : false;
+      anotar("PROMOCION", (quienOtorga && quienOtorga.personaId) || "master",
+        `${per ? per.nombre : vieja.personaId}: de ${rv ? rv.nombre : vieja.rol} a ` +
+        `${rn ? rn.nombre : nuevo.rol}${sube ? " (sube de techo)" : ""}. ` +
+        `Se cerró la asignación anterior, no se editó.`);
+      this.registrarHecho(vieja.personaId, "CAMBIO_ETAPA",
+        `Pasó de ${rv ? rv.nombre : vieja.rol} a ${rn ? rn.nombre : nuevo.rol}.`,
+        { de:vieja.rol, a:nuevo.rol });
+      return { ok:true, fila };
+    },
+
     /* Cerrar varios de una vez: es lo que un pastor necesita al final de
        un ciclo de grupos pequeños, no cerrar de uno en uno. */
     revocarVarios(ids, motivo) {
@@ -487,6 +529,49 @@
       st.hechos.push({ id:"h-" + Math.random().toString(36).slice(2, 8), personaId, tipo,
         cuando:hoyIso(), modulo:(I.tipoHecho(tipo) || {}).modulo || "crm", resumen, detalle:detalle || null });
       guardar();
+    },
+
+    /* El CRM DE UNA IGLESIA: los hechos de toda la gente con alcance en
+       esa sede. Sale de la misma línea de tiempo, filtrada. No hay un
+       "CRM de sede" aparte: sería justo el error de montar el CRM
+       encima de cada proceso. */
+    crmDeSede(sedeId) {
+      const asg = cargar().asignaciones.filter(a => a.alcanceId === sedeId);
+      const ids = new Set(asg.map(a => a.personaId));
+      const hs = (cargar().hechos || []).filter(h => ids.has(h.personaId))
+        .sort((a, b) => a.cuando < b.cuando ? 1 : -1);
+      const porModulo = {};
+      hs.forEach(h => { const m = (I.tipoHecho(h.tipo) || {}).modulo || h.modulo;
+        porModulo[m] = (porModulo[m] || 0) + 1; });
+      const frios = Array.from(ids).map(id => {
+        const u = this.hechosDe(id)[0]; if (!u) return null;
+        const d = Math.round((Date.now() - new Date(u.cuando).getTime()) / 86400000);
+        return d > 120 ? { persona:this.persona(id), dias:d, ultimo:u } : null;
+      }).filter(Boolean).sort((a, b) => b.dias - a.dias);
+      const sinHechos = Array.from(ids).map(id => this.persona(id))
+        .filter(p => p && !this.hechosDe(p.id).length);
+      /* El estado de cada persona, leído de su línea. Es lo que el
+         pastor local necesita ver de su gente: en qué etapa va, qué
+         cursos certificó, en qué grupo está y cuándo se movió por
+         última vez. Nada de esto se escribe aparte: se deduce. */
+      const gente = Array.from(ids).map(pid => {
+        const p = this.persona(pid); if (!p) return null;
+        const h = this.hechosDe(pid);
+        const etapaH = h.find(x => x.tipo === "CAMBIO_ETAPA");
+        const grupoH = h.find(x => x.tipo === "INGRESO_GRUPO");
+        const cursos = h.filter(x => x.tipo === "CURSO_CERTIFICADO");
+        const primera = h.filter(x => x.tipo === "PRIMERA_VISITA")
+          .sort((a, b) => a.cuando < b.cuando ? -1 : 1)[0];
+        const u = h[0];
+        const dias = u ? Math.round((Date.now() - new Date(u.cuando).getTime()) / 86400000) : null;
+        const rol = asg.filter(a => a.personaId === pid && (!a.hasta || a.hasta >= hoyIso()))[0];
+        return { persona:p, hechos:h.length, cursos,
+          etapa: etapaH && etapaH.detalle ? etapaH.detalle.etapa : (primera ? "conoce" : null),
+          grupo: grupoH ? grupoH.resumen.replace(/^Entró al grupo (de hogar |de )?/i, "") : null,
+          desde: primera ? primera.cuando : null, ultimo:u, dias,
+          rol: rol ? rol.rol : null };
+      }).filter(Boolean).sort((a, b) => (b.dias == null ? 1e9 : b.dias) - (a.dias == null ? 1e9 : a.dias));
+      return { hechos:hs, porModulo, frios, sinHechos, personas:ids.size, gente };
     },
 
     /* ⭐⭐ LO QUE PIDIÓ DANIEL: al ir a dar acceso, que el sistema traiga
