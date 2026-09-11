@@ -630,3 +630,49 @@ kbd{
   .ms-rolcard{grid-template-columns:1fr; gap:var(--e2)}
   .ms-rolcard__a{justify-content:flex-start}
 }
+
+/* ============================================================
+   SELECTOR DE PERMISOS · el mismo en rol, ministerio y equipo
+   Tres niveles, no quince acciones. Si cada pantalla usara
+   palabras distintas, nadie entenderia el sistema.
+   ============================================================ */
+.ms-permsel{border:1px solid var(--fil); border-radius:var(--r-lg); overflow:hidden; background:var(--sup)}
+.ms-permsel__cab,.ms-permsel__f{
+  display:grid; grid-template-columns:minmax(0,1fr) 76px 76px 110px 84px;
+  align-items:center; gap:var(--e2);
+}
+.ms-permsel__cab{padding:var(--e2) var(--e4); background:var(--pa-alt); border-bottom:1px solid var(--fil)}
+.ms-permsel__f{padding:var(--e2) var(--e4); border-bottom:1px solid var(--fil); min-height:38px}
+.ms-permsel__f:hover{background:var(--sup-alt)}
+.ms-permsel__f.is-veda{opacity:.45; background:var(--pa)}
+.ms-permsel__m{font-size:13px; display:flex; align-items:center; gap:var(--e2); flex-wrap:wrap}
+.ms-permsel__pie{
+  display:flex; flex-wrap:wrap; align-items:center; gap:var(--e2);
+  padding:var(--e2) var(--e4); background:var(--pa-alt);
+}
+.ms-radio{display:grid; place-items:center; cursor:pointer; padding:var(--e1) 0; border-radius:var(--r)}
+.ms-radio:hover{background:var(--ac-suave)}
+.ms-radio input{
+  appearance:none; -webkit-appearance:none; margin:0;
+  width:16px; height:16px; border-radius:50%; border:1px solid var(--fil-duro);
+  background:var(--sup); cursor:inherit; position:relative;
+}
+.ms-radio input:checked{border-color:var(--ac); border-width:5px}
+.ms-radio input:disabled{background:var(--pa-alt); border-color:var(--fil); cursor:not-allowed}
+.ms-radio input:focus-visible{outline:2px solid var(--ac); outline-offset:2px}
+
+/* ---------- conmutador de modulo por iglesia ---------- */
+.ms-modtog{
+  display:flex; align-items:center; gap:var(--e3); width:100%; text-align:left;
+  background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg);
+  padding:var(--e3) var(--e4); cursor:pointer; font:inherit; font-size:13px;
+  transition:border-color .1s linear, background .1s linear;
+}
+.ms-modtog:hover{border-color:var(--fil-duro); background:var(--sup-alt)}
+.ms-modtog.is-on{border-color:#bfdfcd; background:var(--ok-bg)}
+.ms-modtog .ms-sw{pointer-events:none; flex:none}
+
+@media (max-width:820px){
+  .ms-permsel__cab,.ms-permsel__f{grid-template-columns:minmax(0,1fr) 54px 54px 54px 54px; gap:var(--e1)}
+  .ms-permsel__cab .ms-lbl{font-size:8.5px}
+}

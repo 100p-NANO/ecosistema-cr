@@ -134,6 +134,58 @@
     { codigo:"COMUNICACIONES", nombre:"Comunicaciones",   ambito:"local",       roles:["COORDINADOR"] },
   ];
 
+
+  /* ---------- 10 · NIVELES DE ACCESO · el vocabulario ÚNICO ----------
+     Quince acciones son demasiadas para pedirle a un pastor que las
+     marque una por una en cada ministerio. Y si cada pantalla usa
+     palabras distintas, nadie entiende el sistema.
+
+     Por eso hay TRES niveles, y son los mismos en todas partes: en un
+     rol, en un ministerio y en un equipo interno. Son acumulativos:
+     quien edita también ve; quien tiene permiso completo también edita.
+
+     Debajo siguen estando las 15 acciones, para el caso raro. Pero el
+     95% de las veces basta con decir «ver», «editar» o «completo».
+     ---------- */
+  const NIVELES_ACCESO = [
+    { codigo:"ver",      nombre:"Ver",             orden:1,
+      ayuda:"Consulta y exporta. No cambia nada.",
+      verbos:["ver","exportar"] },
+    { codigo:"editar",   nombre:"Editar",          orden:2,
+      ayuda:"Todo lo anterior, y además crea y modifica.",
+      verbos:["ver","exportar","crear","editar"] },
+    { codigo:"completo", nombre:"Permiso completo", orden:3,
+      ayuda:"Todo lo anterior, más anular, administrar y las acciones nombradas del módulo.",
+      verbos:["ver","exportar","crear","editar","anular","administrar"] },
+  ];
+  const nivelAcceso = c => NIVELES_ACCESO.find(n => n.codigo === c) || null;
+
+  /* Qué acciones concretas implica un nivel sobre un módulo dado.
+     Las acciones NOMBRADAS (ENTREGAR_MENOR, VER_NOTAS_CONFIDENCIALES,
+     ANULAR_CERTIFICADO) solo entran con permiso completo: son las que
+     de verdad pesan, y un «editar» no puede arrastrarlas por descuido. */
+  function accionesDeNivel(codNivel, codModulo) {
+    const n = nivelAcceso(codNivel); if (!n) return [];
+    const acc = n.verbos.slice();
+    if (codNivel === "completo") {
+      MATRIZ.filter(p => p.modulo === codModulo && /^[A-Z]/.test(p.accion))
+        .forEach(p => { if (acc.indexOf(p.accion) < 0) acc.push(p.accion); });
+    }
+    return acc;
+  }
+
+  /* Y al revés: dado un conjunto de acciones, qué nivel representa.
+     Sirve para mostrar el estado actual sin mentir: si un rol tiene
+     «crear» pero no «editar», no se dibuja como «editar». */
+  function nivelDeAcciones(acciones) {
+    const a = acciones || [];
+    const tiene = v => a.indexOf(v) >= 0;
+    if (tiene("administrar") || tiene("anular")) return "completo";
+    if (tiene("crear") || tiene("editar")) return "editar";
+    if (tiene("ver") || tiene("exportar")) return "ver";
+    return null;
+  }
+
   /* ============================================================
      LAS REGLAS. Cada una existe porque la base la impone; si la
      interfaz no las aplica, deja pedir cosas que van a fallar.
@@ -302,6 +354,7 @@
     NIVELES, ROLES, MODULOS, ACCIONES, MATRIZ, ALCANCES, SEDES, MINISTERIOS,
     PLANTILLAS, PLANTILLA_MODS, SEDES_FULL, MODSEDE_SEED, modulosDePlantilla, plantilla,
     PRESETS, preset, EQUIPOS,
+    NIVELES_ACCESO, nivelAcceso, accionesDeNivel, nivelDeAcciones,
     DIVERGENCIAS, ADOPTAR_DE_JHON, DELEGACION,
     rol, modulo, alcance, nivel,
     rolPuedeModulo, alcanceValido, puedeOtorgar, vigenciaValida, exigeActa,

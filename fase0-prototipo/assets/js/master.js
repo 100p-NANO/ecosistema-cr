@@ -527,6 +527,54 @@
   }
 
 
+
+  /* ============================================================ SELECTOR DE PERMISOS
+     El MISMO componente en un rol, en un ministerio y en un equipo.
+     Tres niveles, no quince acciones. Si una pantalla usara palabras
+     distintas de otra, nadie entendería el sistema.
+
+     `techo` recorta lo que se puede ofrecer: un módulo por encima del
+     techo sale vedado y no se puede marcar. */
+  function selectorPermisos(permisos, techo, campo, modsVisibles) {
+    permisos = permisos || {};
+    const mods = (modsVisibles && modsVisibles.length)
+      ? I.MODULOS.filter(m => modsVisibles.indexOf(m.codigo) >= 0)
+      : I.MODULOS;
+    const n = Object.keys(permisos).filter(k => permisos[k]).length;
+    return `
+    <div class="ms-permsel">
+      <div class="ms-permsel__cab">
+        <span class="ms-lbl" style="margin:0">Módulo</span>
+        ${I.NIVELES_ACCESO.map(x => `<span class="ms-lbl" style="margin:0;text-align:center" title="${esc(x.ayuda)}">${esc(x.nombre)}</span>`).join("")}
+        <span class="ms-lbl" style="margin:0;text-align:center">Sin acceso</span>
+      </div>
+      ${mods.map(m => {
+        const vedado = m.nivel > techo;
+        const act = permisos[m.codigo] || null;
+        return `<div class="ms-permsel__f ${vedado ? "is-veda" : ""}">
+          <div class="ms-permsel__m"><b>${esc(m.nombre)}</b> ${pastilla(m.nivel)}
+            ${vedado ? `<span class="ms-porque">fuera del techo N${techo}</span>` : ""}</div>
+          ${I.NIVELES_ACCESO.map(x => `
+            <label class="ms-radio ${act === x.codigo ? "is-on" : ""}" title="${esc(x.ayuda)}">
+              <input type="radio" name="${esc(campo)}_${esc(m.codigo)}" ${act === x.codigo ? "checked" : ""}
+                ${vedado ? "disabled" : ""} data-perm-campo="${esc(campo)}"
+                data-perm-mod="${esc(m.codigo)}" data-perm-niv="${esc(x.codigo)}"></label>`).join("")}
+          <label class="ms-radio ${!act ? "is-on" : ""}" title="Sin acceso a este módulo">
+            <input type="radio" name="${esc(campo)}_${esc(m.codigo)}" ${!act ? "checked" : ""}
+              ${vedado ? "disabled" : ""} data-perm-campo="${esc(campo)}"
+              data-perm-mod="${esc(m.codigo)}" data-perm-niv=""></label>
+        </div>`;
+      }).join("")}
+      <div class="ms-permsel__pie">
+        <span class="ms-cuenta">${n} módulo(s) con acceso</span>
+        <div class="ms-barra__sp"></div>
+        ${I.NIVELES_ACCESO.map(x => `<button class="ms-btn ms-btn--peq" data-accion="perm-todos"
+          data-campo="${esc(campo)}" data-niv="${esc(x.codigo)}">Todo a «${esc(x.nombre.toLowerCase())}»</button>`).join("")}
+        <button class="ms-btn ms-btn--peq" data-accion="perm-todos" data-campo="${esc(campo)}" data-niv="">Ninguno</button>
+      </div>
+    </div>`;
+  }
+
   /* ============================================================ FORMULARIOS DE CREACIÓN
      Un patrón para todos: campos arriba, la consecuencia visible
      abajo, y el botón deshabilitado hasta que la base lo aceptaría.
@@ -638,6 +686,8 @@
     if (!b.nombre) f.push("El nombre del ministerio.");
     if (!b.sedeId) f.push("La iglesia a la que pertenece.");
     if (!b.liderId && !b.liderId_nueva) f.push("Su director. Un ministerio no se crea sin alguien a cargo.");
+    if (!Object.keys(b.permisos || {}).some(k => b.permisos[k]))
+      f.push("Al menos un módulo con acceso. Un ministerio que no puede ver nada no sirve de nada.");
     return `<div class="ms-ancho--forma">` + head("Crear ministerio",
       "RocaKids, tMt, Mujer Integral, Hombres de Bien. Cada uno pertenece a una iglesia y tiene alguien al frente.") + `
       <div class="ms-paso"><h3><i>1</i> Qué y dónde</h3>
@@ -645,7 +695,18 @@
           <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Mujer Integral"></label>
         ${selSede("sedeId", "Iglesia")}
       </div>
-      <div class="ms-paso"><h3><i>2</i> Quién lo dirige</h3>
+      <div class="ms-paso"><h3><i>2</i> Qué puede hacer este ministerio</h3>
+        <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
+          Los mismos tres niveles que en cualquier otra parte del sistema. Es lo que podrán hacer
+          quienes sirvan aquí.</p>
+        ${selectorPermisos(b.permisos, b.techo != null ? +b.techo : 2, "permisos")}
+        <label class="ms-campo" style="margin-top:12px"><span>Techo del ministerio</span>
+          <select data-campo="techo">
+            ${I.NIVELES.map(n => `<option value="${n.nivel}" ${(b.techo != null ? +b.techo : 2) === n.nivel ? "selected" : ""}>N${n.nivel} · ${esc(n["desc"])}</option>`).join("")}
+          </select></label>
+      </div>
+
+      <div class="ms-paso"><h3><i>3</i> Quién lo dirige</h3>
         ${selPersona("liderId", "Director del ministerio",
           "Queda nombrado en el mismo acto, con alcance de este ministerio. Un ministerio sin nadie al frente es una carpeta que nadie revisa, y el día que hay un problema con un menor no hay a quién preguntarle.")}
         ${b.nombre && /roca|kid|nin|niñ/i.test(b.nombre) ? `<div class="ms-nota ms-nota--ojo">
@@ -679,7 +740,16 @@
             data-accion="equipo-atajo" data-cod="${esc(e.codigo)}">${esc(e.nombre)}</button>`).join("")}</div>` : ""}
       </div>
 
-      <div class="ms-paso"><h3><i>2</i> Qué roles otorga</h3>
+      <div class="ms-paso"><h3><i>2</i> Qué puede hacer este equipo</h3>
+        <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
+          Los mismos tres niveles que en un rol o en un ministerio. Vocabulario único en todo el sistema.</p>
+        ${selectorPermisos(b.permisos, b.techo != null ? +b.techo : 3, "permisos")}
+        <label class="ms-campo" style="margin-top:12px"><span>Techo del equipo</span>
+          <select data-campo="techo">
+            ${I.NIVELES.map(n => `<option value="${n.nivel}" ${(b.techo != null ? +b.techo : 3) === n.nivel ? "selected" : ""}>N${n.nivel} · ${esc(n["desc"])}</option>`).join("")}
+          </select></label>
+
+        <div class="ms-lbl" style="margin-top:16px">Roles que otorga al responsable</div>
         <div class="ms-sel">
           ${M.rolesTodos().map(r => {
             const on = roles.indexOf(r.codigo) >= 0;
@@ -688,8 +758,6 @@
               <div><b>${esc(r.nombre)}</b><small>techo N${r.techo}</small></div></label>`;
           }).join("")}
         </div>
-        ${roles.length ? `<div class="ms-nota">El responsable recibirá <b>${roles.length} rol(es)</b> de una vez.
-          Techo más alto del conjunto: ${pastilla(Math.max.apply(null, roles.map(c => (I.rol(c) || { techo:0 }).techo)))}.</div>` : ""}
       </div>
 
       <div class="ms-paso"><h3><i>3</i> Quién responde</h3>
@@ -905,16 +973,155 @@
 
   /* ============================================================ ORGANIZACIÓN */
   function vIglesias() {
-    return head("Iglesias y sedes", "El alcance «sede» de una asignación apunta a una de estas filas.") + `
-    <table class="ms-tabla"><thead><tr><th>Iglesia</th><th>Identificador</th><th>Accesos vigentes</th></tr></thead><tbody>
-    ${I.SEDES.map(s => {
-      const n = M.asignaciones().filter(a => a.alcanceId === s.id && (!a.hasta || a.hasta >= hoy())).length;
-      return `<tr><td><b>${esc(s.nombre)}</b></td><td><code>${esc(String(s.id).slice(0,8))}…</code></td>
-        <td>${n || "<i>ninguno</i>"}</td></tr>`; }).join("")}</tbody></table>
-    <div class="ms-nota ms-nota--ojo">La sede se identifica por UUID con llave foránea, no por texto libre.
-      Es una de las divergencias con el documento del equipo: allí es <code>VARCHAR(50)</code> con
-      valores como <code>'bogota'</code>, y un error de tipeo crea una sede fantasma.</div>`;
+    const asg = M.asignaciones(), vig = a => !a.hasta || a.hasta >= hoy();
+    return `<div class="ms-ancho">` + head("Iglesias y sedes",
+      "Toda la red. Haga clic en una para ver su gobierno completo: quién la pastorea, quién tiene acceso y qué módulos ve.") + `
+    <div class="ms-barra">
+      <span class="ms-cuenta">${M.sedes().length} iglesias</span>
+      <div class="ms-barra__sp"></div>
+      <button class="ms-btn ms-btn--primario" data-accion="ir" data-vista="n-iglesia">+ Crear iglesia</button>
+    </div>
+    <table class="ms-lista-t"><thead><tr>
+      <th style="width:26px"></th><th>Iglesia</th><th style="width:110px">Código</th>
+      <th>Plantilla</th><th>Pastores</th><th style="width:110px">Módulos</th>
+      <th style="width:110px">Con acceso</th><th class="ms-acc-col"></th>
+    </tr></thead><tbody>
+    ${M.sedes().map(sd => {
+      const past = asg.filter(a => vig(a) && a.alcanceId === sd.id && a.rol === "PASTOR_CONGREGACIONAL")
+                      .map(a => M.persona(a.personaId)).filter(Boolean);
+      const gente = new Set(asg.filter(a => vig(a) && a.alcanceId === sd.id).map(a => a.personaId));
+      const mods = M.modsede().filter(x => x.sede === sd.id && x.activo).length;
+      const pl = I.plantilla(sd.plantilla);
+      return `<tr>
+        <td><button class="ms-desp" data-accion="veriglesia" data-id="${esc(sd.id)}" title="Abrir ficha">›</button></td>
+        <td><button class="ms-enlace ms-nom" data-accion="veriglesia" data-id="${esc(sd.id)}">${esc(sd.nombre)}</button>
+            <span class="ms-sub">${esc(sd.ciudad || "")}${sd.pais ? " · " + esc(sd.pais) : ""}</span></td>
+        <td><span class="ms-codigo">${esc(sd.codigo || "—")}</span></td>
+        <td>${pl ? `<span class="ms-chip">${esc(pl.nombre)}</span>` : "<span class=ms-falta>sin plantilla</span>"}</td>
+        <td>${past.length
+          ? `<div class="ms-chips">${past.map(p => `<span class="ms-chip">${esc(p.nombre)}</span>`).join("")}</div>`
+          : `<span class="ms-vig ms-vig--fin">Sin pastor</span>`}</td>
+        <td class="num">${mods} de ${I.MODULOS.length}</td>
+        <td class="num">${gente.size}</td>
+        <td class="ms-acc-col">
+          <button class="ms-btn ms-btn--peq" data-accion="veriglesia" data-id="${esc(sd.id)}">Ver todo</button></td>
+      </tr>`;
+    }).join("")}</tbody></table></div>`;
   }
+
+  /* ============================================================ FICHA DE IGLESIA
+     Todo el gobierno de una sede en una pantalla: quién la pastorea,
+     quién más tiene acceso y con qué permiso, qué módulos ve y qué
+     ministerios y equipos tiene dentro. */
+  function vIglesia() {
+    const id = (borrador && borrador.verSede) || (M.sedes()[0] || {}).id;
+    const sd = M.sedes().find(x => x.id === id);
+    if (!sd) return head("Iglesia", "No existe esa sede.");
+    const asg = M.asignaciones(), vig = a => !a.hasta || a.hasta >= hoy();
+    const aqui = asg.filter(a => vig(a) && a.alcanceId === id);
+    const past = aqui.filter(a => a.rol === "PASTOR_CONGREGACIONAL");
+    const otros = aqui.filter(a => a.rol !== "PASTOR_CONGREGACIONAL");
+    const mins = M.ministerios().filter(m => m.sedeId === id);
+    const eqs = M.equipos().filter(e => e.sedeId === id);
+    const pl = I.plantilla(sd.plantilla);
+    const activos = M.modsede().filter(x => x.sede === id && x.activo).map(x => x.modulo);
+
+    const filaAcceso = a => {
+      const p = M.persona(a.personaId), r = I.rol(a.rol);
+      const ef = I.permisoEfectivo([a]);
+      return `<tr>
+        <td><button class="ms-enlace ms-nom" data-accion="verpersona" data-id="${esc(a.personaId)}">${esc(p ? p.nombre : a.personaId)}</button>
+            <span class="ms-sub">${esc((p || {}).codigo || "")}</span></td>
+        <td>${esc(r ? r.nombre : a.rol)}</td>
+        <td>${pastilla(a.nivelMax)}</td>
+        <td><div class="ms-chips">${ef.length
+          ? ef.map(x => `<span class="ms-chip">${esc(x.nombre)}</span>`).join("")
+          : "<i>ninguno</i>"}</div></td>
+        <td>${a.delega ? `<span class="ms-vig ms-vig--ok">Puede nombrar</span>` : `<span class="ms-sub">no nombra</span>`}</td>
+        <td>${vigencia(a)}</td>
+        <td class="ms-acc-col"><button class="ms-btn ms-btn--peq ms-btn--peligro" data-accion="revocar" data-id="${esc(a.id)}">Cerrar</button></td>
+      </tr>`;
+    };
+
+    return `<div class="ms-ancho">` + `
+    <div class="ms-ficha__top">
+      <button class="ms-btn ms-btn--peq" data-accion="ir" data-vista="iglesias">← Todas las iglesias</button>
+      <div class="ms-barra__sp"></div>
+      <button class="ms-btn ms-btn--peq" data-accion="ir" data-vista="n-ministerio">+ Ministerio</button>
+      <button class="ms-btn ms-btn--peq" data-accion="ir" data-vista="n-equipo">+ Equipo</button>
+      <button class="ms-btn ms-btn--peq ms-btn--primario" data-accion="ir" data-vista="crear">+ Otorgar acceso</button>
+    </div>
+
+    <div class="ms-head">
+      <h1>${esc(sd.nombre)} <span class="ms-codigo" style="vertical-align:6px">${esc(sd.codigo || "")}</span></h1>
+      <p>${esc(sd.ciudad || "")}${sd.pais ? " · " + esc(sd.pais) : ""}
+         ${pl ? ` · plantilla <b>${esc(pl.nombre)}</b>: ${esc(pl["desc"] || "")}` : ""}</p>
+    </div>
+
+    <div class="ms-kpis">
+      <div class="ms-kpi"><b>${past.length}</b><span>pastores</span></div>
+      <div class="ms-kpi"><b>${aqui.length}</b><span>accesos vigentes</span></div>
+      <div class="ms-kpi"><b>${activos.length}</b><span>de ${I.MODULOS.length} módulos</span></div>
+      <div class="ms-kpi"><b>${mins.length}</b><span>ministerios</span></div>
+    </div>
+
+    ${!past.length ? `<div class="ms-alerta ms-alerta--roja">
+      <b>Esta iglesia no tiene pastor asignado.</b> Una sede sin pastor no debería existir:
+      la base lo exige y aquí quedó sin cumplir.</div>` : ""}
+    ${past.length === 1 ? `<div class="ms-alerta ms-alerta--ambar">
+      <b>Solo hay un pastor nombrado.</b> En Casa Sobre la Roca los pastores se nombran en
+      matrimonio: falta la pastora.</div>` : ""}
+
+    <div class="ms-lbl">Pastores</div>
+    ${past.length ? `<table class="ms-tabla"><thead><tr>
+      <th>Persona</th><th>Rol</th><th>Techo</th><th>Alcanza</th><th>Nombra</th><th>Vigencia</th><th></th>
+    </tr></thead><tbody>${past.map(filaAcceso).join("")}</tbody></table>`
+      : `<div class="ms-nota">Nadie la pastorea todavía.</div>`}
+
+    <div class="ms-lbl" style="margin-top:22px">Otros accesos en esta iglesia (${otros.length})</div>
+    ${otros.length ? `<table class="ms-tabla"><thead><tr>
+      <th>Persona</th><th>Rol</th><th>Techo</th><th>Alcanza</th><th>Nombra</th><th>Vigencia</th><th></th>
+    </tr></thead><tbody>${otros.map(filaAcceso).join("")}</tbody></table>`
+      : `<div class="ms-nota">Nadie más tiene acceso a esta sede todavía.</div>`}
+
+    <div class="ms-lbl" style="margin-top:22px">Qué ve esta iglesia</div>
+    <div class="ms-nota">Encender o apagar aquí cambia lo que ven TODOS los de esta sede.
+      Los módulos de dato sensible piden evidencia legal.</div>
+    <div class="ms-modgrid">
+      ${I.MODULOS.map(m => {
+        const on = activos.indexOf(m.codigo) >= 0;
+        return `<button class="ms-modtog ${on ? "is-on" : ""}" data-accion="cfg-mod"
+          data-sede="${esc(id)}" data-mod="${esc(m.codigo)}" aria-pressed="${on}">
+          <span class="ms-sw ${on ? "is-on" : ""}" aria-hidden="true"></span>
+          <span><b>${esc(m.nombre)}</b> ${pastilla(m.nivel)}</span></button>`;
+      }).join("")}
+    </div>
+    <div class="ms-acciones" style="margin-top:12px">
+      ${I.PLANTILLAS.map(x => `<button class="ms-btn ms-btn--peq" data-accion="cfg-plant"
+        data-sede="${esc(id)}" data-cod="${esc(x.codigo)}">Aplicar «${esc(x.nombre)}»</button>`).join("")}
+    </div>
+
+    <div class="ms-lbl" style="margin-top:22px">Ministerios (${mins.length}) y equipos (${eqs.length})</div>
+    ${mins.length || eqs.length ? `<table class="ms-tabla"><thead><tr>
+      <th>Unidad</th><th>Código</th><th>Tipo</th><th>A cargo</th></tr></thead><tbody>
+      ${mins.map(m => {
+        const l = asg.find(a => vig(a) && a.alcanceId === m.codigo && a.rol === "DIRECTOR_MINISTERIO");
+        const per = l && M.persona(l.personaId);
+        return `<tr><td><b>${esc(m.nombre)}</b></td><td><span class="ms-codigo">${esc(m.codTrabajo || "—")}</span></td>
+          <td>Ministerio</td><td>${per
+            ? `<button class="ms-enlace" data-accion="verpersona" data-id="${esc(per.id)}">${esc(per.nombre)}</button>`
+            : `<span class="ms-falta">sin director</span>`}</td></tr>`;
+      }).join("")}
+      ${eqs.map(e => { const per = M.persona(e.liderId);
+        return `<tr><td><b>${esc(e.nombre)}</b></td><td><span class="ms-codigo">${esc(e.codTrabajo || "—")}</span></td>
+          <td>Equipo ${esc(e.ambito)}</td><td>${per
+            ? `<button class="ms-enlace" data-accion="verpersona" data-id="${esc(per.id)}">${esc(per.nombre)}</button>`
+            : `<span class="ms-falta">sin responsable</span>`}</td></tr>`;
+      }).join("")}
+    </tbody></table>` : `<div class="ms-nota">Esta iglesia no tiene ministerios ni equipos creados.</div>`}
+    </div>`;
+  }
+
   function vModSede() {
     return head("Módulos por sede", "Cada iglesia enciende solo lo que usa. Encender un módulo de dato sensible exige evidencia legal.") + `
     <div class="ms-scroll"><table class="ms-tabla"><thead><tr><th>Iglesia</th>
@@ -1004,6 +1211,7 @@
       case "contraste": html = vContraste();break;
       case "arranque":  html = vArranque(); break;
       case "persona":   html = vPersona();  break;
+      case "iglesia":   html = vIglesia();  break;
       case "n-persona": html = vNPersona(); break;
       case "n-iglesia": html = vNIglesia(); break;
       case "n-ministerio": html = vNMinisterio(); break;
@@ -1037,6 +1245,7 @@
       pintar(); return;
     }
     if (a === "desplegar")  { b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
+    if (a === "veriglesia") { b.verSede = bt.dataset.id; vista = "iglesia"; pintar(); return; }
     if (a === "verpersona") { b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
     if (a === "verefectivo"){ b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
     if (a === "verefectivo2"){ b.verPersona = bt.dataset.id; vista = "efectivo"; pintar(); return; }
@@ -1047,6 +1256,14 @@
       if (!ids.length) return;
       if (!confirm(`Se cerrará el acceso de ${ids.length} asignación(es). Queda registrado en la bitácora y no se borra nada. ¿Continuar?`)) return;
       M.revocarVarios(ids, "cierre en lote desde el master"); pintar(); return;
+    }
+    if (a === "perm-todos") {
+      const b2 = b_(); b2.permisos = {};
+      if (bt.dataset.niv) {
+        const techo = b2.techo != null ? +b2.techo : 4;
+        I.MODULOS.forEach(m => { if (m.nivel <= techo) b2.permisos[m.codigo] = bt.dataset.niv; });
+      }
+      pintar(); return;
     }
     if (a === "perm") {
       const rs = (borrador && borrador.rolPerm) || I.ROLES[0].codigo;
@@ -1098,6 +1315,14 @@
     }
   });
   document.addEventListener("change", e => {
+    const pr = e.target.closest("[data-perm-campo]");
+    if (pr) {
+      const b2 = b_(); const campo = pr.dataset.permCampo;
+      b2[campo] = b2[campo] || {};
+      if (pr.dataset.permNiv) b2[campo][pr.dataset.permMod] = pr.dataset.permNiv;
+      else delete b2[campo][pr.dataset.permMod];
+      pintar(); return;
+    }
     const dl = e.target.closest("[data-delega]");
     if (dl) { M.alternarDelegacion(dl.dataset.delega); pintar(); return; }
     const rc = e.target.closest("[data-rol]");
