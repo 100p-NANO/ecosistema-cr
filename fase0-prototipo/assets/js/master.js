@@ -747,7 +747,7 @@
                 <span class="ms-sub">${sd ? esc(sd.nombre) : esc((I.alcance(x.asignacion.alcanceTipo)||{}).nombre || "")}</span>
               </div>
               ${x.abre
-                ? `<button class="ms-btn ms-btn--peq ms-btn--primario" data-accion="abrirpanel" data-url="${esc(x.url)}" data-lbl="${esc(x.nombre)}">Entrar</button>`
+                ? `<button class="ms-btn ms-btn--peq ms-btn--primario" data-accion="abrirpanel" data-url="${esc(x.url)}" data-lbl="${esc(x.nombre)}" data-persona="${esc(id)}">Entrar</button>`
                 : `<span class="ms-vig ms-vig--fin">${x.encendido ? "techo insuficiente" : "módulo apagado en su iglesia"}</span>`}
               ${x.crea && x.crea.length ? `<div class="ms-panelc__crea">Desde ahí crea: ${esc(x.crea.join(", "))}</div>` : ""}
             </div>`;
@@ -1224,7 +1224,7 @@
             <td>${x.abre ? `<span class="ms-vig ms-vig--ok">Abre</span>`
                          : `<span class="ms-vig ms-vig--fin">${x.encendido ? "techo insuficiente" : "módulo apagado"}</span>`}</td>
             <td class="ms-acc-col">${x.abre
-              ? `<button class="ms-btn ms-btn--peq" data-accion="abrirpanel" data-url="${esc(x.url)}" data-lbl="${esc(x.nombre)}">Entrar</button>` : ""}</td>
+              ? `<button class="ms-btn ms-btn--peq" data-accion="abrirpanel" data-url="${esc(x.url)}" data-lbl="${esc(x.nombre)}" data-persona="${esc(id)}">Entrar</button>` : ""}</td>
           </tr>`);
         });
       });
@@ -1489,8 +1489,14 @@
       borrador = nb; vista = bt.dataset.vista; pintar();
       const m = $("#ms-main"); if (m) m.focus(); return;
     }
-    if (a === "abrirpanel") { b.panelUrl = bt.dataset.url; b.panelLbl = bt.dataset.lbl;
-      vista = "app-pastor"; pintar(); return; }
+    if (a === "abrirpanel") {
+      /* ⭐ El panel tiene que saber QUIÉN entra, o se abriría completo.
+         Se deja escrito antes de abrirlo; `permisos-panel.js` lo lee y
+         oculta lo que esa persona no alcanza. */
+      try { localStorage.setItem("casaroca_panel_persona", bt.dataset.persona || ""); } catch (e) {}
+      b.panelUrl = bt.dataset.url; b.panelLbl = bt.dataset.lbl;
+      vista = "app-pastor"; pintar(); return;
+    }
     if (a === "veriglesia") { b.verSede = bt.dataset.id; vista = "iglesia"; pintar(); return; }
     if (a === "verpersona") { b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
     if (a === "verefectivo"){ b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
@@ -1593,7 +1599,12 @@
     if (a === "hacer-modulo") { const nom = b.nombre, n2 = b.nivel;
       hecho(M.crearModulo({ nombre:nom, nivel:n2 }), "modulo",
         `${nom} maneja dato N${n2}. Solo los roles con ese techo o mayor podrán alcanzarlo.`); return; }
-    if (a === "ir") { if (borrador) { delete borrador.panelUrl; delete borrador.panelLbl; }
+    if (a === "ir") {
+      if (borrador) { delete borrador.panelUrl; delete borrador.panelLbl; }
+      const destino = NAV.find(x => x.id === bt.dataset.vista);
+      if (destino && destino.src) {
+        try { localStorage.setItem("casaroca_panel_persona", YO.personaId); } catch (e) {}
+      }
       vista = bt.dataset.vista; pintar(); const m = $("#ms-main"); if (m) m.focus(); }
     if (a === "nivel")   { b_().nivelMax = +bt.dataset.n; pintar(); }
     if (a === "limpiar") { borrador = null; pintar(); }
