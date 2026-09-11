@@ -7,7 +7,7 @@ Hasta ahora esto vivía en tres carpetas sueltas y en documentos de Drive. Aquí
 sobre todo, **revisable línea por línea** — que es lo que pidió el CTO.
 
 ```
-backend/           Fase 1 · PostgreSQL 16 · 31 migraciones SQL + 83 pruebas + API NestJS
+backend/           Fase 1 · PostgreSQL 16 · 32 migraciones SQL + 89 pruebas + API NestJS
 fase0-prototipo/   El prototipo navegable: ~26.000 líneas de JS sin framework, 127 archivos
 web/               El sitio unificado que hoy está desplegado en Netlify
 ```
@@ -25,11 +25,11 @@ web/               El sitio unificado que hoy está desplegado en Netlify
 ```bash
 cd backend
 ./scripts/arrancar.sh    # PostgreSQL 16 local en el puerto 5433
-./scripts/migrar.sh      # recrea casaroca_dev: 31 migraciones + seeds
-./scripts/probar.sh      # 83 pruebas
+./scripts/migrar.sh      # recrea casaroca_dev: 32 migraciones + seeds
+./scripts/probar.sh      # 89 pruebas
 ```
 
-Última corrida verificada: **11 de septiembre de 2026 · 31 migraciones limpias · 83/83 en verde.**
+Última corrida verificada: **11 de septiembre de 2026 · 32 migraciones limpias · 89/89 en verde.**
 
 ## Qué está demostrado, no solo diseñado
 
@@ -44,6 +44,23 @@ Cada garantía del diseño tiene una prueba que falla si alguien la rompe:
 - **Aportes.** La reconciliación es aritmética: una vista dice si lo migrado cuadra al peso.
   Y el pastor congregacional ve hábito de aporte **sin ninguna columna de monto**.
 - **Auditoría.** Append-only e inmutable, con bitácora de lectura sobre los datos sensibles.
+
+## Lo que se corrigió el 11 de septiembre (migración `0031`)
+
+Auditando la base **corriendo** aparecieron dos huecos que el banco de pruebas no veía,
+porque probaba las tablas cabeza y no las hijas:
+
+1. **16 tablas hijas sin RLS.** La sede de Chía, que no tiene una sola persona registrada,
+   veía los certificados de aporte y las inscripciones de formación de Bogotá Chicó. Entre
+   las tablas expuestas estaban las de RocaKids, que son las de los menores.
+2. **La aplicación podía subirse su propio techo.** Con `app.nivel_max=1` —el nivel más
+   bajo— el rol de la API reescribió las 173 filas de `sistema.matriz_permisos`
+   poniéndose `nivel_max=4`.
+
+Ambos están cerrados, cada uno con su prueba, y queda una vista de control
+(`plataforma.v_control_rls`) que deja a la vista cualquier tabla futura que nazca legible
+sin una sola política. Es el mismo patrón que la fuga de las vistas de agosto: el control
+se había puesto donde se estaba mirando, no donde estaban todos los datos.
 
 ## Lo que está abierto y necesita decisión de la mesa
 

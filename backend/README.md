@@ -7,9 +7,9 @@ SQL que corren, con un banco de pruebas que demuestra cada garantía.
 ## Qué hay aquí
 
 ```
-db/migrations/   31 migraciones SQL planas, en orden, revisables línea a línea
+db/migrations/   32 migraciones SQL planas, en orden, revisables línea a línea
 db/seeds/        catálogos (16 tipos de documento, 24 vínculos, 14 roles) + sedes demo
-db/tests/        5 bancos: invariantes, aislamiento, módulos, consola y empalme 100p
+db/tests/        6 bancos: invariantes, aislamiento, módulos, consola y empalme 100p
 api/             API NestJS del Módulo de Nuevos, sobre el contrato del equipo 100p
 scripts/         arrancar / migrar / probar
 entregas-drive/  documentos listos para subir al Drive «Sistema 100p», por carpeta
@@ -19,8 +19,8 @@ entregas-drive/  documentos listos para subir al Drive «Sistema 100p», por car
 
 ```bash
 ./scripts/arrancar.sh    # levanta PostgreSQL 16 local en el puerto 5433
-./scripts/migrar.sh      # recrea casaroca_dev y aplica las 31 migraciones + seeds
-./scripts/probar.sh      # corre las 83 pruebas
+./scripts/migrar.sh      # recrea casaroca_dev y aplica las 32 migraciones + seeds
+./scripts/probar.sh      # corre las 89 pruebas
 ```
 
 Requiere PostgreSQL 16 (Postgres.app). No hay dependencias de red ni de nube.
@@ -42,8 +42,8 @@ Requiere PostgreSQL 16 (Postgres.app). No hay dependencias de red ni de nube.
 
 **Reverificado el 11 de septiembre de 2026 corriendo los tres scripts, no leyendo el código:**
 
-- **31 migraciones** aplican limpias sobre PostgreSQL 16.14, sin un solo `ERROR`.
-- **83 pruebas, 83 pasan, 0 fallan**, repartidas en cinco bancos:
+- **32 migraciones** aplican limpias sobre PostgreSQL 16.14, sin un solo `ERROR`.
+- **89 pruebas, 89 pasan, 0 fallan**, repartidas en seis bancos:
 
   | Banco | Qué demuestra | Pasan |
   |---|---|---|
@@ -52,6 +52,7 @@ Requiere PostgreSQL 16 (Postgres.app). No hay dependencias de red ni de nube.
   | `invariantes_modulos` | Esquemas 03 a 10 (grupos, asistencia, RocaKids, consejería, aportes, formación, talento) | 21 / 21 |
   | `consola_sistemas` | Módulos, habilitación por iglesia y matriz de permisos | 25 / 25 |
   | `empalme_100p` | El contrato con los módulos de Roles, Nuevos y Donaciones del equipo | 12 / 12 |
+  | `rls_tablas_hijas` | La tercera cerradura: las tablas hijas y el techo de permisos (ver 0031) | 6 / 6 |
 
 - **Los 12 esquemas están construidos**, no faltan los siete que decía esta línea antes:
   Núcleo, 01 Organización, 02 Identidad, 03 Grupos, 04 CRM, 05 Asistencia, 06 RocaKids,
