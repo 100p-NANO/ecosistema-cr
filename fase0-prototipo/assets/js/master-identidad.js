@@ -394,8 +394,16 @@
     return r ? Math.min(n, r.techo) : n;    // el techo del rol siempre recorta
   }
 
+  /* El nivel con el que un ROL alcanza un MÓDULO: la concesión de la
+     matriz si existe, y si no, el nivel de la asignación. */
+  function nivelDelRolEn(rolCod, codModulo, nivelAsignacion) {
+    const fila = MATRIZ.find(p => p.rol === rolCod && p.modulo === codModulo && p.nivel != null);
+    return fila ? fila.nivel : nivelAsignacion;
+  }
+
   function moduloPermitido(asignacion, codModulo, nivelModulo) {
-    if (nivelEn(asignacion, codModulo) < nivelModulo) return { ok:false, razon:"techo" };
+    const n = nivelDelRolEn(asignacion.rol, codModulo, nivelEn(asignacion, codModulo));
+    if (n < nivelModulo) return { ok:false, razon:"techo" };
     const ex = asignacion.modulos && asignacion.modulos[codModulo];
     if (ex === false) return { ok:false, razon:"apagado a esta persona" };
     return { ok:true, forzado: ex === true };
@@ -412,9 +420,26 @@
     vigentes.forEach(a => {
       MTZ.filter(p => p.rol === a.rol).forEach(p => {
         const m = modulo(p.modulo); if (!m) return;
-        const tope = Math.min(nivelEn(a, p.modulo), p.nivel == null ? 4 : p.nivel);
-        if (m.nivel > tope) return;               // el módulo pide más de lo que tiene
-        if (!moduloPermitido(a, p.modulo, m.nivel).ok) return;   // excepción de esta persona
+
+        /* ⛔ ESTO ESTABA AL REVÉS Y ERA UN ERROR MÍO.
+           `matriz_permisos.nivel_max` NO es un tope: es una CONCESIÓN
+           declarada para ese rol en ESE módulo, con acta de respaldo.
+           Lo dice el disparador `tg_permiso_respeta_nivel` tras la
+           migración 0030:
+               v_efectivo := COALESCE(NEW.nivel_max, v_techo)
+           y su pista es explícita: «declárela en nivel_max de esta
+           fila, NUNCA subiendo el techo del rol, que la extendería a
+           todos los módulos».
+
+           Es la salida a la tensión que la 0030 dejó escrita: el techo
+           es un número, pero la sensibilidad tiene dominios. Un pastor
+           debe ver la consejería de su sede (N3) y NO los aportes (N3
+           también). Con un solo escalar no se puede decir; con una
+           concesión por módulo, sí. */
+        const nivelFila = (p.nivel == null) ? nivelEn(a, p.modulo) : p.nivel;
+        if (m.nivel > nivelFila) return;
+        const ex = a.modulos && a.modulos[p.modulo];
+        if (ex === false) return;                 // apagado a esta persona
         const k = p.modulo;
         mapa[k] = mapa[k] || { modulo:p.modulo, nombre:m.nombre, nivelModulo:m.nivel,
                                acciones:new Set(), porque:[] };
@@ -501,6 +526,6 @@
     rol, modulo, alcance, nivel,
     rolPuedeModulo, alcanceValido, puedeOtorgar, vigenciaValida, exigeActa,
     validarAsignacion, permisoEfectivo, puedeVer, puedeHacer, rolesQuePuedeCrear,
-    moduloPermitido, alcancesDe, cubre, nivelEn, alcanceSugerido,
+    moduloPermitido, alcancesDe, cubre, nivelEn, alcanceSugerido, nivelDelRolEn,
   };
 })();

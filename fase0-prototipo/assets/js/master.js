@@ -245,18 +245,28 @@
         <b>de esta persona</b>, no del rol.</p>
       <div class="ms-sel">
         ${I.MODULOS.map(m => {
-          const porTecho = (r ? r.techo : 0) >= m.nivel;
-          const daRol = M.matriz().some(x => x.rol === a.rol && x.modulo === m.codigo);
+          const filas = M.matriz().filter(x => x.rol === a.rol && x.modulo === m.codigo);
+          const daRol = filas.length > 0;
+          /* La CONCESIÓN: una fila de la matriz con nivel_max propio sube
+             el nivel para ESE módulo, con acta. Es como el pastor ve la
+             consejería de su sede sin ver los aportes, siendo ambos N3. */
+          const concesion = filas.find(x => x.nivel != null && x.nivel > a.nivelMax);
+          const alcanza = concesion ? concesion.nivel : I.nivelEn(a, m.codigo);
+          const posible = alcanza >= m.nivel;
           const perm = I.moduloPermitido(a, m.codigo, m.nivel);
           const on = daRol && perm.ok;
           const exc = a.modulos && a.modulos[m.codigo] !== undefined;
-          return `<label class="ms-opt ${on ? "is-on" : ""} ${porTecho ? "" : "is-off"}">
-            <input type="checkbox" ${on ? "checked" : ""} ${porTecho ? "" : "disabled"}
+          const porque = !daRol ? "el rol no lo da"
+            : concesion ? `concesión declarada: N${concesion.nivel} solo aquí`
+            : !posible ? `el rol llega a N${alcanza} y esto es N${m.nivel}`
+            : exc ? "excepción de esta persona"
+            : "lo da su rol";
+          return `<label class="ms-opt ${on ? "is-on" : ""} ${(!daRol || !posible) ? "is-off" : ""}"
+            title="${esc(porque)}">
+            <input type="checkbox" ${on ? "checked" : ""} ${(!daRol || !posible) ? "disabled" : ""}
               data-modpersona="${esc(m.codigo)}">
             <div><b>${esc(m.nombre)}</b> ${pastilla(m.nivel)}
-              <small>${!porTecho ? "fuera del techo del rol"
-                : exc ? "excepción de esta persona"
-                : daRol ? "lo da su rol" : "el rol no lo da"}</small></div></label>`;
+              <small>${esc(porque)}</small></div></label>`;
         }).join("")}
       </div>
     </div>
@@ -1179,6 +1189,25 @@
       ${I.PLANTILLAS.map(x => `<button class="ms-btn ms-btn--peq" data-accion="cfg-plant"
         data-sede="${esc(id)}" data-cod="${esc(x.codigo)}">Aplicar «${esc(x.nombre)}»</button>`).join("")}
     </div>
+
+    ${(() => {
+      /* ⭐ La pregunta de Daniel: «activamos módulos que no pueden verse,
+         ¿por qué?». Porque encender un módulo es SOLO UNA de tres puertas.
+         Hacen falta las tres: encendido en la iglesia, que alguien tenga
+         un rol con permiso, y que su nivel alcance. Aquí se dice cuál
+         falta, en vez de dejar al usuario adivinando. */
+      const huerfanos = I.MODULOS.filter(m => {
+        if (activos.indexOf(m.codigo) < 0) return false;
+        return !aqui.some(a2 => I.permisoEfectivo([a2]).some(x => x.modulo === m.codigo));
+      });
+      if (!huerfanos.length) return "";
+      return `<div class="ms-alerta ms-alerta--ambar" style="margin-top:18px">
+        <b>${huerfanos.length} módulo(s) encendidos que hoy no ve nadie en esta iglesia:</b>
+        ${esc(huerfanos.map(m => m.nombre).join(", "))}.
+        <div style="margin-top:6px">Encender un módulo es solo una de las tres puertas. Hacen falta
+        las tres: que esté encendido aquí, que alguien tenga un rol con permiso sobre él, y que su
+        nivel alcance el del dato. Falta la segunda o la tercera.</div></div>`;
+    })()}
 
     <div class="ms-lbl" style="margin-top:22px">Paneles vivos en esta iglesia</div>
     <div class="ms-nota">Cada persona con rol aquí abre su propia pantalla. Si un módulo está apagado
