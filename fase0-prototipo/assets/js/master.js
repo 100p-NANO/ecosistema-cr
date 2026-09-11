@@ -27,6 +27,10 @@
 
   let vista = "tablero";
   let borrador = null;   // asistente de creación de acceso
+  let filtro  = "";      // búsqueda de la lista
+  let abierta = null;    // fila desplegada
+  let cfgSede = null;    // iglesia que se está configurando
+  let menuCrear = false; // desplegable de + Crear
 
   /* ============================================================
      NAVEGACIÓN · todas las pestañas del sistema
@@ -35,6 +39,7 @@
      ============================================================ */
   const NAV = [
     { sep:"Dirección" },
+    { id:"arranque",ico:"🧭", lbl:"Puesta en marcha" },
     { id:"tablero", ico:"🌐", lbl:"Tablero de la red" },
 
     { sep:"Identidad y accesos" },
@@ -48,7 +53,8 @@
 
     { sep:"Organización" },
     { id:"iglesias",  ico:"⛪", lbl:"Iglesias y sedes",  mod:"organizacion" },
-    { id:"modsede",   ico:"🎚️", lbl:"Módulos por sede",  mod:"organizacion" },
+    { id:"plantillas",ico:"🧩", lbl:"Plantillas de iglesia", mod:"organizacion" },
+    { id:"modsede",   ico:"🎚️", lbl:"Qué ve cada iglesia", mod:"organizacion" },
 
     { sep:"Operación" },
     { id:"personas",   ico:"👤", lbl:"Personas",        mod:"personas" },
@@ -121,6 +127,72 @@
     </div>`;
   }
 
+  /* ============================================================ PUESTA EN MARCHA
+     El orden importa y no es decorativo: primero los pastores
+     generales, de ellos sale la parte administrativa, de ahí las
+     iglesias (cada una con SU pastor, que la base exige), y solo
+     entonces los roles de cada iglesia. Saltarse un paso deja
+     huérfano el siguiente. */
+  function vArranque() {
+    const per = M.personas(), asg = M.asignaciones();
+    const vig = a => !a.hasta || a.hasta >= hoy();
+    const generales = asg.filter(a => vig(a) && a.alcanceTipo === "organizacion");
+    const admin     = M.equipos();
+    const sedes     = M.sedes();
+    const conPastor = sedes.filter(s => asg.some(a => vig(a) && a.alcanceId === s.id && a.rol === "PASTOR_CONGREGACIONAL"));
+    const rolesSede = asg.filter(a => vig(a) && a.alcanceTipo !== "organizacion");
+
+    const pasos = [
+      { n:1, t:"Pastores generales", sub:"La Dirección General. De aquí sale todo lo demás.",
+        hecho:generales.length, meta:"al menos 1", ok:generales.length > 0,
+        ir:"crear", btn:"Otorgar Dirección General",
+        detalle:generales.length
+          ? generales.map(a => (M.persona(a.personaId) || {}).nombre).join(", ")
+          : "Todavía nadie gobierna la red." },
+      { n:2, t:"Equipo administrativo", sub:"Los equipos corporativos que dependen de la Dirección.",
+        hecho:admin.length, meta:"los que hagan falta", ok:admin.length > 0,
+        ir:"n-equipo", btn:"Crear equipo",
+        detalle:admin.length ? admin.map(e => e.nombre).join(", ") : "Ningún equipo creado todavía.",
+        bloqueado: generales.length === 0, porque:"Primero tiene que existir la Dirección General." },
+      { n:3, t:"Iglesias", sub:"Cada una nace con su pastor y con una plantilla que define qué ve.",
+        hecho:sedes.length, meta:"36", ok:sedes.length > 0 && conPastor.length === sedes.length,
+        ir:"n-iglesia", btn:"Crear iglesia",
+        detalle:sedes.length
+          ? `${conPastor.length} de ${sedes.length} tienen pastor asignado.`
+          : "Ninguna iglesia creada.",
+        bloqueado: generales.length === 0, porque:"La Dirección General es quien crea iglesias." },
+      { n:4, t:"Roles por iglesia", sub:"Directores, líderes, consejeros y tesorería de cada sede.",
+        hecho:rolesSede.length, meta:"según cada iglesia", ok:rolesSede.length > 0,
+        ir:"crear", btn:"Otorgar acceso",
+        detalle:rolesSede.length ? `${rolesSede.length} accesos vigentes fuera de la Dirección.` : "Sin roles locales todavía.",
+        bloqueado: sedes.length === 0, porque:"Primero hay que crear la iglesia donde van a servir." },
+    ];
+    const hechos = pasos.filter(x => x.ok).length;
+
+    return `<div class="ms-ancho--lectura">` + head("Puesta en marcha",
+      "El sistema se llena en un orden. Cada paso habilita el siguiente; saltarse uno deja huérfano al que sigue.") + `
+      <div class="ms-prog">
+        <div class="ms-prog__barra"><i style="width:${(hechos / pasos.length) * 100}%"></i></div>
+        <span class="ms-cuenta">${hechos} de ${pasos.length} pasos completos</span>
+      </div>
+      ${pasos.map(x => `
+        <div class="ms-paso-seq ${x.ok ? "is-ok" : ""} ${x.bloqueado ? "is-bloq" : ""}">
+          <div class="ms-paso-seq__n">${x.ok ? "\u2713" : x.n}</div>
+          <div class="ms-paso-seq__c">
+            <h3>${esc(x.t)}</h3>
+            <p>${esc(x.sub)}</p>
+            <div class="ms-paso-seq__est">${esc(x.detalle)}</div>
+            ${x.bloqueado ? `<div class="ms-nota ms-nota--ojo">${esc(x.porque)}</div>` : ""}
+          </div>
+          <div class="ms-paso-seq__a">
+            <div class="ms-cuenta">${x.hecho} <small>/ ${esc(x.meta)}</small></div>
+            <button class="ms-btn ${x.ok ? "" : "ms-btn--primario"}" data-accion="ir" data-vista="${x.ir}"
+              ${x.bloqueado ? "disabled" : ""}>${esc(x.btn)}</button>
+          </div>
+        </div>`).join("")}
+    </div>`;
+  }
+
   /* ============================================================ TABLERO */
   function vTablero() {
     const asg = M.asignaciones(), per = M.personas();
@@ -152,34 +224,75 @@
     }).join("")}</tbody></table>`;
   }
 
-  /* ============================================================ ACCESOS */
+  /* ============================================================ ACCESOS · LISTA
+     Una tarjeta por persona obliga a desplazarse para comparar dos.
+     La lista deja ver veinte de un golpe, que es lo que se necesita
+     para gobernar accesos. El detalle se despliega, no se navega. */
   function vAccesos() {
-    const per = M.personas();
-    return head("Personas con acceso", "Toda asignación es una fila con vigencia. Revocar no borra: cierra la fila.") +
-    per.map(p => {
+    const norm = x => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const q = norm(filtro || "");
+    const filas = M.personas().map(p => {
       const asg = M.deLaPersona(p.id);
       const vig = asg.filter(a => !a.hasta || a.hasta >= hoy());
-      const ef  = I.permisoEfectivo(asg);
-      return `<div class="ms-persona">
-        <div class="ms-persona__cab">
-          <div><b>${esc(p.nombre)}</b><span class="ms-doc">${esc(p.documento || "sin documento")}</span></div>
-          <div>${vig.length
-            ? `<span class="ms-vig ms-vig--ok">${vig.length} rol(es) vigente(s) · ${ef.length} módulo(s)</span>`
-            : `<span class="ms-vig ms-vig--fin">Sin acceso</span>`}</div>
-        </div>
-        <table class="ms-tabla ms-tabla--mini"><thead><tr>
-          <th>Rol</th><th>Alcance</th><th>Techo</th><th>Vigencia</th><th>Acta</th><th></th></tr></thead><tbody>
-        ${asg.length ? asg.map(a => {
-          const r = I.rol(a.rol), cerrada = a.hasta && a.hasta < hoy();
+      return { p, asg, vig, ef: I.permisoEfectivo(asg),
+               techo: vig.reduce((m, a) => Math.max(m, a.nivelMax), -1) };
+    }).filter(f => !q || norm(f.p.nombre).indexOf(q) >= 0 ||
+      f.vig.some(a => norm((I.rol(a.rol) || {}).nombre || a.rol).indexOf(q) >= 0));
+
+    return `<div class="ms-ancho">` + head("Personas con acceso",
+      "Otorgar agrega una fila; cerrar le pone fecha de fin. Nunca se borra ni se edita.") + `
+    <div class="ms-barra">
+      <input class="ms-busca" data-campo="filtro" value="${esc(filtro)}" placeholder="Buscar persona o rol…">
+      <span class="ms-cuenta">${filas.length} de ${M.personas().length}</span>
+      <div class="ms-barra__sp"></div>
+      <button class="ms-btn ms-btn--primario" data-accion="ir" data-vista="crear">Crear acceso</button>
+    </div>
+    <table class="ms-lista-t"><thead><tr>
+      <th style="width:26px"></th><th>Persona</th><th>Roles vigentes</th><th>Alcance</th>
+      <th style="width:70px">Techo</th><th style="width:120px">Módulos</th>
+      <th style="width:150px">Vigencia</th><th class="ms-acc-col">Acciones</th>
+    </tr></thead><tbody>
+    ${filas.length ? filas.map(f => {
+      const ab = abierta === f.p.id;
+      const prox = f.vig.filter(a => a.hasta).sort((x, y) => x.hasta < y.hasta ? -1 : 1)[0];
+      return `<tr class="${ab ? "is-abierta" : ""}">
+        <td><button class="ms-desp" data-accion="desplegar" data-id="${esc(f.p.id)}"
+             aria-expanded="${ab}" title="Ver detalle">${ab ? "\u2212" : "+"}</button></td>
+        <td><span class="ms-nom">${esc(f.p.nombre)}</span>
+            <span class="ms-sub">${esc(f.p.documento || "sin documento")}</span></td>
+        <td>${f.vig.length
+            ? `<div class="ms-chips">${f.vig.map(a => `<span class="ms-chip">${esc((I.rol(a.rol)||{}).nombre || a.rol)}</span>`).join("")}</div>`
+            : `<span class="ms-vig ms-vig--fin">Sin rol vigente</span>`}</td>
+        <td>${f.vig.length ? f.vig.map(a => `<div class="ms-sub" style="font-family:var(--ui)">${nombreAlcance(a)}</div>`).join("") : "<span class=ms-sub>—</span>"}</td>
+        <td>${f.techo >= 0 ? pastilla(f.techo) : "<span class=ms-sub>—</span>"}</td>
+        <td class="num">${f.ef.length ? f.ef.length + " de " + I.MODULOS.length : "<span class=ms-sub>0</span>"}</td>
+        <td>${f.vig.length ? (prox ? vigencia(prox) : `<span class="ms-vig ms-vig--ok">Indefinido</span>`)
+                           : `<span class="ms-vig ms-vig--fin">Bloqueado</span>`}</td>
+        <td class="ms-acc-col">
+          <button class="ms-btn ms-btn--peq" data-accion="verefectivo" data-id="${esc(f.p.id)}">Qué ve</button>
+          <button class="ms-btn ms-btn--peq ms-btn--primario" data-accion="agregarrol" data-id="${esc(f.p.id)}">+ Rol</button>
+        </td>
+      </tr>
+      ${ab ? `<tr class="ms-detalle"><td colspan="8">
+        <div class="ms-lbl">Todas las asignaciones, incluidas las cerradas</div>
+        <table class="ms-tabla ms-tabla--mini" style="margin-top:6px"><thead><tr>
+          <th>Rol</th><th>Alcance</th><th>Techo</th><th>Vigencia</th><th>Acta</th><th>Otorgó</th><th></th>
+        </tr></thead><tbody>
+        ${f.asg.length ? f.asg.map(a => {
+          const cerrada = a.hasta && a.hasta < hoy(), q2 = M.persona(a.otorgadoPor);
           return `<tr class="${cerrada ? "ms-fila--cerrada" : ""}">
-            <td>${esc(r ? r.nombre : a.rol)}</td><td>${nombreAlcance(a)}</td>
-            <td>${pastilla(a.nivelMax)}</td><td>${vigencia(a)}</td>
+            <td><b>${esc((I.rol(a.rol)||{}).nombre || a.rol)}</b></td>
+            <td>${nombreAlcance(a)}</td><td>${pastilla(a.nivelMax)}</td>
+            <td>${vigencia(a)}</td>
             <td>${a.acta ? `<code>${esc(a.acta)}</code>` : `<span class="ms-falta">sin acta</span>`}</td>
-            <td>${cerrada ? "" : `<button class="ms-btn ms-btn--peq ms-btn--peligro" data-accion="revocar" data-id="${esc(a.id)}">Cerrar</button>`}</td>
+            <td>${esc(q2 ? q2.nombre : (a.otorgadoPor || "—"))}</td>
+            <td class="ms-acc-col">${cerrada ? "" :
+              `<button class="ms-btn ms-btn--peq ms-btn--peligro" data-accion="revocar" data-id="${esc(a.id)}">Cerrar</button>`}</td>
           </tr>`; }).join("")
-          : `<tr><td colspan="6" class="ms-vacio">Nunca se le otorgó un acceso.</td></tr>`}
-        </tbody></table></div>`;
-    }).join("");
+          : `<tr><td colspan="7" class="ms-vacio">Nunca se le otorgó un acceso.</td></tr>`}
+        </tbody></table></td></tr>` : ""}`;
+    }).join("") : `<tr><td colspan="8" class="ms-vacio" style="padding:24px;text-align:center">Nadie coincide con la búsqueda.</td></tr>`}
+    </tbody></table></div>`;
   }
 
   /* ============================================================ CREAR ACCESO */
@@ -285,6 +398,221 @@
         <button class="ms-btn" data-accion="limpiar">Limpiar</button>
       </div>
     </div>`;
+  }
+
+
+  /* ============================================================ FORMULARIOS DE CREACIÓN
+     Un patrón para todos: campos arriba, la consecuencia visible
+     abajo, y el botón deshabilitado hasta que la base lo aceptaría.
+     Nunca se deja pulsar algo que va a fallar. */
+  function b_() { return (borrador = borrador || {}); }
+  function selPersona(campo, etiqueta, ayuda) {
+    const b = b_();
+    return `<label class="ms-campo"><span>${esc(etiqueta)} <b class="ms-req">obligatorio</b></span>
+      <select data-campo="${campo}"><option value="">Elegir persona…</option>
+      ${M.personas().map(x => `<option value="${esc(x.id)}" ${b[campo] === x.id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}
+      </select></label>
+      <label class="ms-campo"><span>…o crear la ficha aquí mismo</span>
+        <input data-campo="${campo}_nueva" value="${esc(b[campo + "_nueva"] || "")}" placeholder="Nombre completo"></label>
+      ${ayuda ? `<div class="ms-nota">${esc(ayuda)}</div>` : ""}`;
+  }
+  function selSede(campo, etiqueta) {
+    const b = b_();
+    return `<label class="ms-campo"><span>${esc(etiqueta)} <b class="ms-req">obligatorio</b></span>
+      <select data-campo="${campo}"><option value="">Elegir iglesia…</option>
+      ${M.sedes().map(x => `<option value="${esc(x.id)}" ${b[campo] === x.id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}
+      </select></label>`;
+  }
+  function pie(fallos, textoBtn, accion) {
+    return `${fallos.length
+      ? `<div class="ms-alerta ms-alerta--roja"><b>Falta para poder crear:</b><ul>${fallos.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>`
+      : `<div class="ms-alerta ms-alerta--verde"><b>Listo.</b> La base aceptaría esto.</div>`}
+      <div class="ms-acciones">
+        <button class="ms-btn ms-btn--primario" data-accion="${accion}" ${fallos.length ? "disabled" : ""}>${esc(textoBtn)}</button>
+        <button class="ms-btn" data-accion="limpiar">Limpiar</button>
+      </div>`;
+  }
+
+  /* ---------- PERSONA ---------- */
+  function vNPersona() {
+    const b = b_(), f = [];
+    if (!b.nombre) f.push("El nombre completo.");
+    return `<div class="ms-ancho--forma">` + head("Crear persona",
+      "La ficha por sí sola no da acceso a nada. El acceso se otorga después, o al crear la iglesia, el ministerio o el equipo donde va a servir.") + `
+      <div class="ms-paso">
+        <label class="ms-campo"><span>Nombre completo <b class="ms-req">obligatorio</b></span>
+          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Juan Carlos Pérez"></label>
+        <div class="ms-fila2">
+          <label class="ms-campo"><span>Documento</span>
+            <input data-campo="documento" value="${esc(b.documento || "")}" placeholder="Cédula"></label>
+          <label class="ms-campo"><span>Correo</span>
+            <input data-campo="correo" value="${esc(b.correo || "")}" placeholder="opcional"></label>
+        </div>
+        <div class="ms-nota">El correo es <b>opcional</b> a propósito. Muchos menores y adultos mayores
+          no tienen, y exigirlo los deja fuera del registro. Es una de las divergencias con el modelo
+          del equipo 100p, donde es obligatorio y único.</div>
+      </div>` + pie(f, "Crear persona", "hacer-persona") + `</div>`;
+  }
+
+  /* ---------- IGLESIA ---------- */
+  function vNIglesia() {
+    const b = b_(), f = [];
+    if (!b.nombre) f.push("El nombre de la iglesia.");
+    if (!b.plantilla) f.push("La plantilla: define qué módulos verá esta iglesia.");
+    if (!b.pastorId && !b.pastorId_nueva) f.push("Su pastor. Una iglesia no se crea sin pastor.");
+    const mods = b.plantilla ? I.modulosDePlantilla(b.plantilla) : [];
+    return `<div class="ms-ancho--lectura">` + head("Crear iglesia",
+      "Tres cosas y queda operando: cómo se llama, qué plantilla usa y quién la pastorea.") + `
+      <div class="ms-paso"><h3><i>1</i> Identidad</h3>
+        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
+          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Bogotá Norte"></label>
+        <div class="ms-fila2">
+          <label class="ms-campo"><span>Ciudad</span>
+            <input data-campo="ciudad" value="${esc(b.ciudad || "")}" placeholder="Bogotá"></label>
+          <label class="ms-campo"><span>País</span>
+            <select data-campo="pais">
+              <option value="CO" ${b.pais === "CO" || !b.pais ? "selected" : ""}>Colombia</option>
+              <option value="ES" ${b.pais === "ES" ? "selected" : ""}>España</option>
+              <option value="US" ${b.pais === "US" ? "selected" : ""}>Estados Unidos</option>
+              <option value="PA" ${b.pais === "PA" ? "selected" : ""}>Panamá</option>
+            </select></label>
+        </div>
+      </div>
+
+      <div class="ms-paso"><h3><i>2</i> Plantilla</h3>
+        <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
+          Aquí se decide qué ve esta iglesia. No todas son iguales: una plantación arranca con lo
+          mínimo y crece cuando se consolida.</p>
+        <div class="ms-plant">
+          ${I.PLANTILLAS.map(pl => {
+            const n = I.modulosDePlantilla(pl.codigo).length;
+            return `<button class="ms-plantc ${b.plantilla === pl.codigo ? "is-on" : ""}"
+              data-accion="plantilla" data-cod="${esc(pl.codigo)}" style="text-align:left;cursor:pointer;font:inherit">
+              <h4>${esc(pl.nombre)}</h4><p>${esc(pl["desc"] || "")}</p>
+              <span class="ms-plantc__n">${n} de ${I.MODULOS.length} módulos</span></button>`;
+          }).join("")}
+        </div>
+        ${b.plantilla ? `<div class="ms-lbl">Con esta plantilla verá</div>
+          <div class="ms-chips">${I.MODULOS.map(m => mods.indexOf(m.codigo) >= 0
+            ? `<span class="ms-chip">${esc(m.nombre)} ${pastilla(m.nivel)}</span>`
+            : `<span class="ms-chip ms-chip--veda">${esc(m.nombre)}</span>`).join("")}</div>
+          <div class="ms-nota">Lo tachado se puede encender después desde <b>Qué ve cada iglesia</b>.
+            Los módulos de dato sensible piden evidencia legal para encenderse.</div>` : ""}
+      </div>
+
+      <div class="ms-paso"><h3><i>3</i> Su pastor</h3>
+        ${selPersona("pastorId", "Pastor congregacional",
+          "Queda nombrado en el mismo acto, con alcance de esta sede y techo N2. La base lo exige: una sede sin pastor no existe.")}
+      </div>` + pie(f, "Crear iglesia y nombrar a su pastor", "hacer-iglesia") + `</div>`;
+  }
+
+  /* ---------- MINISTERIO ---------- */
+  function vNMinisterio() {
+    const b = b_(), f = [];
+    if (!b.nombre) f.push("El nombre del ministerio.");
+    if (!b.sedeId) f.push("La iglesia a la que pertenece.");
+    if (!b.liderId && !b.liderId_nueva) f.push("Su director. Un ministerio no se crea sin alguien a cargo.");
+    return `<div class="ms-ancho--forma">` + head("Crear ministerio",
+      "RocaKids, tMt, Mujer Integral, Hombres de Bien. Cada uno pertenece a una iglesia y tiene alguien al frente.") + `
+      <div class="ms-paso"><h3><i>1</i> Qué y dónde</h3>
+        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
+          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Mujer Integral"></label>
+        ${selSede("sedeId", "Iglesia")}
+      </div>
+      <div class="ms-paso"><h3><i>2</i> Quién lo dirige</h3>
+        ${selPersona("liderId", "Director del ministerio",
+          "Queda nombrado en el mismo acto, con alcance de este ministerio. Un ministerio sin nadie al frente es una carpeta que nadie revisa, y el día que hay un problema con un menor no hay a quién preguntarle.")}
+        ${b.nombre && /roca|kid|nin|niñ/i.test(b.nombre) ? `<div class="ms-nota ms-nota--ojo">
+          Este ministerio parece de menores. Los módulos de menores son <b>N4</b>: exigen antecedentes
+          verificados y vigentes para servir, y acta de respaldo para el acceso.</div>` : ""}
+      </div>` + pie(f, "Crear ministerio y nombrar a su director", "hacer-ministerio") + `</div>`;
+  }
+
+  /* ---------- EQUIPO ---------- */
+  function vNEquipo() {
+    const b = b_(), f = [];
+    const roles = b.roles || [];
+    const local = (b.ambito || "local") === "local";
+    if (!b.nombre) f.push("El nombre del equipo.");
+    if (!roles.length) f.push("Al menos un rol. Un equipo sin roles no otorga nada.");
+    if (local && !b.sedeId) f.push("La iglesia, o márquelo como corporativo.");
+    if (!b.liderId && !b.liderId_nueva) f.push("Su responsable.");
+    return `<div class="ms-ancho--lectura">` + head("Crear equipo administrativo",
+      "Un equipo no es un rol: es un conjunto de roles que se otorgan juntos. Sirve para no repetir cuatro veces la misma asignación.") + `
+      <div class="ms-paso"><h3><i>1</i> Qué equipo</h3>
+        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
+          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Tesorería Bogotá Chicó"></label>
+        <label class="ms-campo"><span>Ámbito</span>
+          <div class="ms-seg">
+            <button data-accion="ambito" data-v="local" class="${local ? "is-on" : ""}">Local, de una iglesia</button>
+            <button data-accion="ambito" data-v="corporativo" class="${!local ? "is-on" : ""}">Corporativo, de toda la red</button>
+          </div></label>
+        ${local ? selSede("sedeId", "Iglesia") : `<div class="ms-nota">Un equipo corporativo alcanza las 36 iglesias. Úselo solo para Contable, Legal y Tecnología.</div>`}
+        ${I.EQUIPOS.length ? `<div class="ms-lbl" style="margin-top:12px">Atajos de los 8 equipos del back-office</div>
+          <div class="ms-chips">${I.EQUIPOS.map(e => `<button class="ms-chip" style="cursor:pointer"
+            data-accion="equipo-atajo" data-cod="${esc(e.codigo)}">${esc(e.nombre)}</button>`).join("")}</div>` : ""}
+      </div>
+
+      <div class="ms-paso"><h3><i>2</i> Qué roles otorga</h3>
+        <div class="ms-sel">
+          ${M.rolesTodos().map(r => {
+            const on = roles.indexOf(r.codigo) >= 0;
+            return `<label class="ms-opt ${on ? "is-on" : ""}">
+              <input type="checkbox" data-rol="${esc(r.codigo)}" ${on ? "checked" : ""}>
+              <div><b>${esc(r.nombre)}</b><small>techo N${r.techo}</small></div></label>`;
+          }).join("")}
+        </div>
+        ${roles.length ? `<div class="ms-nota">El responsable recibirá <b>${roles.length} rol(es)</b> de una vez.
+          Techo más alto del conjunto: ${pastilla(Math.max.apply(null, roles.map(c => (I.rol(c) || { techo:0 }).techo)))}.</div>` : ""}
+      </div>
+
+      <div class="ms-paso"><h3><i>3</i> Quién responde</h3>
+        ${selPersona("liderId", "Responsable del equipo",
+          "Recibe todos los roles marcados en el mismo acto.")}
+      </div>` + pie(f, "Crear equipo y nombrar a su responsable", "hacer-equipo") + `</div>`;
+  }
+
+  /* ---------- ROL ---------- */
+  function vNRol() {
+    const b = b_(), f = [];
+    if (!b.nombre) f.push("El nombre del rol.");
+    if (b.techo == null) f.push("El techo: la sensibilidad máxima que alcanzará.");
+    return `<div class="ms-ancho--forma">` + head("Crear rol",
+      "El catálogo es extensible a propósito: cada módulo nuevo trae sus roles. Lo que no cambia nunca es el techo.") + `
+      <div class="ms-paso">
+        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
+          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Líder de Oración"></label>
+        <label class="ms-campo"><span>Techo de sensibilidad <b class="ms-req">obligatorio</b></span></label>
+        <div class="ms-niveles">
+          ${I.NIVELES.map(n => `<button class="ms-nivbtn ${b.techo === n.nivel ? "is-on" : ""}"
+            data-accion="techo" data-n="${n.nivel}">${pastilla(n.nivel)}<span>${esc(n["desc"])}</span></button>`).join("")}
+        </div>
+        ${b.techo != null ? `<div class="ms-nota">Con techo N${b.techo} este rol podrá alcanzar
+          <b>${I.MODULOS.filter(m => m.nivel <= b.techo).length}</b> de los ${I.MODULOS.length} módulos.
+          Los demás le quedan vedados para siempre: el techo no se negocia por asignación.</div>` : ""}
+      </div>` + pie(f, "Crear rol", "hacer-rol") + `</div>`;
+  }
+
+  /* ---------- MÓDULO ---------- */
+  function vNModulo() {
+    const b = b_(), f = [];
+    if (!b.nombre) f.push("El nombre del módulo.");
+    if (b.nivel == null) f.push("El nivel del dato que maneja.");
+    return `<div class="ms-ancho--forma">` + head("Crear módulo",
+      "Un módulo nuevo declara qué dato maneja. De ese nivel sale, automáticamente, qué roles pueden alcanzarlo.") + `
+      <div class="ms-paso">
+        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
+          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Peticiones de oración"></label>
+        <label class="ms-campo"><span>Nivel del dato <b class="ms-req">obligatorio</b></span></label>
+        <div class="ms-niveles">
+          ${I.NIVELES.map(n => `<button class="ms-nivbtn ${b.nivel === n.nivel ? "is-on" : ""}"
+            data-accion="nivelmod" data-n="${n.nivel}">${pastilla(n.nivel)}<span>${esc(n["desc"])}</span></button>`).join("")}
+        </div>
+        ${b.nivel != null ? `<div class="ms-nota">Con dato N${b.nivel}, solo los roles con techo N${b.nivel}
+          o mayor podrán recibir permisos aquí: <b>${M.rolesTodos().filter(r => r.techo >= b.nivel).length}</b>
+          de ${M.rolesTodos().length} roles.
+          ${b.nivel >= 3 ? " Además activa cifrado, bitácora de lectura y enmascarado." : ""}</div>` : ""}
+      </div>` + pie(f, "Crear módulo", "hacer-modulo") + `</div>`;
   }
 
   /* ============================================================ ROLES */
@@ -437,6 +765,15 @@
       <div class="ms-sp"></div>
       <button class="ms-ck" data-accion="abrircmd" title="Ir a cualquier parte">
         <span>Buscar o ir a…</span><kbd>\u2318K</kbd></button>
+      <div class="ms-crear">
+        <button class="ms-btn ms-btn--primario" data-accion="menucrear">+ Crear</button>
+        <div class="ms-crear__men ${menuCrear ? "is-on" : ""}">
+          ${[["n-persona","👤","Persona"],["n-iglesia","⛪","Iglesia"],
+             ["n-ministerio","🗂️","Ministerio"],["n-equipo","🤝","Equipo administrativo"],
+             ["crear","🔑","Acceso a una persona"],["n-rol","🎭","Rol"],["n-modulo","🧩","Módulo"]]
+            .map(([id,ic,l]) => `<button data-accion="ir" data-vista="${id}"><span>${ic}</span>${l}</button>`).join("")}
+        </div>
+      </div>
       <div class="ms-yo"><div><b>${esc(YO.nombre)}</b><small>${esc(I.rol(YO.rol).nombre)} · techo N${YO.techo} · ${ef.length} módulos</small></div>
         <div class="ms-av">DG</div></div>
     </header>
@@ -473,6 +810,13 @@
       case "efectivo":  html = vEfectivo();break;
       case "bitacora":  html = vBitacora();break;
       case "contraste": html = vContraste();break;
+      case "arranque":  html = vArranque(); break;
+      case "n-persona": html = vNPersona(); break;
+      case "n-iglesia": html = vNIglesia(); break;
+      case "n-ministerio": html = vNMinisterio(); break;
+      case "n-equipo":  html = vNEquipo();  break;
+      case "n-rol":     html = vNRol();     break;
+      case "n-modulo":  html = vNModulo();  break;
       case "iglesias":  html = vIglesias();break;
       case "modsede":   html = vModSede(); break;
       default:          html = n.mod ? vModulo(n.mod) : vTablero();
@@ -482,18 +826,67 @@
 
   /* ---------- eventos ---------- */
   document.addEventListener("click", e => {
-    const b = e.target.closest("[data-accion]"); if (!b) return;
-    const a = b.dataset.accion;
+    const bt = e.target.closest("[data-accion]");
+    if (!bt) { if (menuCrear && !e.target.closest(".ms-crear")) { menuCrear = false; pintar(); } return; }
+    const a = bt.dataset.accion;
+    if (menuCrear && a !== "menucrear") menuCrear = false;
     if (a === "abrircmd") { cmdAbrir(); return; }
-    if (a === "ir") { vista = b.dataset.vista; pintar(); const m = $("#ms-main"); if (m) m.focus(); }
-    if (a === "nivel")   { borrador.nivelMax = +b.dataset.n; pintar(); }
+    if (a === "menucrear") { menuCrear = !menuCrear; pintar(); return; }
+
+    const b = b_();
+    if (a === "plantilla")  { b.plantilla = bt.dataset.cod; pintar(); return; }
+    if (a === "techo")      { b.techo   = +bt.dataset.n; pintar(); return; }
+    if (a === "nivelmod")   { b.nivel   = +bt.dataset.n; pintar(); return; }
+    if (a === "ambito")     { b.ambito  = bt.dataset.v; if (b.ambito !== "local") b.sedeId = ""; pintar(); return; }
+    if (a === "equipo-atajo") {
+      const e = I.EQUIPOS.find(x => x.codigo === bt.dataset.cod);
+      if (e) { b.nombre = e.nombre; b.ambito = e.ambito; b.roles = e.roles.slice(); }
+      pintar(); return;
+    }
+    if (a === "desplegar")  { abierta = abierta === bt.dataset.id ? null : bt.dataset.id; pintar(); return; }
+    if (a === "verefectivo"){ b.verPersona = bt.dataset.id; vista = "efectivo"; pintar(); return; }
+    if (a === "agregarrol") { borrador = { personaId: bt.dataset.id }; vista = "crear"; pintar(); return; }
+    if (a === "delegar")    { M.alternarDelegacion(bt.dataset.id); pintar(); return; }
+    if (a === "cerrar-sel") {
+      const ids = Array.from(document.querySelectorAll("[data-marca]:checked")).map(x => x.dataset.marca);
+      if (!ids.length) return;
+      if (!confirm(`Se cerrará el acceso de ${ids.length} asignación(es). Queda registrado en la bitácora y no se borra nada. ¿Continuar?`)) return;
+      M.revocarVarios(ids, "cierre en lote desde el master"); pintar(); return;
+    }
+    if (a === "cfg-sede")   { cfgSede = bt.dataset.id; pintar(); return; }
+    if (a === "cfg-mod")    { M.alternarModulo(bt.dataset.sede, bt.dataset.mod); pintar(); return; }
+    if (a === "cfg-plant")  { M.aplicarPlantilla(bt.dataset.sede, bt.dataset.cod); pintar(); return; }
+
+    /* ---- creaciones: si vino nombre nuevo, se crea la ficha primero ---- */
+    function resolverPersona(campo) {
+      if (b[campo]) return b[campo];
+      const n = (b[campo + "_nueva"] || "").trim();
+      return n ? M.crearPersona(n, "", "").id : "";
+    }
+    function hecho(r, destino, msg) {
+      if (!r.ok) { alert("No se puede crear:\n\n" + r.fallos.join("\n")); return; }
+      borrador = null; vista = destino; pintar();
+    }
+    if (a === "hacer-persona")  { M.crearPersona(b.nombre, b.documento, b.correo); borrador = null; vista = "accesos"; pintar(); return; }
+    if (a === "hacer-iglesia")  { hecho(M.crearIglesia({ nombre:b.nombre, ciudad:b.ciudad, pais:b.pais,
+                                    plantilla:b.plantilla, pastorId:resolverPersona("pastorId"),
+                                    otorgadoPor:YO.personaId }), "iglesias"); return; }
+    if (a === "hacer-ministerio"){ hecho(M.crearMinisterio({ nombre:b.nombre, sedeId:b.sedeId,
+                                    liderId:resolverPersona("liderId"), otorgadoPor:YO.personaId }), "accesos"); return; }
+    if (a === "hacer-equipo")   { hecho(M.crearEquipo({ nombre:b.nombre, ambito:b.ambito, sedeId:b.sedeId,
+                                    roles:b.roles || [], liderId:resolverPersona("liderId"),
+                                    otorgadoPor:YO.personaId }), "accesos"); return; }
+    if (a === "hacer-rol")      { hecho(M.crearRol({ nombre:b.nombre, techo:b.techo }), "roles"); return; }
+    if (a === "hacer-modulo")   { hecho(M.crearModulo({ nombre:b.nombre, nivel:b.nivel }), "matriz"); return; }
+    if (a === "ir") { vista = bt.dataset.vista; pintar(); const m = $("#ms-main"); if (m) m.focus(); }
+    if (a === "nivel")   { b_().nivelMax = +bt.dataset.n; pintar(); }
     if (a === "limpiar") { borrador = null; pintar(); }
     if (a === "revocar") {
-      const r = M.revocar(b.dataset.id, "cierre desde el master");
+      const r = M.revocar(bt.dataset.id, "cierre desde el master");
       if (!r.ok) alert(r.fallos.join("\n")); pintar();
     }
     if (a === "otorgar") {
-      const bo = borrador;
+      const bo = b_();
       let pid = bo.personaId;
       if (!pid && bo.nuevaPersona) pid = M.crearPersona(bo.nuevaPersona, bo.documento, "").id;
       const res = M.otorgar({ personaId:pid, rol:bo.rol, alcanceTipo:bo.alcanceTipo,
@@ -504,11 +897,19 @@
     }
   });
   document.addEventListener("change", e => {
+    const rc = e.target.closest("[data-rol]");
+    if (rc) {
+      const b = b_(); b.roles = b.roles || [];
+      const cod = rc.dataset.rol, i = b.roles.indexOf(cod);
+      if (rc.checked && i < 0) b.roles.push(cod); else if (!rc.checked && i >= 0) b.roles.splice(i, 1);
+      pintar(); return;
+    }
+    if (e.target.dataset && e.target.dataset.marca !== undefined) return;  // marcas de lote: sin repintar
     const c = e.target.closest("[data-campo]"); if (!c) return;
     const k = c.dataset.campo;
-    if (k === "verPersona") { borrador = borrador || {}; borrador.verPersona = c.value; pintar(); return; }
-    borrador = borrador || {};
-    borrador[k] = c.value;
+    if (k === "verPersona") { b_().verPersona = c.value; pintar(); return; }
+    if (k === "filtro")     { filtro = c.value; pintar(); return; }
+    b_()[k] = c.value;
     if (k === "alcanceTipo") borrador.alcanceId = "";
     if (k === "rol") { const r = I.rol(c.value);
       if (r && borrador.nivelMax > r.techo) borrador.nivelMax = r.techo; }
@@ -516,7 +917,10 @@
   });
   document.addEventListener("input", e => {
     const c = e.target.closest("[data-campo]");
-    if (c && c.tagName === "INPUT") { borrador = borrador || {}; borrador[c.dataset.campo] = c.value; }
+    if (!c || c.tagName !== "INPUT") return;
+    if (c.dataset.campo === "filtro") { filtro = c.value; pintar(); const f = $("[data-campo=filtro]");
+      if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } return; }
+    b_()[c.dataset.campo] = c.value;
   });
 
   /* ============================================================

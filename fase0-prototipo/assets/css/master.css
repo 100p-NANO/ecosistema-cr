@@ -1,10 +1,8 @@
 /* ============================================================
    CASA ROCA · SISTEMA MASTER
-   Estética: remix Mercury x Linear, con la marca de Casa Roca.
+   Estética: densidad de Linear sobre fondo blanco, con la marca de
+   Casa Roca. El papel crema de Mercury se probó y se descartó.
 
-   De Mercury: el lienzo de papel crema y la tinta gris cálida.
-       No es decoración: la identidad de la iglesia es «una casa
-       cálida y segura», y el blanco puro de un dashboard la mata.
    De Linear: la densidad quirúrgica. Filas de 36px, bordes de
        1px, cabeceras pegajosas, barra de comandos con ⌘K.
    De Casa Roca: el azul #134291 ocupa el lugar del índigo de
@@ -12,7 +10,7 @@
 
    Reglas duras heredadas de las dos:
    - CERO sombras en tarjetas, filas y botones. La profundidad
-     sale del tono del papel y de los filetes de 1px.
+     sale del tono del gris y de los filetes de 1px.
    - CERO degradados. CERO efecto vidrio. CERO levantar al pasar.
    - Cifras SIEMPRE tabulares, también los conteos. Si las cifras
      bailan, la confianza se cae.
@@ -21,30 +19,33 @@
    ============================================================ */
 
 :root{
-  /* lienzo · papel cálido de Mercury */
-  --pa:        #f6f5f2;   /* fondo general */
-  --pa-alt:    #ebe8e0;   /* zonas hundidas, cabeceras de tabla */
+  /* lienzo · blanco y grises neutros.
+     Se probó el papel crema de Mercury y Daniel lo descartó: el fondo
+     es blanco. Se conserva de Linear todo lo demás (densidad, filetes
+     de 1px, cero sombras), que es lo que da el carácter. */
+  --pa:        #fafafa;   /* fondo general */
+  --pa-alt:    #f2f2f3;   /* zonas hundidas, cabeceras de tabla */
   --sup:       #ffffff;   /* superficie de tarjeta */
-  --sup-alt:   #fbfaf6;   /* fila al pasar el ratón */
+  --sup-alt:   #f8f8f9;   /* fila al pasar el ratón */
 
-  /* tinta · gris cálido, nunca negro puro */
-  --tin:       #2a2924;
-  --tin-mid:   #5a5548;
-  --tin-dim:   #8a8478;
+  /* tinta · gris neutro */
+  --tin:       #1c1c1f;
+  --tin-mid:   #57575e;
+  --tin-dim:   #8b8b93;
 
   /* filete · la única fuente de profundidad */
-  --fil:       #ded9ca;
-  --fil-duro:  #c9c3b3;
+  --fil:       #e6e6e9;
+  --fil-duro:  #d2d2d7;
 
-  /* acento · AZUL DE CASA ROCA, no el índigo de Mercury */
+  /* acento · AZUL DE CASA ROCA */
   --ac:        #134291;
   --ac-hov:    #0E367A;
-  --ac-suave:  #e3e8f4;
+  --ac-suave:  #e6ecf7;
 
   /* señales */
-  --ok:        #2f7d57;  --ok-bg:   #e8f2ec;
-  --avi:       #a86e12;  --avi-bg:  #f7efdd;   /* mostaza de marca, como SEÑAL */
-  --pel:       #b54a3a;  --pel-bg:  #f7e9e6;
+  --ok:        #177a4d;  --ok-bg:   #e7f4ed;
+  --avi:       #9a6408;  --avi-bg:  #fdf3e0;
+  --pel:       #b3271a;  --pel-bg:  #fdeceb;
 
   /* tipografía */
   --ui:   "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -55,8 +56,8 @@
   --r:6px; --r-lg:8px;
 
   /* sombras: SOLO para lo que flota */
-  --som-flota: 0 12px 32px rgba(42,41,36,.10);
-  --som-pop:   0 4px 12px rgba(42,41,36,.06);
+  --som-flota: 0 12px 32px rgba(20,20,24,.12);
+  --som-pop:   0 4px 12px rgba(20,20,24,.08);
 }
 
 *,*::before,*::after{box-sizing:border-box}
@@ -138,7 +139,13 @@ kbd{
   font-style:normal; font-family:var(--mono); font-size:9.5px; color:var(--tin-dim);
   letter-spacing:0; flex:none;
 }
-.ms-main{padding:var(--e6) var(--e6) var(--e7); max-width:1180px}
+/* El ancho lo fija la PESTAÑA, no una caja global. Una matriz de 18x12
+   necesita toda la pantalla; un formulario de 5 pasos leído a 1600px es
+   ilegible. Por eso hay tres anchuras y cada vista elige la suya. */
+.ms-main{padding:var(--e6) var(--e6) var(--e7); width:100%}
+.ms-ancho{max-width:none}                       /* tablas densas: todo el ancho */
+.ms-ancho--lectura{max-width:920px}             /* fichas y texto */
+.ms-ancho--forma{max-width:720px}               /* formularios */
 .ms-main:focus{outline:none}
 
 /* ---------------- encabezados ---------------- */
@@ -158,7 +165,7 @@ kbd{
   display:block; margin-top:var(--e1); font-size:10.5px; font-weight:600;
   letter-spacing:.06em; text-transform:uppercase; color:var(--tin-dim);
 }
-.ms-kpi--ojo{background:var(--avi-bg); border-color:#e5d3a8}
+.ms-kpi--ojo{background:var(--avi-bg); border-color:#f0ddb4}
 .ms-kpi--ojo b{color:var(--avi)}
 
 /* ---------------- tablas · el centro de gravedad ---------------- */
@@ -206,9 +213,9 @@ kbd{
 }
 .ms-niv--0{background:var(--pa-alt); color:var(--tin-dim); border-color:var(--fil)}
 .ms-niv--1{background:var(--pa-alt); color:var(--tin-mid); border-color:var(--fil)}
-.ms-niv--2{background:var(--ac-suave); color:var(--ac); border-color:#c7d1e8}
-.ms-niv--3{background:var(--avi-bg); color:var(--avi); border-color:#e5d3a8}
-.ms-niv--4{background:var(--pel-bg); color:var(--pel); border-color:#ecccc5}
+.ms-niv--2{background:var(--ac-suave); color:var(--ac); border-color:#ccd8ee}
+.ms-niv--3{background:var(--avi-bg); color:var(--avi); border-color:#f0ddb4}
+.ms-niv--4{background:var(--pel-bg); color:var(--pel); border-color:#f5cdc9}
 
 /* ---------------- fichas ---------------- */
 .ms-chips{display:flex; flex-wrap:wrap; gap:var(--e1); margin-top:var(--e1)}
@@ -216,8 +223,8 @@ kbd{
   font-size:11.5px; line-height:18px; padding:0 var(--e2); border-radius:4px;
   background:var(--pa); color:var(--tin-mid); border:1px solid var(--fil);
 }
-.ms-chip--acc{font-family:var(--mono); font-size:10px; background:var(--sup); color:var(--ac); border-color:#c7d1e8}
-.ms-chip--veda{background:var(--pel-bg); color:var(--pel); border-color:#ecccc5; text-decoration:line-through}
+.ms-chip--acc{font-family:var(--mono); font-size:10px; background:var(--sup); color:var(--ac); border-color:#ccd8ee}
+.ms-chip--veda{background:var(--pel-bg); color:var(--pel); border-color:#f5cdc9; text-decoration:line-through}
 
 /* ---------------- avisos ---------------- */
 .ms-alerta{
@@ -225,9 +232,9 @@ kbd{
   margin-bottom:var(--e4); border:1px solid; border-left-width:3px;
 }
 .ms-alerta ul{margin:var(--e1) 0 0; padding-left:18px}
-.ms-alerta--roja {background:var(--pel-bg); border-color:#ecccc5; border-left-color:var(--pel); color:#7d3327}
-.ms-alerta--ambar{background:var(--avi-bg); border-color:#e5d3a8; border-left-color:var(--avi); color:#7a4f0d}
-.ms-alerta--verde{background:var(--ok-bg);  border-color:#c3ded0; border-left-color:var(--ok);  color:#23603f}
+.ms-alerta--roja {background:var(--pel-bg); border-color:#f5cdc9; border-left-color:var(--pel); color:#7d3327}
+.ms-alerta--ambar{background:var(--avi-bg); border-color:#f0ddb4; border-left-color:var(--avi); color:#7a4f0d}
+.ms-alerta--verde{background:var(--ok-bg);  border-color:#bfdfcd; border-left-color:var(--ok);  color:#23603f}
 
 /* ---------------- persona ---------------- */
 .ms-persona{background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg); margin-bottom:var(--e3); overflow:hidden}
@@ -273,7 +280,7 @@ kbd{
   background:var(--pa); border:1px solid var(--fil); border-radius:var(--r);
   padding:var(--e2) var(--e3); margin:var(--e2) 0;
 }
-.ms-nota--ojo{background:var(--avi-bg); border-color:#e5d3a8; color:#7a4f0d}
+.ms-nota--ojo{background:var(--avi-bg); border-color:#f0ddb4; color:#7a4f0d}
 .ms-veda{margin-top:var(--e2); font-size:12px; color:var(--pel)}
 .ms-veda .ms-chip{margin-left:var(--e1)}
 
@@ -303,7 +310,7 @@ kbd{
 .ms-btn--primario{background:var(--ac); border-color:var(--ac); color:#fff}
 .ms-btn--primario:hover{background:var(--ac-hov); border-color:var(--ac-hov)}
 .ms-btn--primario:disabled{opacity:.35; cursor:not-allowed; background:var(--ac); border-color:var(--ac)}
-.ms-btn--peligro{background:var(--sup); border-color:#ecccc5; color:var(--pel)}
+.ms-btn--peligro{background:var(--sup); border-color:#f5cdc9; color:var(--pel)}
 .ms-btn--peligro:hover{background:var(--pel-bg)}
 .ms-btn--peq{height:24px; padding:0 var(--e2); font-size:11.5px}
 .ms-btn:focus-visible{outline:2px solid var(--ac); outline-offset:2px}
@@ -313,7 +320,7 @@ kbd{
 .ms-matriz td.ms-cel{text-align:center; font-family:var(--mono); font-size:11px; font-weight:500; padding:0}
 .ms-cel--si{background:var(--ok-bg); color:var(--ok)}
 .ms-cel--no{background:var(--sup); color:var(--fil)}
-.ms-cel--veda{background:var(--pel-bg); color:#dfb3aa}
+.ms-cel--veda{background:var(--pel-bg); color:#eab8b1}
 .ms-rolcel{white-space:nowrap; font-size:12px; position:sticky; left:0; background:var(--sup); z-index:1}
 .ms-tabla tbody tr:hover .ms-rolcel{background:var(--sup-alt)}
 .ms-leyenda{display:flex; flex-wrap:wrap; gap:var(--e4); font-size:12px; color:var(--tin-mid)}
@@ -349,7 +356,7 @@ kbd{
 .ms-marco iframe{width:100%; height:76vh; border:0; display:block}
 
 /* ---------------- barra de comandos · el gesto de Linear ---------------- */
-.ms-cmd{position:fixed; inset:0; z-index:60; display:none; padding:12vh var(--e4) var(--e4); background:rgba(42,41,36,.22)}
+.ms-cmd{position:fixed; inset:0; z-index:60; display:none; padding:12vh var(--e4) var(--e4); background:rgba(20,20,24,.28)}
 .ms-cmd.is-on{display:block}
 .ms-cmd__caja{
   max-width:560px; margin:0 auto; background:var(--sup);
@@ -398,3 +405,172 @@ kbd{
   .ms-head h1{font-size:19px; line-height:25px}
 }
 @media (prefers-reduced-motion:reduce){ *{transition:none !important} }
+
+
+/* ============================================================
+   LISTA DENSA · el formato de trabajo real
+   Una tarjeta por persona obliga a desplazarse para comparar. Una
+   lista deja ver veinte de un vistazo, que es lo que se necesita
+   para gobernar accesos.
+   ============================================================ */
+.ms-lista-t{width:100%; border-collapse:separate; border-spacing:0;
+  background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg); font-size:13px}
+.ms-lista-t th{
+  position:sticky; top:52px; z-index:2; background:var(--pa-alt); color:var(--tin-mid);
+  font-size:10px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;
+  text-align:left; padding:0 var(--e3); height:32px; white-space:nowrap;
+  box-shadow:inset 0 -1px 0 var(--fil);
+}
+.ms-lista-t th:first-child{border-top-left-radius:var(--r-lg)}
+.ms-lista-t th:last-child{border-top-right-radius:var(--r-lg)}
+.ms-lista-t td{padding:var(--e2) var(--e3); height:40px; border-bottom:1px solid var(--fil); vertical-align:middle}
+.ms-lista-t tbody tr:last-child td{border-bottom:0}
+.ms-lista-t tbody tr{transition:background .08s linear}
+.ms-lista-t tbody tr:hover{background:var(--sup-alt)}
+.ms-lista-t tbody tr.is-abierta{background:var(--ac-suave)}
+.ms-lista-t tbody tr.is-abierta td{box-shadow:inset 2px 0 0 var(--ac)}
+.ms-lista-t .num{text-align:right; font-variant-numeric:tabular-nums}
+.ms-nom{font-weight:500}
+.ms-sub{display:block; font-size:11px; color:var(--tin-dim); font-family:var(--mono)}
+.ms-acc-col{width:1%; white-space:nowrap; text-align:right}
+.ms-desp{
+  width:22px; height:22px; border:1px solid var(--fil); border-radius:4px;
+  background:var(--sup); color:var(--tin-mid); cursor:pointer; font:inherit; font-size:10px;
+  display:grid; place-items:center; padding:0;
+}
+.ms-desp:hover{border-color:var(--fil-duro); background:var(--sup-alt)}
+.ms-detalle td{background:var(--pa); padding:var(--e4) var(--e5); border-bottom:1px solid var(--fil)}
+
+/* ---------- selección múltiple con casillas ---------- */
+.ms-sel{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:var(--e1)}
+.ms-opt{
+  display:flex; align-items:flex-start; gap:var(--e2); cursor:pointer;
+  padding:var(--e2) var(--e3); border:1px solid var(--fil); border-radius:var(--r);
+  background:var(--sup); transition:border-color .1s linear, background .1s linear;
+}
+.ms-opt:hover{border-color:var(--fil-duro); background:var(--sup-alt)}
+.ms-opt.is-on{border-color:var(--ac); background:var(--ac-suave)}
+.ms-opt.is-off{opacity:.42; cursor:not-allowed; background:var(--pa)}
+.ms-opt input{
+  appearance:none; -webkit-appearance:none; flex:none; margin:2px 0 0;
+  width:15px; height:15px; border:1px solid var(--fil-duro); border-radius:3px;
+  background:var(--sup); cursor:inherit; position:relative;
+}
+.ms-opt input:checked{background:var(--ac); border-color:var(--ac)}
+.ms-opt input:checked::after{
+  content:""; position:absolute; left:4px; top:1px; width:4px; height:8px;
+  border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg);
+}
+.ms-opt input:focus-visible{outline:2px solid var(--ac); outline-offset:2px}
+.ms-opt input:disabled{background:var(--pa-alt); border-color:var(--fil)}
+.ms-opt>div{min-width:0; line-height:17px}
+.ms-opt b{display:block; font-size:12.5px; font-weight:500}
+.ms-opt small{display:block; font-size:10.5px; color:var(--tin-dim); line-height:15px}
+
+.ms-barra{
+  display:flex; flex-wrap:wrap; align-items:center; gap:var(--e2);
+  padding:var(--e2) var(--e3); margin-bottom:var(--e3);
+  background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg);
+}
+.ms-barra__sp{flex:1}
+.ms-busca{
+  height:30px; padding:0 var(--e3); min-width:200px; flex:1; max-width:320px;
+  border:1px solid var(--fil); border-radius:var(--r); background:var(--pa);
+  font:inherit; font-size:13px; color:var(--tin);
+}
+.ms-busca:focus{outline:2px solid var(--ac); outline-offset:1px; background:var(--sup)}
+.ms-cuenta{font-size:11.5px; color:var(--tin-dim); font-variant-numeric:tabular-nums}
+
+/* ---------- segmentos (conmutador de vista) ---------- */
+.ms-seg{display:inline-flex; background:var(--pa); border:1px solid var(--fil); border-radius:var(--r); padding:2px}
+.ms-seg button{
+  height:24px; padding:0 var(--e3); border:0; border-radius:4px; background:none;
+  font:inherit; font-size:12px; color:var(--tin-mid); cursor:pointer;
+}
+.ms-seg button.is-on{background:var(--sup); color:var(--tin); font-weight:500;
+  box-shadow:0 1px 2px rgba(20,20,24,.06)}
+
+/* ---------- rejilla de iglesia x módulo ---------- */
+.ms-grid-cfg{width:100%; border-collapse:separate; border-spacing:0; font-size:12px;
+  background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg)}
+.ms-grid-cfg th{
+  position:sticky; top:52px; z-index:2; background:var(--pa-alt);
+  font-size:9.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--tin-mid); padding:var(--e2) 4px; height:44px; text-align:center;
+  box-shadow:inset 0 -1px 0 var(--fil); vertical-align:bottom;
+}
+.ms-grid-cfg th:first-child{text-align:left; padding-left:var(--e3); z-index:3; left:0}
+.ms-grid-cfg td{height:38px; border-bottom:1px solid var(--fil); text-align:center; padding:0}
+.ms-grid-cfg td:first-child{text-align:left; padding:0 var(--e3); position:sticky; left:0;
+  background:var(--sup); z-index:1; white-space:nowrap}
+.ms-grid-cfg tbody tr:hover td{background:var(--sup-alt)}
+.ms-grid-cfg tbody tr:hover td:first-child{background:var(--sup-alt)}
+.ms-sw{
+  width:17px; height:17px; border:1px solid var(--fil-duro); border-radius:4px;
+  background:var(--sup); cursor:pointer; padding:0; position:relative; vertical-align:middle;
+}
+.ms-sw.is-on{background:var(--ok); border-color:var(--ok)}
+.ms-sw.is-on::after{content:""; position:absolute; left:5px; top:2px; width:4px; height:9px;
+  border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg)}
+.ms-sw.is-veda{background:var(--pa-alt); border-color:var(--fil); cursor:not-allowed}
+.ms-sw.is-veda::after{content:"·"; position:static; border:0; color:var(--tin-dim); font-weight:700}
+.ms-sw:focus-visible{outline:2px solid var(--ac); outline-offset:2px}
+
+.ms-plant{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:var(--e3); margin-bottom:var(--e5)}
+.ms-plantc{background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg); padding:var(--e4)}
+.ms-plantc.is-on{border-color:var(--ac); box-shadow:inset 0 0 0 1px var(--ac)}
+.ms-plantc h4{margin:0 0 var(--e1); font-size:13px; font-weight:600}
+.ms-plantc p{margin:0 0 var(--e3); font-size:11.5px; line-height:17px; color:var(--tin-dim)}
+.ms-plantc__n{font-family:var(--mono); font-size:10px; color:var(--tin-mid)}
+
+@media (max-width:768px){
+  .ms-lista-t th,.ms-grid-cfg th{top:0}
+  .ms-sel{grid-template-columns:1fr}
+  .ms-barra{flex-direction:column; align-items:stretch}
+  .ms-busca{max-width:none}
+}
+
+/* ---------- menú + Crear ---------- */
+.ms-crear{position:relative}
+.ms-crear__men{
+  position:absolute; right:0; top:calc(100% + 6px); min-width:220px; display:none; z-index:50;
+  background:var(--sup); border:1px solid var(--fil-duro); border-radius:var(--r-lg);
+  box-shadow:var(--som-pop); padding:var(--e1);
+}
+.ms-crear__men.is-on{display:block}
+.ms-crear__men button{
+  display:flex; align-items:center; gap:var(--e2); width:100%; height:32px;
+  padding:0 var(--e3); border:0; border-radius:var(--r); background:none;
+  font:inherit; font-size:13px; color:var(--tin); cursor:pointer; text-align:left;
+}
+.ms-crear__men button:hover{background:var(--ac-suave); color:var(--ac)}
+.ms-crear__men button span{width:16px; text-align:center}
+
+/* ---------- secuencia de puesta en marcha ---------- */
+.ms-prog{display:flex; align-items:center; gap:var(--e3); margin-bottom:var(--e4)}
+.ms-prog__barra{flex:1; height:4px; background:var(--pa-alt); border-radius:99px; overflow:hidden}
+.ms-prog__barra i{display:block; height:100%; background:var(--ok); border-radius:99px; transition:width .25s ease}
+.ms-paso-seq{
+  display:grid; grid-template-columns:32px 1fr auto; gap:var(--e4); align-items:start;
+  background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg);
+  padding:var(--e4) var(--e5); margin-bottom:var(--e2);
+}
+.ms-paso-seq.is-ok{border-color:#bfdfcd}
+.ms-paso-seq.is-bloq{opacity:.62}
+.ms-paso-seq__n{
+  width:28px; height:28px; border-radius:50%; display:grid; place-items:center;
+  background:var(--pa-alt); color:var(--tin-mid); font-size:12px; font-weight:600;
+}
+.ms-paso-seq.is-ok .ms-paso-seq__n{background:var(--ok); color:#fff}
+.ms-paso-seq__c h3{margin:0 0 2px; font-size:14px; font-weight:600}
+.ms-paso-seq__c p{margin:0 0 var(--e2); font-size:12.5px; color:var(--tin-dim); line-height:18px}
+.ms-paso-seq__est{font-size:12.5px; color:var(--tin-mid)}
+.ms-paso-seq__a{display:grid; gap:var(--e2); justify-items:end; text-align:right}
+.ms-paso-seq__a .ms-cuenta{font-size:18px; font-weight:500; color:var(--tin)}
+.ms-paso-seq__a .ms-cuenta small{font-size:11px; color:var(--tin-dim); font-weight:400}
+
+@media (max-width:768px){
+  .ms-paso-seq{grid-template-columns:28px 1fr; }
+  .ms-paso-seq__a{grid-column:1/-1; justify-items:start; text-align:left}
+  .ms-crear__men{right:auto; left:0}
+}

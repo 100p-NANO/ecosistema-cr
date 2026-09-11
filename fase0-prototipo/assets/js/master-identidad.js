@@ -64,6 +64,76 @@
   const SEDES       = [{"id": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "nombre": "Barcelona"}, {"id": "c53a9556-774f-4261-88b7-7e9db2685504", "nombre": "Bogotá Chicó"}, {"id": "ec85323e-2881-4942-b399-f8aa69262b2a", "nombre": "Bogotá Norte"}, {"id": "ca52fa5c-eb56-49af-8ffa-bbe2798363d4", "nombre": "Chía"}, {"id": "601d1c6a-ca10-4186-9833-b78f408ff800", "nombre": "Medellín"}, {"id": "144d3928-e77b-49ce-8003-44aa8a8b707d", "nombre": "Panamá"}];
   const MINISTERIOS = [{"codigo": "ROCAKIDS", "nombre": "RocaKids"}, {"codigo": "TMT", "nombre": "tMt · jóvenes 11-25"}];
 
+
+  /* ---------- 7 · CONFIGURACIÓN POR IGLESIA ----------
+     Aquí está la respuesta a «no todas las iglesias van a ser iguales».
+     No se resuelve escondiendo pestañas a mano: se resuelve con
+     PLANTILLA al crear la iglesia, y ajuste fino después.
+     Una PLANTACION nace con 7 de los 12 módulos: sin aportes, sin
+     RocaKids, sin consejería. No es una carencia, es su etapa. ---------- */
+  const PLANTILLAS = [{"codigo": "FILIAL", "nombre": "Filial nacional", "tipo": "filial_nacional", "desc": "Operación completa de una sede en Colombia."}, {"codigo": "INTERNAC", "nombre": "Filial internacional", "tipo": "filial_internacional", "desc": "Igual que la filial, pero migra en la última ola por GDPR y husos horarios."}, {"codigo": "MAESTRA", "nombre": "Sede maestra", "tipo": "sede_madre", "desc": "Todos los módulos. Es la que gobierna el ecosistema."}, {"codigo": "PLANTACION", "nombre": "Plantación", "tipo": "plantacion", "desc": "Arranque mínimo: personas, seguimiento y grupos. Sin aportes ni menores hasta consolidarse."}];
+  const PLANTILLA_MODS = [{"plantilla": "MAESTRA", "modulo": "personas"}, {"plantilla": "MAESTRA", "modulo": "organizacion"}, {"plantilla": "MAESTRA", "modulo": "identidad"}, {"plantilla": "MAESTRA", "modulo": "cumplimiento"}, {"plantilla": "MAESTRA", "modulo": "crm"}, {"plantilla": "MAESTRA", "modulo": "grupos"}, {"plantilla": "MAESTRA", "modulo": "asistencia"}, {"plantilla": "MAESTRA", "modulo": "formacion"}, {"plantilla": "MAESTRA", "modulo": "talento"}, {"plantilla": "MAESTRA", "modulo": "consejeria"}, {"plantilla": "MAESTRA", "modulo": "aportes"}, {"plantilla": "MAESTRA", "modulo": "rocakids"}, {"plantilla": "FILIAL", "modulo": "personas"}, {"plantilla": "FILIAL", "modulo": "organizacion"}, {"plantilla": "FILIAL", "modulo": "identidad"}, {"plantilla": "FILIAL", "modulo": "cumplimiento"}, {"plantilla": "FILIAL", "modulo": "crm"}, {"plantilla": "FILIAL", "modulo": "grupos"}, {"plantilla": "FILIAL", "modulo": "asistencia"}, {"plantilla": "FILIAL", "modulo": "formacion"}, {"plantilla": "FILIAL", "modulo": "talento"}, {"plantilla": "FILIAL", "modulo": "consejeria"}, {"plantilla": "FILIAL", "modulo": "aportes"}, {"plantilla": "FILIAL", "modulo": "rocakids"}, {"plantilla": "INTERNAC", "modulo": "personas"}, {"plantilla": "INTERNAC", "modulo": "organizacion"}, {"plantilla": "INTERNAC", "modulo": "identidad"}, {"plantilla": "INTERNAC", "modulo": "cumplimiento"}, {"plantilla": "INTERNAC", "modulo": "crm"}, {"plantilla": "INTERNAC", "modulo": "grupos"}, {"plantilla": "INTERNAC", "modulo": "asistencia"}, {"plantilla": "INTERNAC", "modulo": "formacion"}, {"plantilla": "INTERNAC", "modulo": "talento"}, {"plantilla": "INTERNAC", "modulo": "consejeria"}, {"plantilla": "INTERNAC", "modulo": "aportes"}, {"plantilla": "INTERNAC", "modulo": "rocakids"}, {"plantilla": "PLANTACION", "modulo": "personas"}, {"plantilla": "PLANTACION", "modulo": "organizacion"}, {"plantilla": "PLANTACION", "modulo": "identidad"}, {"plantilla": "PLANTACION", "modulo": "cumplimiento"}, {"plantilla": "PLANTACION", "modulo": "crm"}, {"plantilla": "PLANTACION", "modulo": "grupos"}, {"plantilla": "PLANTACION", "modulo": "asistencia"}];
+  const SEDES_FULL = [{"id": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "nombre": "Barcelona", "tipo": "filial_internacional", "pais": "ES", "ciudad": "Barcelona"}, {"id": "c53a9556-774f-4261-88b7-7e9db2685504", "nombre": "Bogotá Chicó", "tipo": "sede_madre", "pais": "CO", "ciudad": "Bogotá"}, {"id": "ec85323e-2881-4942-b399-f8aa69262b2a", "nombre": "Bogotá Norte", "tipo": "filial_nacional", "pais": "CO", "ciudad": "Bogotá"}, {"id": "ca52fa5c-eb56-49af-8ffa-bbe2798363d4", "nombre": "Chía", "tipo": "plantacion", "pais": "CO", "ciudad": "Chía"}, {"id": "601d1c6a-ca10-4186-9833-b78f408ff800", "nombre": "Medellín", "tipo": "filial_nacional", "pais": "CO", "ciudad": "Medellín"}, {"id": "144d3928-e77b-49ce-8003-44aa8a8b707d", "nombre": "Panamá", "tipo": "filial_internacional", "pais": "PA", "ciudad": "Ciudad de Panamá"}];
+  const MODSEDE_SEED = [{"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "personas", "activo": true, "evidencia": null}, {"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "organizacion", "activo": true, "evidencia": null}, {"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "identidad", "activo": true, "evidencia": null}, {"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "cumplimiento", "activo": true, "evidencia": null}, {"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "crm", "activo": true, "evidencia": null}, {"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "grupos", "activo": true, "evidencia": null}, {"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "asistencia", "activo": true, "evidencia": null}, {"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "formacion", "activo": true, "evidencia": null}, {"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "talento", "activo": true, "evidencia": null}, {"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "consejeria", "activo": true, "evidencia": "PENDIENTE-H02 · demostración"}, {"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "aportes", "activo": true, "evidencia": "PENDIENTE-H02 · demostración"}, {"sede": "c53a9556-774f-4261-88b7-7e9db2685504", "modulo": "rocakids", "activo": true, "evidencia": "PENDIENTE-H02 · demostración"}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "personas", "activo": true, "evidencia": null}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "organizacion", "activo": true, "evidencia": null}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "identidad", "activo": true, "evidencia": null}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "cumplimiento", "activo": true, "evidencia": null}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "crm", "activo": true, "evidencia": null}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "grupos", "activo": true, "evidencia": null}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "asistencia", "activo": true, "evidencia": null}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "formacion", "activo": true, "evidencia": null}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "talento", "activo": true, "evidencia": null}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "consejeria", "activo": false, "evidencia": null}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "aportes", "activo": false, "evidencia": null}, {"sede": "ec85323e-2881-4942-b399-f8aa69262b2a", "modulo": "rocakids", "activo": false, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "personas", "activo": true, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "organizacion", "activo": true, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "identidad", "activo": true, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "cumplimiento", "activo": true, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "crm", "activo": true, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "grupos", "activo": true, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "asistencia", "activo": true, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "formacion", "activo": true, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "talento", "activo": true, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "consejeria", "activo": false, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "aportes", "activo": false, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "personas", "activo": true, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "organizacion", "activo": true, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "identidad", "activo": true, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "cumplimiento", "activo": true, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "crm", "activo": true, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "grupos", "activo": true, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "asistencia", "activo": true, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "formacion", "activo": true, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "talento", "activo": true, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "consejeria", "activo": false, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "aportes", "activo": false, "evidencia": null}, {"sede": "144d3928-e77b-49ce-8003-44aa8a8b707d", "modulo": "rocakids", "activo": false, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "personas", "activo": true, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "organizacion", "activo": true, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "identidad", "activo": true, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "cumplimiento", "activo": true, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "crm", "activo": true, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "grupos", "activo": true, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "asistencia", "activo": true, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "formacion", "activo": true, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "talento", "activo": true, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "consejeria", "activo": false, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "aportes", "activo": false, "evidencia": null}, {"sede": "35063b42-86c4-4f76-8a6a-4ca8bf38a5ee", "modulo": "rocakids", "activo": false, "evidencia": null}, {"sede": "ca52fa5c-eb56-49af-8ffa-bbe2798363d4", "modulo": "personas", "activo": true, "evidencia": null}, {"sede": "ca52fa5c-eb56-49af-8ffa-bbe2798363d4", "modulo": "organizacion", "activo": true, "evidencia": null}, {"sede": "ca52fa5c-eb56-49af-8ffa-bbe2798363d4", "modulo": "identidad", "activo": true, "evidencia": null}, {"sede": "ca52fa5c-eb56-49af-8ffa-bbe2798363d4", "modulo": "cumplimiento", "activo": true, "evidencia": null}, {"sede": "ca52fa5c-eb56-49af-8ffa-bbe2798363d4", "modulo": "crm", "activo": true, "evidencia": null}, {"sede": "ca52fa5c-eb56-49af-8ffa-bbe2798363d4", "modulo": "grupos", "activo": true, "evidencia": null}, {"sede": "ca52fa5c-eb56-49af-8ffa-bbe2798363d4", "modulo": "asistencia", "activo": true, "evidencia": null}, {"sede": "601d1c6a-ca10-4186-9833-b78f408ff800", "modulo": "rocakids", "activo": true, "evidencia": "ACTA-SIC-2026-014"}, {"sede": "ca52fa5c-eb56-49af-8ffa-bbe2798363d4", "modulo": "aportes", "activo": true, "evidencia": "ACTA-X"}];
+
+  function modulosDePlantilla(cod) {
+    return PLANTILLA_MODS.filter(p => p.plantilla === cod).map(p => p.modulo).sort();
+  }
+  function plantilla(cod) { return PLANTILLAS.find(p => p.codigo === cod) || null; }
+
+
+  /* ---------- 8 · PLANTILLAS DE ACCESO ----------
+     Así lo resuelven Okta, Google Workspace y Notion: nadie compone
+     «rol x alcance x nivel x vigencia» a mano cada vez. Se elige
+     «Pastor de una iglesia», se dice CUÁL iglesia, y listo. Las
+     cuatro dimensiones van pre-rellenadas.
+
+     La configuración avanzada sigue existiendo para el 5% de casos
+     raros. Pero el 95% se resuelve en dos clics.
+     ---------- */
+  const PRESETS = [
+    { id:"direccion", titulo:"Dirección General",  sub:"Toda la red, las 36 iglesias",
+      rol:"PASTOR_DIRECTOR_GENERAL", alcanceTipo:"organizacion", nivelMax:4, ico:"\uD83C\uDF10" },
+    { id:"pastor",    titulo:"Pastor de una iglesia", sub:"Opera su sede completa",
+      rol:"PASTOR_CONGREGACIONAL", alcanceTipo:"sede", nivelMax:2, ico:"\u26EA" },
+    { id:"dirmin",    titulo:"Director de ministerio", sub:"RocaKids, tMt, Mujer Integral…",
+      rol:"DIRECTOR_MINISTERIO", alcanceTipo:"ministerio", nivelMax:2, ico:"\uD83D\uDDC2\uFE0F" },
+    { id:"lider",     titulo:"Líder de grupo",  sub:"Solo su grupo pequeño o de hogar",
+      rol:"LIDER_GRUPO", alcanceTipo:"grupo", nivelMax:2, ico:"\uD83D\uDC65" },
+    { id:"consejero", titulo:"Consejero",       sub:"Solo los casos que le asignen",
+      rol:"CONSEJERO", alcanceTipo:"caso_propio", nivelMax:3, ico:"\uD83D\uDCAC", acta:true },
+    { id:"tesoreria", titulo:"Tesorería de una iglesia", sub:"Aportes y certificados de su sede",
+      rol:"TESORERIA", alcanceTipo:"sede", nivelMax:3, ico:"\uD83D\uDCB0", acta:true },
+    { id:"rocakids",  titulo:"Maestro de RocaKids", sub:"Entrada y entrega de menores",
+      rol:"MAESTRO_ROCAKIDS", alcanceTipo:"ministerio", nivelMax:4, ico:"\uD83E\uDDD2", acta:true },
+    { id:"nuevos",    titulo:"Coordinador de Nuevos", sub:"Registra y hace seguimiento del 4C",
+      rol:"COORDINADOR_NUEVOS", alcanceTipo:"sede", nivelMax:2, ico:"\uD83C\uDF31" },
+    { id:"secretaria",titulo:"Secretaría",      sub:"Personas, grupos y formación de su sede",
+      rol:"SECRETARIA", alcanceTipo:"sede", nivelMax:2, ico:"\uD83D\uDCCB" },
+    { id:"talento",   titulo:"Talento Humano",  sub:"Voluntariado y antecedentes",
+      rol:"TALENTO_HUMANO", alcanceTipo:"sede", nivelMax:3, ico:"\uD83E\uDD1D", acta:true },
+    { id:"miembro",   titulo:"Miembro",         sub:"Solo su propia ficha",
+      rol:"MIEMBRO", alcanceTipo:"persona_propia", nivelMax:2, ico:"\uD83D\uDC64" },
+    { id:"acudiente", titulo:"Acudiente",       sub:"Su ficha y la de sus menores",
+      rol:"ACUDIENTE", alcanceTipo:"persona_propia", nivelMax:4, ico:"\uD83D\uDC6A", acta:true },
+  ];
+  const preset = id => PRESETS.find(p => p.id === id) || null;
+
+  /* ---------- 9 · EQUIPOS ADMINISTRATIVOS ----------
+     Los 8 equipos del back-office. Un equipo no es un rol: es un
+     conjunto de roles que se otorgan juntos. Crear el equipo de
+     Tesorería de una sede deberia ser un clic, no cuatro. ---------- */
+  const EQUIPOS = [
+    { codigo:"CONTABLE",       nombre:"Contable",         ambito:"corporativo", roles:["CONTABILIDAD"] },
+    { codigo:"TESORERIA",      nombre:"Tesorería",        ambito:"local",       roles:["TESORERIA"] },
+    { codigo:"LEGAL",          nombre:"Legal",            ambito:"corporativo", roles:["SECRETARIA"] },
+    { codigo:"TALENTO",        nombre:"Talento Humano",   ambito:"local",       roles:["TALENTO_HUMANO"] },
+    { codigo:"SEGURIDAD",      nombre:"Seguridad",        ambito:"local",       roles:["SECRETARIA"] },
+    { codigo:"TECNOLOGIA",     nombre:"Tecnología",       ambito:"corporativo", roles:["INTEGRACION_TECNICA"] },
+    { codigo:"CULTURA",        nombre:"Cultura",          ambito:"local",       roles:["COORDINADOR"] },
+    { codigo:"COMUNICACIONES", nombre:"Comunicaciones",   ambito:"local",       roles:["COORDINADOR"] },
+  ];
+
   /* ============================================================
      LAS REGLAS. Cada una existe porque la base la impone; si la
      interfaz no las aplica, deja pedir cosas que van a fallar.
@@ -227,6 +297,8 @@
 
   window.IDENTIDAD = {
     NIVELES, ROLES, MODULOS, ACCIONES, MATRIZ, ALCANCES, SEDES, MINISTERIOS,
+    PLANTILLAS, PLANTILLA_MODS, SEDES_FULL, MODSEDE_SEED, modulosDePlantilla, plantilla,
+    PRESETS, preset, EQUIPOS,
     DIVERGENCIAS, ADOPTAR_DE_JHON, DELEGACION,
     rol, modulo, alcance, nivel,
     rolPuedeModulo, alcanceValido, puedeOtorgar, vigenciaValida, exigeActa,
