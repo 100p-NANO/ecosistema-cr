@@ -83,6 +83,10 @@
     { id:"cumplimiento", ico:"🛡️", lbl:"Auditoría y cumplimiento", mod:"cumplimiento" },
   ];
 
+  /* El borrador de la pantalla en curso. Vive aquí arriba porque lo
+     usan tanto las vistas como los manejadores de eventos. */
+  function b_() { return (borrador = borrador || {}); }
+
   /* ---------- utilidades de presentación ---------- */
   function pastilla(n) {
     const x = I.nivel(n) || { codigo:"N?" };
@@ -759,456 +763,129 @@
 
   /* ============================================================ CREAR ACCESO */
   function vCrear() {
-    const b = borrador || (borrador = { personaId:"", nuevaPersona:"", documento:"",
-      rol:"", alcanceTipo:"", alcanceId:"", nivelMax:null, desde:hoy(), hasta:"", acta:"" });
+    const b = b_();
+    b.sel = b.sel || {};                 // { rol: {alcanceTipo, alcanceId, nivelMax, acta} }
     const puede = I.rolesQuePuedeCrear(YO.rol);
-    const r = b.rol ? I.rol(b.rol) : null;
-    const al = b.alcanceTipo ? I.alcance(b.alcanceTipo) : null;
+    const marcados = Object.keys(b.sel);
 
-    let opcionesAlcanceId = "";
-    if (al && al.exigeId) {
-      const fuente = al.fuente === "ministerios" ? I.MINISTERIOS.map(m => ({ id:m.codigo, nombre:m.nombre })) :
-                     al.fuente === "sedes"       ? I.SEDES : [];
-      opcionesAlcanceId = fuente.length
-        ? `<label class="ms-campo"><span>¿Cuál? <b class="ms-req">obligatorio</b></span>
-           <select data-campo="alcanceId"><option value="">Elegir…</option>
-           ${fuente.map(f => `<option value="${esc(f.id)}" ${b.alcanceId === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}
-           </select></label>`
-        : `<div class="ms-alerta ms-alerta--ambar">No hay ${esc(al.fuente)} cargados todavía. Créalos antes de otorgar este alcance.</div>`;
-    }
+    /* Al marcar un rol, arranca con SU alcance sugerido y SU techo. Así
+       marcar cinco roles no obliga a configurar cinco veces lo mismo. */
+    const filas = marcados.map(cod => {
+      const r = I.rol(cod), cfg = b.sel[cod];
+      const al = I.alcance(cfg.alcanceTipo);
+      const fuente = al && al.exigeId
+        ? (al.fuente === "ministerios" ? M.ministerios().map(m => ({ id:m.codigo, nombre:m.nombre }))
+          : al.fuente === "sedes" ? M.sedes() : [])
+        : [];
+      return `<div class="ms-rolfila">
+        <div class="ms-rolfila__n"><b>${esc(r ? r.nombre : cod)}</b> ${pastilla(r ? r.techo : 0)}
+          <button class="ms-x" data-accion="quitarol" data-cod="${esc(cod)}" title="Quitar">×</button></div>
+        <label class="ms-campo" style="margin:0"><span>Alcance</span>
+          <select data-rolcfg="${esc(cod)}" data-campo2="alcanceTipo">
+          ${I.ALCANCES.map(x => `<option value="${esc(x.codigo)}" ${cfg.alcanceTipo === x.codigo ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}
+          </select></label>
+        <label class="ms-campo" style="margin:0"><span>${al && al.exigeId ? "¿Cuál?" : "—"}</span>
+          ${al && al.exigeId
+            ? `<select data-rolcfg="${esc(cod)}" data-campo2="alcanceId"><option value="">Elegir…</option>
+               ${fuente.map(f => `<option value="${esc(f.id)}" ${cfg.alcanceId === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}
+               </select>`
+            : `<input disabled value="no lleva">`}</label>
+        <label class="ms-campo" style="margin:0"><span>Nivel</span>
+          <select data-rolcfg="${esc(cod)}" data-campo2="nivelMax">
+          ${I.NIVELES.filter(n => n.nivel <= (r ? r.techo : 4) && n.nivel <= YO.techo)
+            .map(n => `<option value="${n.nivel}" ${cfg.nivelMax === n.nivel ? "selected" : ""}>N${n.nivel}</option>`).join("")}
+          </select></label>
+        <label class="ms-campo" style="margin:0"><span>Acta ${cfg.nivelMax >= 3 ? '<b class="ms-req">obligatoria</b>' : ""}</span>
+          <input data-rolcfg="${esc(cod)}" data-campo2="acta" value="${esc(cfg.acta || "")}" placeholder="ACTA-…"></label>
+      </div>`;
+    }).join("");
 
-    const validacion = (b.rol && b.alcanceTipo && b.nivelMax != null)
-      ? I.validarAsignacion({ personaId: b.personaId || (b.nuevaPersona ? "nueva" : ""), rol:b.rol,
-          alcanceTipo:b.alcanceTipo, alcanceId:b.alcanceId || null, nivelMax:b.nivelMax,
-          desde:b.desde, hasta:b.hasta || null, acta:b.acta }, YO)
-      : null;
+    const lista = marcados.map(cod => Object.assign({
+      personaId: b.personaId || (b.nuevaPersona ? "nueva" : ""), rol:cod,
+      desde: b.desde || hoy(), hasta: b.hasta || null }, b.sel[cod]));
+    const fallos = [];
+    if (!b.personaId && !b.nuevaPersona) fallos.push("Falta decir a quién se le otorga.");
+    if (!marcados.length) fallos.push("Marque al menos un rol.");
+    lista.forEach(a => { const v = I.validarAsignacion(a, YO);
+      if (!v.ok) { const r = I.rol(a.rol);
+        v.fallos.forEach(f => { const t = `${r ? r.nombre : a.rol}: ${f}`;
+          if (f.indexOf("a quién") < 0 && fallos.indexOf(t) < 0) fallos.push(t); }); } });
 
-    return head("Crear acceso",
-      `Usted otorga como <b>${esc(I.rol(YO.rol).nombre)}</b>, con techo ${pastilla(YO.techo)}. Nadie puede dar lo que no tiene.`) + `
-    <div class="ms-asistente">
+    return `<div class="ms-ancho--lectura">` + head("Otorgar roles",
+      `Usted otorga como <b>${esc(I.rol(YO.rol).nombre)}</b>, techo ${pastilla(YO.techo)}. Puede dar <b>varios roles a la vez</b>: una persona puede ser Consejero y Coordinador de Nuevos, o Pastor General y Director de RocaKids.`) + `
 
       <section class="ms-paso"><h3><i>1</i> ¿A quién?</h3>
         <div class="ms-fila2">
           <label class="ms-campo"><span>Persona que ya existe</span>
             <select data-campo="personaId"><option value="">Elegir…</option>
-            ${M.personas().map(p => `<option value="${esc(p.id)}" ${b.personaId === p.id ? "selected" : ""}>${esc(p.nombre)}</option>`).join("")}
+            ${M.personas().map(p => `<option value="${esc(p.id)}" ${b.personaId === p.id ? "selected" : ""}>${esc(p.nombre)}${p.codigo ? " · " + esc(p.codigo) : ""}</option>`).join("")}
             </select></label>
           <label class="ms-campo"><span>…o crear una ficha nueva</span>
-            <input data-campo="nuevaPersona" value="${esc(b.nuevaPersona)}" placeholder="Nombre completo"></label>
+            <input data-campo="nuevaPersona" value="${esc(b.nuevaPersona || "")}" placeholder="Nombre completo"></label>
         </div>
-        <label class="ms-campo"><span>Documento (si es ficha nueva)</span>
-          <input data-campo="documento" value="${esc(b.documento)}" placeholder="Cédula"></label>
       </section>
 
       ${(() => {
-        const pid = b.personaId;
-        if (!pid) return "";
-        const c = M.contextoPara(pid);
-        if (!c) return "";
+        const pid = b.personaId; if (!pid) return "";
+        const c = M.contextoPara(pid); if (!c) return "";
         return `<section class="ms-paso ms-paso--ctx">
           <h3><i>·</i> Lo que el CRM sabe de ${esc(c.persona.nombre)}</h3>
           <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
-            Nadie debería nombrar a alguien a ciegas. Esto sale de la línea de tiempo, no de un formulario.</p>
+            Nadie debería nombrar a alguien a ciegas. Esto sale de la línea de tiempo.</p>
           <div class="ms-ctxkpis">
             <div><b>${c.meses != null ? c.meses : "—"}</b><span>meses en la iglesia</span></div>
-            <div><b>${c.hechos.length}</b><span>hechos registrados</span></div>
-            <div><b>${c.cursos.length}</b><span>cursos certificados</span></div>
+            <div><b>${c.hechos.length}</b><span>hechos</span></div>
+            <div><b>${c.cursos.length}</b><span>cursos</span></div>
             <div><b>${c.rolesVigentes.length}</b><span>roles vigentes</span></div>
           </div>
           ${c.señales.map(x => `<div class="ms-senal ms-senal--${esc(x.t)}">${esc(x.txt)}</div>`).join("")}
-          ${c.hechos.length ? `<div class="ms-lbl" style="margin-top:12px">Últimos movimientos</div>
-            <ul class="ms-linea">${c.hechos.slice(0, 5).map(h => {
-              const t = I.tipoHecho(h.tipo);
-              return `<li><span class="ms-linea__f">${esc(h.cuando)}</span>
-                <span class="ms-chip">${esc(t ? t.modulo : h.modulo)}</span>
-                ${esc(h.resumen)}</li>`;
-            }).join("")}</ul>` : ""}
         </section>`;
       })()}
 
-      <section class="ms-paso"><h3><i>2</i> ¿Con qué rol?</h3>
-        <label class="ms-campo"><span>Rol</span>
-          <select data-campo="rol"><option value="">Elegir…</option>
-          ${I.ROLES.filter(x => puede.indexOf(x.codigo) >= 0).map(x =>
-            `<option value="${esc(x.codigo)}" ${b.rol === x.codigo ? "selected" : ""}>${esc(x.nombre)} · techo N${x.techo}</option>`).join("")}
-          </select></label>
-        ${r ? `<div class="ms-nota">El techo de <b>${esc(r.nombre)}</b> es ${pastilla(r.techo)}.
-          Puede alcanzar estos módulos:
-          <div class="ms-chips">${I.MODULOS.filter(m => I.rolPuedeModulo(r.codigo, m.codigo).ok &&
-            I.MATRIZ.some(p => p.rol === r.codigo && p.modulo === m.codigo))
-            .map(m => `<span class="ms-chip">${esc(m.nombre)} ${pastilla(m.nivel)}</span>`).join("") ||
-            "<i>ninguno todavía</i>"}</div>
-          ${I.MODULOS.filter(m => !I.rolPuedeModulo(r.codigo, m.codigo).ok).length
-            ? `<div class="ms-veda">Fuera de su techo, y no es negociable:
-               ${I.MODULOS.filter(m => !I.rolPuedeModulo(r.codigo, m.codigo).ok)
-                 .map(m => `<span class="ms-chip ms-chip--veda">${esc(m.nombre)} ${pastilla(m.nivel)}</span>`).join("")}</div>` : ""}
-          </div>` : ""}
-      </section>
-
-      <section class="ms-paso"><h3><i>3</i> ¿Sobre qué alcance?</h3>
-        <label class="ms-campo"><span>Alcance</span>
-          <select data-campo="alcanceTipo"><option value="">Elegir…</option>
-          ${I.ALCANCES.map(a => `<option value="${esc(a.codigo)}" ${b.alcanceTipo === a.codigo ? "selected" : ""}>${esc(a.nombre)}</option>`).join("")}
-          </select></label>
-        ${al ? `<div class="ms-nota">${esc(al.ayuda)}</div>` : ""}
-        ${opcionesAlcanceId}
-      </section>
-
-      <section class="ms-paso"><h3><i>4</i> ¿Hasta qué nivel de dato?</h3>
-        <div class="ms-niveles">
-          ${I.NIVELES.map(n => {
-            const bloqueado = r && n.nivel > r.techo || n.nivel > YO.techo;
-            return `<button class="ms-nivbtn ${b.nivelMax === n.nivel ? "is-on" : ""} ${bloqueado ? "is-off" : ""}"
-              ${bloqueado ? "disabled" : ""} data-accion="nivel" data-n="${n.nivel}">
-              ${pastilla(n.nivel)}<span>${esc(n.desc)}</span>
-              ${bloqueado ? `<i class="ms-porque">${n.nivel > YO.techo ? "por encima de SU techo" : "por encima del techo del rol"}</i>` : ""}
-            </button>`; }).join("")}
+      <section class="ms-paso"><h3><i>2</i> ¿Qué roles? <small style="font-weight:400;color:var(--tin-dim)">selección múltiple</small></h3>
+        <div class="ms-sel">
+          ${I.ROLES.filter(x => puede.indexOf(x.codigo) >= 0).map(x => {
+            const on = !!b.sel[x.codigo];
+            const alto = x.techo >= 4;
+            return `<label class="ms-opt ${on ? "is-on" : ""}">
+              <input type="checkbox" ${on ? "checked" : ""} data-selrol="${esc(x.codigo)}">
+              <div><b>${esc(x.nombre)}</b><small>techo N${x.techo}${alto ? " · toca menores" : ""} · alcance ${esc((I.alcance(x.alcanceMax)||{}).nombre || x.alcanceMax || "")}</small></div></label>`;
+          }).join("")}
         </div>
       </section>
 
-      <section class="ms-paso"><h3><i>5</i> Vigencia y respaldo</h3>
+      ${marcados.length ? `<section class="ms-paso"><h3><i>3</i> Cómo queda cada rol</h3>
+        <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
+          Cada rol arranca con SU alcance sugerido y SU techo. No se fuerza uno común: un consejero
+          va por «solo sus casos» y un coordinador por «una sede», y mezclarlos rompería la regla
+          que impide que el consejero vea todos los casos de su sede.</p>
+        ${filas}
+      </section>` : ""}
+
+      <section class="ms-paso"><h3><i>4</i> Vigencia</h3>
         <div class="ms-fila2">
-          <label class="ms-campo"><span>Desde</span><input type="date" data-campo="desde" value="${esc(b.desde)}"></label>
-          <label class="ms-campo"><span>Hasta (vacío = indefinido)</span><input type="date" data-campo="hasta" value="${esc(b.hasta)}"></label>
+          <label class="ms-campo"><span>Desde</span><input type="date" data-campo="desde" value="${esc(b.desde || hoy())}"></label>
+          <label class="ms-campo"><span>Hasta (vacío = indefinido)</span><input type="date" data-campo="hasta" value="${esc(b.hasta || "")}"></label>
         </div>
         ${!b.hasta ? `<div class="ms-nota ms-nota--ojo">Un acceso indefinido no se revisa nunca. Para roles de dato sensible conviene ponerle fecha.</div>` : ""}
-        <label class="ms-campo"><span>Acta que lo respalda ${b.nivelMax >= 3 ? '<b class="ms-req">obligatoria para N3/N4</b>' : "(recomendada)"}</span>
-          <input data-campo="acta" value="${esc(b.acta)}" placeholder="ACTA-JD-2026-000"></label>
       </section>
 
-      ${(() => {
-        const r2 = b.rol ? I.rol(b.rol) : null;
-        if (!r2 || r2.techo < 4 || !b.personaId) return "";
+      ${marcados.some(c => (I.rol(c) || {}).techo >= 4) && b.personaId ? (() => {
         const c = M.contextoPara(b.personaId);
-        if (!c) return "";
         return `<div class="ms-alerta ms-alerta--roja">
-          <b>Este rol toca datos de menores (N4).</b>
-          ${c.antecedentes
-            ? "Hay antecedentes registrados en su línea de tiempo: verifique que sigan vigentes (caducan a los 2 años)."
-            : "No hay ningún registro de antecedentes verificados en su línea de tiempo. La regla del módulo de Talento es explícita: nadie sirve con menores sin antecedentes verificados y vigentes."}
-        </div>`;
-      })()}
-      ${validacion ? (validacion.ok
-        ? `<div class="ms-alerta ms-alerta--verde"><b>Listo para otorgar.</b> La base aceptará esta asignación.</div>`
-        : `<div class="ms-alerta ms-alerta--roja"><b>La base rechazaría esto:</b><ul>${
-            validacion.fallos.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>`) : ""}
+          <b>Hay un rol que toca datos de menores (N4).</b>
+          ${c && c.antecedentes ? "Hay antecedentes en su línea de tiempo: verifique que sigan vigentes."
+            : "No hay ningún registro de antecedentes verificados en su línea de tiempo."}</div>`;
+      })() : ""}
 
+      ${fallos.length
+        ? `<div class="ms-alerta ms-alerta--roja"><b>Falta:</b><ul>${fallos.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>`
+        : `<div class="ms-alerta ms-alerta--verde"><b>Listo.</b> Se otorgarán ${marcados.length} rol(es) en un solo acto. Si uno fallara, no se otorga ninguno.</div>`}
       <div class="ms-acciones">
-        <button class="ms-btn ms-btn--primario" data-accion="otorgar" ${validacion && validacion.ok ? "" : "disabled"}>Otorgar acceso</button>
+        <button class="ms-btn ms-btn--primario" data-accion="otorgar" ${fallos.length ? "disabled" : ""}>
+          Otorgar ${marcados.length || ""} rol${marcados.length === 1 ? "" : "es"}</button>
         <button class="ms-btn" data-accion="limpiar">Limpiar</button>
-      </div>
-    </div>`;
-  }
-
-
-
-  /* ============================================================ SELECTOR DE PERMISOS
-     El MISMO componente en un rol, en un ministerio y en un equipo.
-     Tres niveles, no quince acciones. Si una pantalla usara palabras
-     distintas de otra, nadie entendería el sistema.
-
-     `techo` recorta lo que se puede ofrecer: un módulo por encima del
-     techo sale vedado y no se puede marcar. */
-  function selectorPermisos(permisos, techo, campo, modsVisibles) {
-    permisos = permisos || {};
-    const mods = (modsVisibles && modsVisibles.length)
-      ? I.MODULOS.filter(m => modsVisibles.indexOf(m.codigo) >= 0)
-      : I.MODULOS;
-    const n = Object.keys(permisos).filter(k => permisos[k]).length;
-    return `
-    <div class="ms-permsel">
-      <div class="ms-permsel__cab">
-        <span class="ms-lbl" style="margin:0">Módulo</span>
-        ${I.NIVELES_ACCESO.map(x => `<span class="ms-lbl" style="margin:0;text-align:center" title="${esc(x.ayuda)}">${esc(x.nombre)}</span>`).join("")}
-        <span class="ms-lbl" style="margin:0;text-align:center">Sin acceso</span>
-      </div>
-      ${mods.map(m => {
-        const vedado = m.nivel > techo;
-        const act = permisos[m.codigo] || null;
-        return `<div class="ms-permsel__f ${vedado ? "is-veda" : ""}">
-          <div class="ms-permsel__m"><b>${esc(m.nombre)}</b> ${pastilla(m.nivel)}
-            ${vedado ? `<span class="ms-porque">fuera del techo N${techo}</span>` : ""}</div>
-          ${I.NIVELES_ACCESO.map(x => `
-            <label class="ms-radio ${act === x.codigo ? "is-on" : ""}" title="${esc(x.ayuda)}">
-              <input type="radio" name="${esc(campo)}_${esc(m.codigo)}" ${act === x.codigo ? "checked" : ""}
-                ${vedado ? "disabled" : ""} data-perm-campo="${esc(campo)}"
-                data-perm-mod="${esc(m.codigo)}" data-perm-niv="${esc(x.codigo)}"></label>`).join("")}
-          <label class="ms-radio ${!act ? "is-on" : ""}" title="Sin acceso a este módulo">
-            <input type="radio" name="${esc(campo)}_${esc(m.codigo)}" ${!act ? "checked" : ""}
-              ${vedado ? "disabled" : ""} data-perm-campo="${esc(campo)}"
-              data-perm-mod="${esc(m.codigo)}" data-perm-niv=""></label>
-        </div>`;
-      }).join("")}
-      <div class="ms-permsel__pie">
-        <span class="ms-cuenta">${n} módulo(s) con acceso</span>
-        <div class="ms-barra__sp"></div>
-        ${I.NIVELES_ACCESO.map(x => `<button class="ms-btn ms-btn--peq" data-accion="perm-todos"
-          data-campo="${esc(campo)}" data-niv="${esc(x.codigo)}">Todo a «${esc(x.nombre.toLowerCase())}»</button>`).join("")}
-        <button class="ms-btn ms-btn--peq" data-accion="perm-todos" data-campo="${esc(campo)}" data-niv="">Ninguno</button>
-      </div>
-    </div>`;
-  }
-
-  /* ============================================================ FORMULARIOS DE CREACIÓN
-     Un patrón para todos: campos arriba, la consecuencia visible
-     abajo, y el botón deshabilitado hasta que la base lo aceptaría.
-     Nunca se deja pulsar algo que va a fallar. */
-  function b_() { return (borrador = borrador || {}); }
-  function selPersona(campo, etiqueta, ayuda) {
-    const b = b_();
-    return `<label class="ms-campo"><span>${esc(etiqueta)} <b class="ms-req">obligatorio</b></span>
-      <select data-campo="${campo}"><option value="">Elegir persona…</option>
-      ${M.personas().map(x => `<option value="${esc(x.id)}" ${b[campo] === x.id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}
-      </select></label>
-      <label class="ms-campo"><span>…o crear la ficha aquí mismo</span>
-        <input data-campo="${campo}_nueva" value="${esc(b[campo + "_nueva"] || "")}" placeholder="Nombre completo"></label>
-      ${ayuda ? `<div class="ms-nota">${esc(ayuda)}</div>` : ""}`;
-  }
-  function selSede(campo, etiqueta) {
-    const b = b_();
-    return `<label class="ms-campo"><span>${esc(etiqueta)} <b class="ms-req">obligatorio</b></span>
-      <select data-campo="${campo}"><option value="">Elegir iglesia…</option>
-      ${M.sedes().map(x => `<option value="${esc(x.id)}" ${b[campo] === x.id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}
-      </select></label>`;
-  }
-  function pie(fallos, textoBtn, accion) {
-    return `${fallos.length
-      ? `<div class="ms-alerta ms-alerta--roja"><b>Falta para poder crear:</b><ul>${fallos.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>`
-      : `<div class="ms-alerta ms-alerta--verde"><b>Listo.</b> La base aceptaría esto.</div>`}
-      <div class="ms-acciones">
-        <button class="ms-btn ms-btn--primario" data-accion="${accion}" ${fallos.length ? "disabled" : ""}>${esc(textoBtn)}</button>
-        <button class="ms-btn" data-accion="limpiar">Limpiar</button>
-      </div>`;
-  }
-
-  /* ---------- PERSONA ----------
-     El formulario se GENERA de `MSTORE.FICHA`, que es la copia exacta
-     de las columnas de `nucleo.personas`. Una sola fuente de verdad: si
-     mañana entra una columna nueva en la base, aparece aquí sola.
-
-     Ese es el arreglo del defecto que encontró Daniel: el formulario
-     pedía tres cosas y la ficha mostraba nueve en «sin registrar»,
-     porque cada uno tenía su propia lista. */
-  function campoFicha(c, pref) {
-    const b = b_(), k = (pref || "") + c.k, v = b[k] || "";
-    const req = c.req ? ' <b class="ms-req">obligatorio</b>' : "";
-    const niv = c.n != null ? " " + pastilla(c.n) : "";
-    let control;
-    if (c.opciones) {
-      control = `<select data-campo="${esc(k)}"><option value="">Elegir…</option>
-        ${c.opciones.map(o => { const val = Array.isArray(o) ? o[0] : o, txt = Array.isArray(o) ? o[1] : o;
-          return `<option value="${esc(val)}" ${v === val ? "selected" : ""}>${esc(txt)}</option>`; }).join("")}
-        </select>`;
-    } else if (c.k === "sedeId") {
-      control = `<select data-campo="${esc(k)}"><option value="">Elegir iglesia…</option>
-        ${M.sedes().map(x => `<option value="${esc(x.id)}" ${v === x.id ? "selected" : ""}>${esc(x.nombre)} · ${esc(x.codigo || "")}</option>`).join("")}
-        </select>`;
-    } else {
-      control = `<input type="${esc(c.tipo || "text")}" data-campo="${esc(k)}" value="${esc(v)}">`;
-    }
-    return `<label class="ms-campo"><span>${esc(c.l)}${req}${niv}</span>${control}
-      ${c.ayuda ? `<small class="ms-ayuda">${esc(c.ayuda)}</small>` : ""}</label>`;
-  }
-  function grupoFicha(grupo, pref) {
-    const cs = M.FICHA.filter(c => c.g === grupo);
-    if (!cs.length) return "";
-    return `<div class="ms-grupo"><div class="ms-lbl">${esc(grupo)}</div>
-      <div class="ms-grid-campos">${cs.map(c => campoFicha(c, pref)).join("")}</div></div>`;
-  }
-
-  function vNPersona() {
-    const b = b_();
-    const f = M.validarFicha(b, "Ficha");
-    const grupos = [...new Set(M.FICHA.map(c => c.g))];
-    return `<div class="ms-ancho--lectura">` + head("Crear persona",
-      "Los campos son exactamente las columnas de <code>nucleo.personas</code> en el backend. Lo que se llena aquí es lo que se verá en su ficha, sin sorpresas.") + `
-      <div class="ms-paso">
-        ${grupos.map(g => grupoFicha(g)).join("")}
-      </div>
-      <div class="ms-nota">La ficha por sí sola no da acceso a nada. El acceso se otorga después,
-        o al crear la iglesia, el ministerio o el equipo donde va a servir.</div>
-      ` + pie(f, "Crear persona", "hacer-persona") + `</div>`;
-  }
-
-  /* ---------- IGLESIA ---------- */
-  function vNIglesia() {
-    const b = b_(), f = [];
-    if (!b.nombre) f.push("El nombre de la iglesia.");
-    if (!b.plantilla) f.push("La plantilla: define qué módulos verá esta iglesia.");
-    if (!b.pastorId && !b.pastorId_nueva) f.push("Su pastor. Una iglesia no se crea sin pastor.");
-    const mods = b.plantilla ? I.modulosDePlantilla(b.plantilla) : [];
-    return `<div class="ms-ancho--lectura">` + head("Crear iglesia",
-      "Tres cosas y queda operando: cómo se llama, qué plantilla usa y quién la pastorea.") + `
-      <div class="ms-paso"><h3><i>1</i> Identidad</h3>
-        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
-          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Bogotá Norte"></label>
-        <div class="ms-fila2">
-          <label class="ms-campo"><span>Ciudad</span>
-            <input data-campo="ciudad" value="${esc(b.ciudad || "")}" placeholder="Bogotá"></label>
-          <label class="ms-campo"><span>País</span>
-            <select data-campo="pais">
-              <option value="CO" ${b.pais === "CO" || !b.pais ? "selected" : ""}>Colombia</option>
-              <option value="ES" ${b.pais === "ES" ? "selected" : ""}>España</option>
-              <option value="US" ${b.pais === "US" ? "selected" : ""}>Estados Unidos</option>
-              <option value="PA" ${b.pais === "PA" ? "selected" : ""}>Panamá</option>
-            </select></label>
-        </div>
-      </div>
-
-      <div class="ms-paso"><h3><i>2</i> Plantilla</h3>
-        <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
-          Aquí se decide qué ve esta iglesia. No todas son iguales: una plantación arranca con lo
-          mínimo y crece cuando se consolida.</p>
-        <div class="ms-plant">
-          ${I.PLANTILLAS.map(pl => {
-            const n = I.modulosDePlantilla(pl.codigo).length;
-            return `<button class="ms-plantc ${b.plantilla === pl.codigo ? "is-on" : ""}"
-              data-accion="plantilla" data-cod="${esc(pl.codigo)}" style="text-align:left;cursor:pointer;font:inherit">
-              <h4>${esc(pl.nombre)}</h4><p>${esc(pl["desc"] || "")}</p>
-              <span class="ms-plantc__n">${n} de ${I.MODULOS.length} módulos</span></button>`;
-          }).join("")}
-        </div>
-        ${b.plantilla ? `<div class="ms-lbl">Con esta plantilla verá</div>
-          <div class="ms-chips">${I.MODULOS.map(m => mods.indexOf(m.codigo) >= 0
-            ? `<span class="ms-chip">${esc(m.nombre)} ${pastilla(m.nivel)}</span>`
-            : `<span class="ms-chip ms-chip--veda">${esc(m.nombre)}</span>`).join("")}</div>
-          <div class="ms-nota">Lo tachado se puede encender después desde <b>Qué ve cada iglesia</b>.
-            Los módulos de dato sensible piden evidencia legal para encenderse.</div>` : ""}
-      </div>
-
-      <div class="ms-paso"><h3><i>3</i> Su pastor</h3>
-        ${selPersona("pastorId", "Pastor congregacional",
-          "Queda nombrado en el mismo acto, con alcance de esta sede y techo N2. La base lo exige: una sede sin pastor no existe.")}
-      </div>` + pie(f, "Crear iglesia y nombrar a su pastor", "hacer-iglesia") + `</div>`;
-  }
-
-  /* ---------- MINISTERIO ---------- */
-  function vNMinisterio() {
-    const b = b_(), f = [];
-    if (!b.nombre) f.push("El nombre del ministerio.");
-    if (!b.sedeId) f.push("La iglesia a la que pertenece.");
-    if (!b.liderId && !b.liderId_nueva) f.push("Su director. Un ministerio no se crea sin alguien a cargo.");
-    if (!Object.keys(b.permisos || {}).some(k => b.permisos[k]))
-      f.push("Al menos un módulo con acceso. Un ministerio que no puede ver nada no sirve de nada.");
-    return `<div class="ms-ancho--forma">` + head("Crear ministerio",
-      "RocaKids, tMt, Mujer Integral, Hombres de Bien. Cada uno pertenece a una iglesia y tiene alguien al frente.") + `
-      <div class="ms-paso"><h3><i>1</i> Qué y dónde</h3>
-        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
-          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Mujer Integral"></label>
-        ${selSede("sedeId", "Iglesia")}
-      </div>
-      <div class="ms-paso"><h3><i>2</i> Qué puede hacer este ministerio</h3>
-        <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
-          Los mismos tres niveles que en cualquier otra parte del sistema. Es lo que podrán hacer
-          quienes sirvan aquí.</p>
-        ${selectorPermisos(b.permisos, b.techo != null ? +b.techo : 2, "permisos")}
-        <label class="ms-campo" style="margin-top:12px"><span>Techo del ministerio</span>
-          <select data-campo="techo">
-            ${I.NIVELES.map(n => `<option value="${n.nivel}" ${(b.techo != null ? +b.techo : 2) === n.nivel ? "selected" : ""}>N${n.nivel} · ${esc(n["desc"])}</option>`).join("")}
-          </select></label>
-      </div>
-
-      <div class="ms-paso"><h3><i>3</i> Quién lo dirige</h3>
-        ${selPersona("liderId", "Director del ministerio",
-          "Queda nombrado en el mismo acto, con alcance de este ministerio. Un ministerio sin nadie al frente es una carpeta que nadie revisa, y el día que hay un problema con un menor no hay a quién preguntarle.")}
-        ${b.nombre && /roca|kid|nin|niñ/i.test(b.nombre) ? `<div class="ms-nota ms-nota--ojo">
-          Este ministerio parece de menores. Los módulos de menores son <b>N4</b>: exigen antecedentes
-          verificados y vigentes para servir, y acta de respaldo para el acceso.</div>` : ""}
-      </div>` + pie(f, "Crear ministerio y nombrar a su director", "hacer-ministerio") + `</div>`;
-  }
-
-  /* ---------- EQUIPO ---------- */
-  function vNEquipo() {
-    const b = b_(), f = [];
-    const roles = b.roles || [];
-    const local = (b.ambito || "local") === "local";
-    if (!b.nombre) f.push("El nombre del equipo.");
-    if (!roles.length) f.push("Al menos un rol. Un equipo sin roles no otorga nada.");
-    if (local && !b.sedeId) f.push("La iglesia, o márquelo como corporativo.");
-    if (!b.liderId && !b.liderId_nueva) f.push("Su responsable.");
-    return `<div class="ms-ancho--lectura">` + head("Crear equipo administrativo",
-      "Un equipo no es un rol: es un conjunto de roles que se otorgan juntos. Sirve para no repetir cuatro veces la misma asignación.") + `
-      <div class="ms-paso"><h3><i>1</i> Qué equipo</h3>
-        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
-          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Tesorería Bogotá Chicó"></label>
-        <label class="ms-campo"><span>Ámbito</span>
-          <div class="ms-seg">
-            <button data-accion="ambito" data-v="local" class="${local ? "is-on" : ""}">Local, de una iglesia</button>
-            <button data-accion="ambito" data-v="corporativo" class="${!local ? "is-on" : ""}">Corporativo, de toda la red</button>
-          </div></label>
-        ${local ? selSede("sedeId", "Iglesia") : `<div class="ms-nota">Un equipo corporativo alcanza las 36 iglesias. Úselo solo para Contable, Legal y Tecnología.</div>`}
-        ${I.EQUIPOS.length ? `<div class="ms-lbl" style="margin-top:12px">Atajos de los 8 equipos del back-office</div>
-          <div class="ms-chips">${I.EQUIPOS.map(e => `<button class="ms-chip" style="cursor:pointer"
-            data-accion="equipo-atajo" data-cod="${esc(e.codigo)}">${esc(e.nombre)}</button>`).join("")}</div>` : ""}
-      </div>
-
-      <div class="ms-paso"><h3><i>2</i> Qué puede hacer este equipo</h3>
-        <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
-          Los mismos tres niveles que en un rol o en un ministerio. Vocabulario único en todo el sistema.</p>
-        ${selectorPermisos(b.permisos, b.techo != null ? +b.techo : 3, "permisos")}
-        <label class="ms-campo" style="margin-top:12px"><span>Techo del equipo</span>
-          <select data-campo="techo">
-            ${I.NIVELES.map(n => `<option value="${n.nivel}" ${(b.techo != null ? +b.techo : 3) === n.nivel ? "selected" : ""}>N${n.nivel} · ${esc(n["desc"])}</option>`).join("")}
-          </select></label>
-
-        <div class="ms-lbl" style="margin-top:16px">Roles que otorga al responsable</div>
-        <div class="ms-sel">
-          ${M.rolesTodos().map(r => {
-            const on = roles.indexOf(r.codigo) >= 0;
-            return `<label class="ms-opt ${on ? "is-on" : ""}">
-              <input type="checkbox" data-rol="${esc(r.codigo)}" ${on ? "checked" : ""}>
-              <div><b>${esc(r.nombre)}</b><small>techo N${r.techo}</small></div></label>`;
-          }).join("")}
-        </div>
-      </div>
-
-      <div class="ms-paso"><h3><i>3</i> Quién responde</h3>
-        ${selPersona("liderId", "Responsable del equipo",
-          "Recibe todos los roles marcados en el mismo acto.")}
-      </div>` + pie(f, "Crear equipo y nombrar a su responsable", "hacer-equipo") + `</div>`;
-  }
-
-  /* ---------- ROL ---------- */
-  function vNRol() {
-    const b = b_(), f = [];
-    if (!b.nombre) f.push("El nombre del rol.");
-    if (b.techo == null) f.push("El techo: la sensibilidad máxima que alcanzará.");
-    return `<div class="ms-ancho--forma">` + head("Crear rol",
-      "El catálogo es extensible a propósito: cada módulo nuevo trae sus roles. Lo que no cambia nunca es el techo.") + `
-      <div class="ms-paso">
-        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
-          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Líder de Oración"></label>
-        <label class="ms-campo"><span>Techo de sensibilidad <b class="ms-req">obligatorio</b></span></label>
-        <div class="ms-niveles">
-          ${I.NIVELES.map(n => `<button class="ms-nivbtn ${b.techo === n.nivel ? "is-on" : ""}"
-            data-accion="techo" data-n="${n.nivel}">${pastilla(n.nivel)}<span>${esc(n["desc"])}</span></button>`).join("")}
-        </div>
-        ${b.techo != null ? `<div class="ms-nota">Con techo N${b.techo} este rol podrá alcanzar
-          <b>${I.MODULOS.filter(m => m.nivel <= b.techo).length}</b> de los ${I.MODULOS.length} módulos.
-          Los demás le quedan vedados para siempre: el techo no se negocia por asignación.</div>` : ""}
-      </div>` + pie(f, "Crear rol", "hacer-rol") + `</div>`;
-  }
-
-  /* ---------- MÓDULO ---------- */
-  function vNModulo() {
-    const b = b_(), f = [];
-    if (!b.nombre) f.push("El nombre del módulo.");
-    if (b.nivel == null) f.push("El nivel del dato que maneja.");
-    return `<div class="ms-ancho--forma">` + head("Crear módulo",
-      "Un módulo nuevo declara qué dato maneja. De ese nivel sale, automáticamente, qué roles pueden alcanzarlo.") + `
-      <div class="ms-paso">
-        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
-          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Peticiones de oración"></label>
-        <label class="ms-campo"><span>Nivel del dato <b class="ms-req">obligatorio</b></span></label>
-        <div class="ms-niveles">
-          ${I.NIVELES.map(n => `<button class="ms-nivbtn ${b.nivel === n.nivel ? "is-on" : ""}"
-            data-accion="nivelmod" data-n="${n.nivel}">${pastilla(n.nivel)}<span>${esc(n["desc"])}</span></button>`).join("")}
-        </div>
-        ${b.nivel != null ? `<div class="ms-nota">Con dato N${b.nivel}, solo los roles con techo N${b.nivel}
-          o mayor podrán recibir permisos aquí: <b>${M.rolesTodos().filter(r => r.techo >= b.nivel).length}</b>
-          de ${M.rolesTodos().length} roles.
-          ${b.nivel >= 3 ? " Además activa cifrado, bitácora de lectura y enmascarado." : ""}</div>` : ""}
-      </div>` + pie(f, "Crear módulo", "hacer-modulo") + `</div>`;
+      </div></div>`;
   }
 
   /* ============================================================ ROLES */
@@ -1790,6 +1467,7 @@
     if (a === "verefectivo"){ b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
     if (a === "verefectivo2"){ b.verPersona = bt.dataset.id; vista = "efectivo"; pintar(); return; }
     if (a === "agregarrol") { borrador = { personaId: bt.dataset.id }; vista = "crear"; pintar(); return; }
+    if (a === "quitarol") { const b4 = b_(); delete (b4.sel || {})[bt.dataset.cod]; pintar(); return; }
     if (a === "afinar") { borrador = { afinarId: bt.dataset.id }; vista = "afinar"; pintar(); return; }
     if (a === "promover") { const per = M.asignaciones().find(x => x.id === bt.dataset.id);
       borrador = { promId: bt.dataset.id, verPersona: per && per.personaId };
@@ -1897,20 +1575,42 @@
     if (a === "otorgar") {
       const bo = b_();
       let pid = bo.personaId;
-      if (!pid && bo.nuevaPersona) pid = M.crearPersona(bo.nuevaPersona, bo.documento, "").id;
-      const res = M.otorgar({ personaId:pid, rol:bo.rol, alcanceTipo:bo.alcanceTipo,
-        alcanceId:bo.alcanceId || null, nivelMax:bo.nivelMax, desde:bo.desde,
-        hasta:bo.hasta || null, acta:bo.acta }, YO);
+      if (!pid && bo.nuevaPersona) pid = M.crearPersona(bo.nuevaPersona, "", "").id;
+      const cods = Object.keys(bo.sel || {});
+      const lista = cods.map(c => Object.assign({ personaId:pid, rol:c,
+        desde:bo.desde || hoy(), hasta:bo.hasta || null }, bo.sel[c],
+        { alcanceId: bo.sel[c].alcanceId || null }));
+      const res = M.otorgarVarios(lista, YO);
       if (!res.ok) { alert("La base rechazaría esto:\n\n" + res.fallos.join("\n")); return; }
       const per = M.persona(pid);
       borrador = { verPersona: pid };
       logro = { que:"acceso", personaId:pid,
-        detalle:`${per ? per.nombre : "La persona"} queda como ${(I.rol(bo.rol) || {}).nombre || bo.rol}.` };
+        detalle:`${per ? per.nombre : "La persona"} queda con ${cods.length} rol(es): ` +
+          cods.map(c => (I.rol(c) || {}).nombre || c).join(", ") + "." };
       vista = "hecho"; pintar();
     }
   });
   document.addEventListener("change", e => {
     const b3 = b_();
+    const sr = e.target.closest("[data-selrol]");
+    if (sr) {
+      const b4 = b_(); b4.sel = b4.sel || {};
+      const cod = sr.dataset.selrol;
+      if (sr.checked) {
+        const r4 = I.rol(cod);
+        b4.sel[cod] = { alcanceTipo: I.alcanceSugerido(cod) || "sede", alcanceId:"",
+          nivelMax: Math.min(r4 ? r4.techo : 2, YO.techo), acta:"" };
+      } else delete b4.sel[cod];
+      pintar(); return;
+    }
+    const rc2 = e.target.closest("[data-rolcfg]");
+    if (rc2) {
+      const b4 = b_(); const cod = rc2.dataset.rolcfg, k = rc2.dataset.campo2;
+      b4.sel[cod] = b4.sel[cod] || {};
+      b4.sel[cod][k] = k === "nivelMax" ? +rc2.value : rc2.value;
+      if (k === "alcanceTipo") b4.sel[cod].alcanceId = "";
+      pintar(); return;
+    }
     const mp = e.target.closest("[data-modpersona]");
     if (mp) { const r3 = M.alternarModuloPersona(b3.afinarId, mp.dataset.modpersona);
       if (!r3.ok) alert(r3.fallos.join("\n")); pintar(); return; }

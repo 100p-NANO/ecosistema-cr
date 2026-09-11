@@ -430,6 +430,34 @@
       return { ok:true, n };
     },
 
+    /* ⭐ OTORGAR VARIOS ROLES DE UNA VEZ.
+       Una persona puede ser Consejero Y Coordinador de Nuevos. El modelo
+       siempre lo soportó (una fila por rol); lo que faltaba era poder
+       darlos en UN solo acto en vez de repetir el formulario.
+
+       Cada rol conserva SU techo y SU alcance natural: no se fuerza uno
+       común, porque un consejero va por «caso propio» y un coordinador
+       por «sede». Forzarles el mismo alcance sería romper la regla que
+       hace que el consejero no vea todos los casos de su sede.
+
+       Es todo o nada: si una falla, no se otorga ninguna. Media
+       asignación es peor que ninguna. */
+    otorgarVarios(lista, quienOtorga) {
+      const fallos = [];
+      lista.forEach((a, i) => {
+        const v = I.validarAsignacion(a, quienOtorga);
+        if (!v.ok) { const r = I.rol(a.rol);
+          v.fallos.forEach(f => fallos.push(`${r ? r.nombre : a.rol}: ${f}`)); }
+      });
+      if (fallos.length) return { ok:false, fallos };
+      const hechas = lista.map(a => this.otorgar(a, quienOtorga));
+      const per = this.persona(lista[0] && lista[0].personaId);
+      if (lista.length > 1) anotar("ASIGNACION", (quienOtorga && quienOtorga.personaId) || "master",
+        `${per ? per.nombre : ""} recibió ${lista.length} roles en un solo acto: ` +
+        lista.map(a => (I.rol(a.rol) || {}).nombre || a.rol).join(", ") + ".");
+      return { ok:true, n:hechas.length };
+    },
+
     /* Revocar tampoco borra: pone fecha de fin. */
     revocar(idAsignacion, motivo) {
       const d = cargar(), a = d.asignaciones.find(x => x.id === idAsignacion);
