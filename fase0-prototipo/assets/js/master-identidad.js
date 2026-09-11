@@ -186,6 +186,70 @@
     return null;
   }
 
+
+  /* ---------- 11 · PANELES · qué VE cada rol cuando se le activa ----------
+     Esto es lo que convierte «apps por rol» de una lista de demos en el
+     sistema de verdad: cada rol tiene su panel, y ese panel se abre
+     SOLO si se cumplen tres cosas a la vez:
+
+       1. La persona tiene ese rol vigente.
+       2. Su alcance corresponde (esta sede, este ministerio, este grupo).
+       3. La iglesia tiene encendido el módulo del que depende el panel.
+
+     Si se crea una iglesia en Chigorodó y se nombra a su pastor, ese
+     pastor abre el panel de pastor de sede. Él crea sus ministerios
+     dentro de los permisos que le dieron, y los directores de esos
+     ministerios crean a sus líderes. La cascada sale de aquí, no de un
+     menú escrito a mano.
+     ---------- */
+  const PANELES = [
+    { rol:"PASTOR_DIRECTOR_GENERAL", url:"central.html",            nombre:"Dirección General",
+      modulo:"organizacion", alcance:"organizacion",
+      crea:["Pastores de sede","Equipos corporativos","Iglesias"] },
+    { rol:"PASTOR_CONGREGACIONAL",   url:"pastor.html",             nombre:"Pastor de sede",
+      modulo:"personas",     alcance:"sede",
+      crea:["Ministerios de su iglesia","Equipos locales","Coordinadores"] },
+    { rol:"DIRECTOR_MINISTERIO",     url:"director.html",           nombre:"Director de ministerio",
+      modulo:"grupos",       alcance:"ministerio",
+      crea:["Líderes de grupo","Coordinadores de su ministerio"] },
+    { rol:"LIDER_GRUPO",             url:"lider.html",              nombre:"Líder de grupo",
+      modulo:"grupos",       alcance:"grupo",
+      crea:["Miembros de su grupo"] },
+    { rol:"COORDINADOR_NUEVOS",      url:"nicodemo.html",           nombre:"Nicodemo · nuevos",
+      modulo:"crm",          alcance:"sede", crea:[] },
+    { rol:"MAESTRO_ROCAKIDS",        url:"rocakids-domingo.html",   nombre:"RocaKids · domingo",
+      modulo:"rocakids",     alcance:"ministerio", crea:[] },
+    { rol:"DIRECTOR_MINISTERIO",     url:"rocakids-director.html",  nombre:"RocaKids · dirección",
+      modulo:"rocakids",     alcance:"ministerio", crea:["Maestros de RocaKids"] },
+    { rol:"CONSEJERO",               url:"consejeria-consejero.html", nombre:"Consejería · consejero",
+      modulo:"consejeria",   alcance:"caso_propio", crea:[] },
+    { rol:"COORDINADOR",             url:"consejeria-coordinador.html", nombre:"Consejería · coordinación",
+      modulo:"consejeria",   alcance:"sede", crea:["Consejeros"] },
+    { rol:"PASTOR_PRINCIPAL",        url:"consejeria-director.html", nombre:"Consejería · dirección",
+      modulo:"consejeria",   alcance:"organizacion", crea:["Coordinadores de consejería"] },
+    { rol:"MIEMBRO",                 url:"experiencia-v3.html",     nombre:"Experiencia pública",
+      modulo:"personas",     alcance:"persona_propia", crea:[] },
+  ];
+
+  /* Qué paneles abriría esta persona HOY, con sus asignaciones vigentes
+     y con lo que tenga encendido su iglesia. */
+  function panelesDe(asignaciones, moduloActivoEnSede) {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const vig = (asignaciones || []).filter(a => a.desde <= hoy && (!a.hasta || a.hasta >= hoy));
+    const out = [];
+    PANELES.forEach(pn => {
+      const a = vig.find(x => x.rol === pn.rol);
+      if (!a) return;
+      const m = modulo(pn.modulo);
+      const porTecho = !m || a.nivelMax >= m.nivel;
+      const encendido = !moduloActivoEnSede || !a.alcanceId
+        ? true : moduloActivoEnSede(a.alcanceId, pn.modulo);
+      out.push(Object.assign({}, pn, { asignacion:a, porTecho, encendido,
+        abre: porTecho && encendido }));
+    });
+    return out;
+  }
+
   /* ============================================================
      LAS REGLAS. Cada una existe porque la base la impone; si la
      interfaz no las aplica, deja pedir cosas que van a fallar.
@@ -355,6 +419,7 @@
     PLANTILLAS, PLANTILLA_MODS, SEDES_FULL, MODSEDE_SEED, modulosDePlantilla, plantilla,
     PRESETS, preset, EQUIPOS,
     NIVELES_ACCESO, nivelAcceso, accionesDeNivel, nivelDeAcciones,
+    PANELES, panelesDe,
     DIVERGENCIAS, ADOPTAR_DE_JHON, DELEGACION,
     rol, modulo, alcance, nivel,
     rolPuedeModulo, alcanceValido, puedeOtorgar, vigenciaValida, exigeActa,

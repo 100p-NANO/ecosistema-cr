@@ -404,6 +404,25 @@
           </div>`;
         }).join("") : ""}
 
+        <div class="ms-lbl" style="margin-top:20px">Qué panel abre</div>
+        ${(() => {
+          const pn = I.panelesDe(asg, (sid, mod) => M.moduloActivo(sid, mod));
+          if (!pn.length) return `<div class="ms-nota">Ningún panel. Sin rol vigente no hay pantalla que abrir.</div>`;
+          return `<div class="ms-modgrid">${pn.map(x => {
+            const sd = x.asignacion.alcanceId && M.sedes().find(z => z.id === x.asignacion.alcanceId);
+            return `<div class="ms-panelc ${x.abre ? "is-on" : ""}">
+              <div class="ms-panelc__c">
+                <b>${esc(x.nombre)}</b>
+                <span class="ms-sub">${sd ? esc(sd.nombre) : esc((I.alcance(x.asignacion.alcanceTipo)||{}).nombre || "")}</span>
+              </div>
+              ${x.abre
+                ? `<button class="ms-btn ms-btn--peq ms-btn--primario" data-accion="abrirpanel" data-url="${esc(x.url)}" data-lbl="${esc(x.nombre)}">Entrar</button>`
+                : `<span class="ms-vig ms-vig--fin">${x.encendido ? "techo insuficiente" : "módulo apagado en su iglesia"}</span>`}
+              ${x.crea && x.crea.length ? `<div class="ms-panelc__crea">Desde ahí crea: ${esc(x.crea.join(", "))}</div>` : ""}
+            </div>`;
+          }).join("")}</div>`;
+        })()}
+
         <div class="ms-lbl" style="margin-top:20px">Qué puede hacer hoy</div>
         ${ef.length ? `<div class="ms-modgrid">
           ${ef.map(x => `<div class="ms-modmini">
@@ -1101,6 +1120,31 @@
         data-sede="${esc(id)}" data-cod="${esc(x.codigo)}">Aplicar «${esc(x.nombre)}»</button>`).join("")}
     </div>
 
+    <div class="ms-lbl" style="margin-top:22px">Paneles vivos en esta iglesia</div>
+    <div class="ms-nota">Cada persona con rol aquí abre su propia pantalla. Si un módulo está apagado
+      arriba, el panel que depende de él no abre, por mucho que la persona tenga el rol.</div>
+    ${(() => {
+      const filas = [];
+      aqui.forEach(a => {
+        I.panelesDe([a], (sid, mod) => M.moduloActivo(sid, mod)).forEach(x => {
+          const per = M.persona(a.personaId);
+          filas.push(`<tr>
+            <td><b>${esc(x.nombre)}</b><span class="ms-sub">${esc(x.url)}</span></td>
+            <td>${esc((I.rol(a.rol)||{}).nombre || a.rol)}</td>
+            <td><button class="ms-enlace" data-accion="verpersona" data-id="${esc(a.personaId)}">${esc(per ? per.nombre : "")}</button></td>
+            <td>${x.abre ? `<span class="ms-vig ms-vig--ok">Abre</span>`
+                         : `<span class="ms-vig ms-vig--fin">${x.encendido ? "techo insuficiente" : "módulo apagado"}</span>`}</td>
+            <td class="ms-acc-col">${x.abre
+              ? `<button class="ms-btn ms-btn--peq" data-accion="abrirpanel" data-url="${esc(x.url)}" data-lbl="${esc(x.nombre)}">Entrar</button>` : ""}</td>
+          </tr>`);
+        });
+      });
+      return filas.length
+        ? `<table class="ms-tabla"><thead><tr><th>Panel</th><th>Rol</th><th>Quién</th><th>Estado</th><th></th></tr></thead>
+           <tbody>${filas.join("")}</tbody></table>`
+        : `<div class="ms-nota">Ningún panel vivo: nadie tiene todavía un rol con pantalla en esta sede.</div>`;
+    })()}
+
     <div class="ms-lbl" style="margin-top:22px">Ministerios (${mins.length}) y equipos (${eqs.length})</div>
     ${mins.length || eqs.length ? `<table class="ms-tabla"><thead><tr>
       <th>Unidad</th><th>Código</th><th>Tipo</th><th>A cargo</th></tr></thead><tbody>
@@ -1147,10 +1191,37 @@
 
   /* ============================================================ APP EMBEBIDA */
   function vApp(n) {
-    return head(n.lbl, "Se abre aquí dentro, con el patrón de panel anidado. No es una copia: es la misma aplicación.") + `
-    <div class="ms-marco"><iframe src="${esc(n.src)}" title="${esc(n.lbl)}" loading="lazy"></iframe></div>
-    <div class="ms-nota">Origen: <code>${esc(n.src)}</code>. Si diera 404, es que no se desplegó junto
-      al master: ambos deben publicarse en el mismo sitio.</div>`;
+    const url = (borrador && borrador.panelUrl) || n.src;
+    const lbl = (borrador && borrador.panelLbl) || n.lbl;
+    const pn = I.PANELES.filter(x => x.url === url);
+    const quien = [];
+    M.personas().forEach(p => {
+      I.panelesDe(M.deLaPersona(p.id), (sid, m) => M.moduloActivo(sid, m))
+        .filter(x => x.url === url && x.abre).forEach(() => quien.push(p));
+    });
+    return `<div class="ms-ancho">` + head(lbl,
+      "No es una demo suelta: es lo que ve quien tiene este rol. Se abre aquí dentro, con el patrón de panel anidado.") + `
+    ${pn.length ? `<div class="ms-panelinfo">
+      ${pn.map(x => `<div>
+        <div class="ms-lbl">Lo abre</div>
+        <div class="ms-val">${esc((I.rol(x.rol)||{}).nombre || x.rol)}
+          <span class="ms-sub" style="font-family:var(--ui)">alcance ${esc((I.alcance(x.alcance)||{}).nombre || x.alcance)}</span></div>
+        <div class="ms-lbl" style="margin-top:10px">Depende del módulo</div>
+        <div class="ms-val">${esc((I.modulo(x.modulo)||{}).nombre || x.modulo)} ${pastilla((I.modulo(x.modulo)||{}).nivel)}
+          <span class="ms-sub" style="font-family:var(--ui)">si la iglesia lo apaga, este panel no abre</span></div>
+        ${x.crea && x.crea.length ? `<div class="ms-lbl" style="margin-top:10px">Desde aquí se crea</div>
+          <div class="ms-chips">${x.crea.map(c => `<span class="ms-chip">${esc(c)}</span>`).join("")}</div>` : ""}
+      </div>`).join("")}
+      <div>
+        <div class="ms-lbl">Quién lo abre hoy (${quien.length})</div>
+        <div class="ms-chips">${quien.length
+          ? quien.map(p => `<button class="ms-chip" style="cursor:pointer" data-accion="verpersona" data-id="${esc(p.id)}">${esc(p.nombre)}</button>`).join("")
+          : "<i>nadie todavía</i>"}</div>
+      </div>
+    </div>` : ""}
+    <div class="ms-marco"><iframe src="${esc(url)}" title="${esc(lbl)}" loading="lazy"></iframe></div>
+    <div class="ms-nota">Origen: <code>${esc(url)}</code>. Si diera 404, es que no se desplegó junto
+      al master: ambos deben publicarse en el mismo sitio.</div></div>`;
   }
 
   /* ============================================================ SHELL */
@@ -1245,6 +1316,8 @@
       pintar(); return;
     }
     if (a === "desplegar")  { b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
+    if (a === "abrirpanel") { b.panelUrl = bt.dataset.url; b.panelLbl = bt.dataset.lbl;
+      vista = "app-pastor"; pintar(); return; }
     if (a === "veriglesia") { b.verSede = bt.dataset.id; vista = "iglesia"; pintar(); return; }
     if (a === "verpersona") { b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
     if (a === "verefectivo"){ b.verPersona = bt.dataset.id; vista = "persona"; pintar(); return; }
@@ -1296,7 +1369,8 @@
                                     otorgadoPor:YO.personaId }), "accesos"); return; }
     if (a === "hacer-rol")      { hecho(M.crearRol({ nombre:b.nombre, techo:b.techo }), "roles"); return; }
     if (a === "hacer-modulo")   { hecho(M.crearModulo({ nombre:b.nombre, nivel:b.nivel }), "matriz"); return; }
-    if (a === "ir") { vista = bt.dataset.vista; pintar(); const m = $("#ms-main"); if (m) m.focus(); }
+    if (a === "ir") { if (borrador) { delete borrador.panelUrl; delete borrador.panelLbl; }
+      vista = bt.dataset.vista; pintar(); const m = $("#ms-main"); if (m) m.focus(); }
     if (a === "nivel")   { b_().nivelMax = +bt.dataset.n; pintar(); }
     if (a === "limpiar") { borrador = null; pintar(); }
     if (a === "revocar") {

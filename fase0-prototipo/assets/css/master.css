@@ -676,3 +676,18 @@ kbd{
   .ms-permsel__cab,.ms-permsel__f{grid-template-columns:minmax(0,1fr) 54px 54px 54px 54px; gap:var(--e1)}
   .ms-permsel__cab .ms-lbl{font-size:8.5px}
 }
+
+/* ---------- paneles por rol ---------- */
+.ms-panelc{
+  background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg);
+  padding:var(--e3) var(--e4); display:grid; gap:var(--e2);
+}
+.ms-panelc.is-on{border-color:#bfdfcd}
+.ms-panelc__c b{font-size:13.5px; display:block}
+.ms-panelc__crea{font-size:11.5px; color:var(--tin-dim); line-height:16px;
+  padding-top:var(--e2); border-top:1px solid var(--fil)}
+.ms-panelinfo{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:var(--e5);
+  background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg);
+  padding:var(--e4) var(--e5); margin-bottom:var(--e4);
+}
