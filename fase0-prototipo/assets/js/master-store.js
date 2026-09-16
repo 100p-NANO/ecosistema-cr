@@ -39,7 +39,14 @@
       /* Creados desde el master. Arrancan con lo que trae la base. */
       sedes:       I.SEDES_FULL.map(x => Object.assign({ plantilla:
                      /chic/i.test(x.nombre) ? "MAESTRA" : (x.tipo === "plantacion" ? "PLANTACION" : "FILIAL") }, x)),
-      ministerios: I.MINISTERIOS.map(m => Object.assign({ sedeId:null }, m)),
+      /* ⛔ ANTES IBAN TODOS CON sedeId:null, Y ESO LOS HACÍA INVISIBLES.
+         `ministeriosDeSede(x)` filtra por sedeId, así que con null NINGUNA
+         iglesia tenía ministerios: el panel del pastor salía vacío y la
+         Dirección General veía una red sin estructura.
+         La sede madre nace con los 27 del catálogo, igual que en la base
+         (seed 015). Las demás encienden los suyos desde el centro de
+         mando, que es el flujo de activación que pidió la iglesia. */
+      ministerios: I.MINISTERIOS.map(m => Object.assign({ sedeId: sedeMadre }, m)),
       equipos:     [],
       /* ⭐⭐ LOS GRUPOS PEQUEÑOS VIVEN AQUÍ, NO EN CADA PANEL.
          Orden de Daniel, 11 de septiembre: «todo debe funcionar desde el
