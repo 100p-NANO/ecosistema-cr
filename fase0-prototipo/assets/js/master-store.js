@@ -223,6 +223,10 @@
     return D;
   }
   function guardar() {
+    /* ⛔ Con datos del servidor NO se escribe el navegador. Guardarlos
+       haría que mañana se sirviera una foto vieja, que es justo el fallo
+       del «despliegue que no llega al dato» que se cerró con CATALOGO_V. */
+    if (DE_LA_API) return;
     try { localStorage.setItem(LLAVE, JSON.stringify(D)); } catch (e) {}
   }
   function anotar(tipo, quien, detalle) {
@@ -231,7 +235,31 @@
     guardar();
   }
 
+  /* ============================================================
+     ⭐ HIDRATAR DESDE EL SERVIDOR
+     Cuando la API contesta, su censo SUSTITUYE al sembrado. No se
+     mezclan: mezclar datos de verdad con datos de demostración es la
+     forma más rápida de que nadie sepa cuál es cuál.
+
+     ⛔ Y NO SE GRABA EN localStorage. Lo que viene del servidor es del
+     servidor: si se guardara, al día siguiente el navegador serviría una
+     foto vieja y volveríamos al problema que acabamos de cerrar, el del
+     despliegue que no llega al dato.
+     ============================================================ */
+  let DE_LA_API = false;
+
+  function hidratarConServidor(datos) {
+    if (!datos || !Array.isArray(datos.personas)) return false;
+    D = Object.assign(semilla(), datos);   // la forma de la semilla, el contenido del servidor
+    D.origen = "api";
+    DE_LA_API = true;
+    return true;
+  }
+
   window.MSTORE = {
+    hidratar: hidratarConServidor,
+    /** ¿De dónde salen los datos que se están viendo? Se dice en pantalla. */
+    origen: () => (DE_LA_API ? "api" : "demostracion"),
     personas:     () => cargar().personas.slice(),
     asignaciones: () => cargar().asignaciones.slice(),
     bitacora:     () => cargar().bitacora.slice(),

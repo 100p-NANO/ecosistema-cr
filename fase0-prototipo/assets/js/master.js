@@ -1899,7 +1899,7 @@
     return `
     <header class="ms-top">
       <div class="ms-marca"><div class="ms-logo">CR</div>
-        <div><b>Casa Roca · Sistema Master</b><small>Dirección General · ${M.sedes().length} de ${META_IGLESIAS} iglesias</small></div></div>
+        <div><b>Casa Roca · Sistema Master</b><small>Dirección General · ${M.sedes().length} de ${META_IGLESIAS} iglesias${origenEtiqueta()}</small></div></div>
       <div class="ms-sp"></div>
       <button class="ms-ck" data-accion="abrircmd" title="Ir a cualquier parte">
         <span>Buscar o ir a…</span><kbd>\u2318K</kbd></button>
@@ -1912,8 +1912,8 @@
             .map(([id,ic,l]) => `<button data-accion="ir" data-vista="${id}"><span>${ic}</span>${l}</button>`).join("")}
         </div>
       </div>
-      <div class="ms-yo"><div><b>${esc(YO.nombre)}</b><small>${esc(I.rol(YO.rol).nombre)} · techo N${YO.techo} · ${ef.length} módulos</small></div>
-        <div class="ms-av">DG</div></div>
+      <div class="ms-yo"><div><b>${esc(YO.nombre)}</b><small>${esc((I.rol(YO.rol) || {}).nombre || YO.rol)} · techo N${YO.techo} · ${ef.length} módulos</small></div>
+        <div class="ms-av">${esc(String(YO.nombre||"CR").split(/\s+/).filter(x=>x.length>2).slice(0,2).map(x=>x[0]).join("").toUpperCase()||"CR")}</div></div>
     </header>
     <div class="ms-shell">
       <nav class="ms-nav" aria-label="Secciones del sistema master">
@@ -1933,6 +1933,17 @@
         <div class="ms-cmd__lista" id="ms-cmd-lista"></div>
       </div>
     </div>`;
+  }
+
+  /* ⛔ LA PANTALLA DICE DE DÓNDE SALEN LOS DATOS, SIEMPRE.
+     Un sistema que enseña cifras sin decir si son reales o de
+     demostración es un sistema en el que nadie puede confiar cuando
+     importa. Si hay API detrás se dice; si no, también. */
+  function origenEtiqueta() {
+    const api = window.CASAROCA_API_CLIENTE;
+    if (M.origen && M.origen() === "api") return " · <b>datos reales</b>";
+    if (api && api.hayApi) return " · sin conexión con la API";
+    return " · juego de demostración";
   }
 
   function pintar() {
@@ -1969,6 +1980,32 @@
     }
     document.getElementById("app").innerHTML = shell(html);
   }
+
+  /* ⭐ El puente con la API necesita poder repintar cuando llegan los
+     datos de verdad. Se expone SOLO esto: repintar y saber qué vista
+     está abierta. Abrir el estado interno invitaría a que otro archivo
+     lo modifique, y entonces habría dos sitios decidiendo qué se ve. */
+  window.MASTER = {
+    repintar: pintar,
+    vistaActual: () => vista,
+    /* ⛔ QUIÉN OPERA EL MASTER TIENE QUE VENIR DEL SERVIDOR.
+       `YO` nace apuntando a «p-dg», el id de la semilla. Con datos reales
+       ese id no existe, así que `deLaPersona(YO.personaId)` no devolvía
+       nada y la cabecera decía «0 módulos» con la sesión bien abierta.
+       Un sistema de permisos que dice cero cuando son veintidós no se
+       lee como un dato raro: se lee como que el permiso está roto. */
+    fijarYo(datos) {
+      if (!datos || !datos.persona) return false;
+      const asg = (datos.asignaciones || [])[0] || {};
+      YO = {
+        personaId: datos.persona.id,
+        nombre: datos.persona.nombre || YO.nombre,
+        rol: asg.rol || YO.rol,
+        techo: (datos.alcance && datos.alcance.nivelMax) || YO.techo,
+      };
+      return true;
+    },
+  };
 
   /* ---------- eventos ---------- */
   document.addEventListener("click", e => {
