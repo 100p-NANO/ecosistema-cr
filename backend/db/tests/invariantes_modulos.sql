@@ -27,10 +27,19 @@ BEGIN
     (v_sede,v_p,v_fondo,'diezmo',  1500000.00,'transferencia', date_trunc('month',CURRENT_DATE)::date),
     (v_sede,v_p,v_fondo,'ofrenda',  250000.50,'efectivo',      date_trunc('month',CURRENT_DATE)::date);
 
+  /* ⛔ Se limpia antes de sembrar. `cierres_control` tiene una REGLA de
+     INSERT, y PostgreSQL no admite ON CONFLICT sobre una tabla con
+     reglas: «INSERT with ON CONFLICT clause cannot be used with table
+     that has INSERT or UPDATE rules». Lo intenté y me lo dijo la base.
+     Un DELETE previo hace la prueba repetible sin pelearse con la regla. */
+  DELETE FROM aportes.cierres_control
+   WHERE sede_id=v_sede AND anio=extract(year FROM CURRENT_DATE)::smallint
+     AND mes=extract(month FROM CURRENT_DATE)::smallint;
+
   INSERT INTO aportes.cierres_control (sede_id,anio,mes,total_oficial,fuente)
   VALUES (v_sede, extract(year FROM CURRENT_DATE)::smallint, extract(month FROM CURRENT_DATE)::smallint,
           1750000.50,'Tesorería · cierre mensual')
-  ON CONFLICT (sede_id, anio, mes, moneda) DO NOTHING;
+  ;
 
   SELECT cuadra, diferencia INTO v_cuadra, v_dif FROM aportes.v_reconciliacion
    WHERE sede_id=v_sede AND anio=extract(year FROM CURRENT_DATE)::smallint
