@@ -234,6 +234,29 @@
     .map(x => x.modulo);
   /* Si el mapa dice "*", la app entera depende de un solo módulo. */
   const moduloDeLaApp = mapa["*"] || null;
+
+  /* ⛔⛔ ESCAPE REAL DE DATO N4, ENCONTRADO EL 15 SEP 2026 AUDITANDO.
+     Cuando una app ENTERA depende de un módulo (`"*"`), no se puede
+     confiar en encontrar pestañas que ocultar: el filtro solo mira
+     `[data-vista]`, y `rocakids-domingo.js` marca sus pantallas con
+     `data-screen`. Resultado medido en PRODUCCIÓN: una persona con techo
+     N2 abría el check-in dominical de RocaKids con sus 5 pantallas
+     visibles, es decir, DATOS DE MENORES (N4). El panel de dirección de
+     RocaKids sí cerraba, y por eso no se había notado.
+
+     La regla correcta no depende del DOM: si la app entera cuelga de un
+     módulo y la persona no lo alcanza, se cierra la app. Punto. Ocultar
+     pestañas es para las apps que mezclan módulos; aquí no hay nada que
+     mezclar. */
+  if (moduloDeLaApp && alcanzados.indexOf(moduloDeLaApp) < 0) {
+    const m = I.modulo ? I.modulo(moduloDeLaApp) : null;
+    cerrarTodo("Este panel no está a su alcance.",
+      "Todo lo que hay aquí pertenece a " + ((m && m.nombre) || moduloDeLaApp) +
+      ", y ese módulo no le ha sido otorgado en esta iglesia. " +
+      "Si debería tenerlo, se concede desde el sistema master.");
+    return;
+  }
+
   const sinMapear = [];
   const permitido = id => {
     if (moduloDeLaApp) return alcanzados.indexOf(moduloDeLaApp) >= 0;
