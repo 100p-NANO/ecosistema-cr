@@ -183,7 +183,7 @@ window.DB_FILIAL = (function () {
       ],
       personas: [
         { n: "Valentina Ríos", etapa: "crece", edad: 28, tel: "+57 310 555 1208", email: "valentina.rios@email.com", sub: "Profesionales" },
-        { n: "Daniel Garzón", etapa: "conecta", edad: 30, tel: "+57 300 555 1199", email: "ngarzon94@email.com", sub: "Buscando grupo" },
+        { n: "Daniel Garzón", etapa: "conecta", edad: 30, tel: "+57 300 555 1199", email: "daniel.garzon@casaroca.org", sub: "Buscando grupo" },
         { n: "Laura Tobón", etapa: "conecta", edad: 26, tel: "+57 311 555 9032", email: "laura.tobon@email.com", sub: "En riesgo", riesgo: true },
         { n: "Camilo Pardo", etapa: "sirve", edad: 33, tel: "+57 312 555 5510", email: "camilo.pardo@email.com", sub: "Creativos" },
         { n: "Natalia Vélez", etapa: "crece", edad: 29, tel: "+57 313 555 5511", email: "nata.velez@email.com", sub: "Profesionales" },

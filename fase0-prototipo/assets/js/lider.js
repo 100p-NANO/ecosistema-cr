@@ -14,7 +14,13 @@
 
   /* ---- Identidad del líder demo (Google se conecta después) ---- */
   const GRUPO_ID = "af_j25_cafe";
-  const LIDER = { nombre: "Daniel Garzón", email: "ngarzon94@gmail.com", iniciales: "DG" };
+  /* ⛔ Se expone en `window.LIDERAPP` para que `permisos-panel.js` pueda
+     reescribirlo con QUIEN de verdad entró. Antes era una constante
+     privada, así que este panel era el único que seguía saludando a su
+     usuario de demostración aunque el centro de mando dijera otra cosa.
+     ⛔ Y el correo iba a un buzón PERSONAL real, en un sitio público. */
+  const LIDER = { nombre: "Líder de grupo", email: "lider@casaroca.org", iniciales: "LG" };
+  window.LIDERAPP = { LIDER };
 
   /* ---- Estado de la app ---- */
   const estado = { tab: "resumen", filtroGrupo: "todos", busqueda: "", filtroPet: "todas" };

@@ -165,6 +165,16 @@
     "director.html": () => window.DIRECTOR && window.DIRECTOR.DIRECTOR_USER,
     "nicodemo.html": () => window.NICO    && window.NICO.NICO_USER,
     "central.html":  () => window.CENTRAL && window.CENTRAL.USER,
+    /* ⛔ Estos SEIS faltaban, y por eso seguían saludando a su usuario de
+       demostración aunque el centro de mando dijera quién entró. Era el
+       mismo fallo del «Camilo Restrepo» de Bogotá Chicó que Daniel
+       reportó el 11 de septiembre, sin cerrar en el resto de las apps. */
+    "lider.html":                  () => window.LIDERAPP && window.LIDERAPP.LIDER,
+    "rocakids-director.html":      () => window.RKDIR && window.RKDIR.DIRECTOR_USER,
+    "rocakids-domingo.html":       () => window.RKDIR && window.RKDIR.DIRECTOR_USER,
+    "consejeria-director.html":    () => window.CONSE && window.CONSE.DIRECTOR_USER,
+    "consejeria-coordinador.html": () => window.CONSE && window.CONSE.COORDINADOR_USER,
+    "consejeria-consejero.html":   () => window.CONSE && window.CONSE.CONSEJERO_USER,
   };
 
   function iniciales(n) {
@@ -195,7 +205,23 @@
     U.nombre = nom;
     U.iniciales = iniciales(nom);
     if (rl) U.rol = rl.nombre;
-    if (ctx.persona && ctx.persona.correo) U.email = ctx.persona.correo;
+    /* ⛔ EL CORREO SE REESCRIBE SIEMPRE, NO SOLO SI EL MASTER LO TRAE.
+       Antes solo se tocaba cuando la persona tenía correo registrado, y
+       las personas sembradas lo tienen vacío. Resultado: el panel decía
+       «Julián Prieto» con el correo de Franklin Peña debajo. Un nombre
+       con la dirección de otro no es un detalle estético: es la clase de
+       incoherencia por la que alguien escribe al buzón equivocado.
+       Si el master no sabe el correo, se deriva del nombre en el dominio
+       de la iglesia, que es honesto y no señala a nadie real. */
+    if (ctx.persona && ctx.persona.correo) {
+      U.email = ctx.persona.correo;
+    } else if (nom) {
+      U.email = nom.toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/^(ps|pastor|pastora)\.?\s+/, "")
+        .trim().split(/\s+/).slice(0, 2).join(".")
+        .replace(/[^a-z.]/g, "") + "@casaroca.org";
+    }
     if (sedeDeclarada) U.sede = sedeDeclarada;
 
     /* El nombre de la sede en el encabezado del panel del pastor vive

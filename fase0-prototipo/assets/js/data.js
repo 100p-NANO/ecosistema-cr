@@ -234,7 +234,7 @@ window.DB = (function () {
       notas: [], peticiones: [] },
     { id: "p_daniel", nombres: "Daniel", apellidos: "Garzón", iniciales: "DG", rol: "Líder J+25 · Café & Palabra",
       sede: "bogota", etapa: "sirve", subestado: "Lidera el grupo Café & Palabra",
-      telefono: "+57 310 555 0142", email: "ngarzon94@gmail.com",
+      telefono: "+57 310 555 0142", email: "daniel.garzon@casaroca.org",
       edad: 30, estadoCivil: "Soltero", conyuge: null, ministerio: "J+25 · Café & Palabra", grupo: "g_j25_norte",
       fuente: "Asiste hace meses", primeraVisita: "2026-02-02",
       responsable: "p_andres", riesgo: false,

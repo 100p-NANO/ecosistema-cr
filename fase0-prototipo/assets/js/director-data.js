@@ -138,7 +138,7 @@
      de ROSTERS. 'liderId' permite reasignar.
      ------------------------------------------------------------ */
   const GRUPOS = [
-    { afId: "af_j25_cafe", liderId: "li_daniel", lider: "Daniel Garzón", liderTel: "+57 310 555 0142", liderEmail: "ngarzon94@gmail.com", liveStore: true },
+    { afId: "af_j25_cafe", liderId: "li_daniel", lider: "Daniel Garzón", liderTel: "+57 310 555 0142", liderEmail: "daniel.garzon@casaroca.org", liveStore: true },
     { afId: "af_j25_virtual", liderId: "li_diego", lider: "Diego Rivas", liderTel: "+57 320 555 0103", liderEmail: "diego.rivas@email.com", liveStore: false },
     { afId: "af_j25_run", liderId: "li_laura", lider: "Laura Méndez", liderTel: "+57 315 555 0104", liderEmail: "laura.mendez@email.com", liveStore: false },
     { afId: "af_j25_finanzas", liderId: "li_tomas", lider: "Tomás Giraldo", liderTel: "+57 320 555 3011", liderEmail: "tomas.giraldo@email.com", liveStore: false },
@@ -151,7 +151,7 @@
 
   // Líderes disponibles para reasignar (incluye colíderes en formación)
   const LIDERES = [
-    { id: "li_daniel", nombre: "Daniel Garzón", tel: "+57 310 555 0142", email: "ngarzon94@gmail.com" },
+    { id: "li_daniel", nombre: "Daniel Garzón", tel: "+57 310 555 0142", email: "daniel.garzon@casaroca.org" },
     { id: "li_diego", nombre: "Diego Rivas", tel: "+57 320 555 0103", email: "diego.rivas@email.com" },
     { id: "li_laura", nombre: "Laura Méndez", tel: "+57 315 555 0104", email: "laura.mendez@email.com" },
     { id: "li_valeria", nombre: "Valeria Castro", tel: "+57 320 555 3021", email: "valeria.castro@email.com" },
