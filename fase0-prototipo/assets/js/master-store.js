@@ -161,6 +161,45 @@
     ["ministerios", "equipos", "grupos", "vinculos", "hechos"].forEach(k => {
       if (!Array.isArray(d[k])) { d[k] = []; toco = true; }
     });
+
+    /* ============================================================
+       ⛔ REFRESCO DE CATÁLOGO · el despliegue tiene que llegar al dato
+
+       Esto faltaba y se notó en producción: el catálogo pasó de 2 a 27
+       ministerios, se desplegó bien, y el sitio seguía mostrando 2.
+       No era la caché del navegador: era que el censo guardado en
+       localStorage se leía tal cual y `migrar()` solo comprobaba que los
+       arrays existieran. Quien ya había entrado se quedaba con el
+       catálogo viejo PARA SIEMPRE.
+
+       ⛔ Se refresca el CATÁLOGO, no el trabajo de la gente. Lo que la
+       iglesia creó desde el centro de mando (sus propios ministerios,
+       grupos, personas, asignaciones y la bitácora) no se toca: solo se
+       añaden los del catálogo que falten y se corrigen nombre y nivel de
+       los que ya estaban. Borrar y volver a sembrar sería perder datos.
+       ============================================================ */
+    const vEsperada = I.CATALOGO_V || 1;
+    if (d.catalogoV !== vEsperada) {
+      const madre = (d.sedes || []).find(x => /chic/i.test(x.nombre || "")) || (d.sedes || [])[0];
+      const porCodigo = {};
+      (d.ministerios || []).forEach(m => { if (m.codigo) porCodigo[m.codigo] = m; });
+
+      (I.MINISTERIOS || []).forEach(cat => {
+        const ya = porCodigo[cat.codigo];
+        if (ya) {
+          /* Ya existe: se corrigen los campos del CATÁLOGO y se respeta
+             a qué sede lo movió la iglesia. */
+          ya.nombre = cat.nombre;
+          if (cat.clase != null) ya.clase = cat.clase;
+          if (cat.nivel != null) ya.nivel = cat.nivel;
+        } else {
+          d.ministerios.push(Object.assign({ sedeId: madre ? madre.id : null }, cat));
+        }
+      });
+
+      d.catalogoV = vEsperada;
+      toco = true;
+    }
     return toco;
   }
   function cargar() {

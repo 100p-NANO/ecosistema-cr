@@ -72,6 +72,16 @@
      había DOS ministerios de los veintisiete que tiene la iglesia, así
      que el panel de cualquier pastor salía vacío. Si cambia el catálogo
      en la base, se regenera esta línea: no son dos verdades. */
+  /* ⛔ VERSIÓN DEL CATÁLOGO. Se sube A MANO cada vez que cambian los
+     catálogos sembrados (ministerios, roles, módulos, niveles).
+     Existe porque el censo vive en localStorage y NUNCA se refrescaba:
+     el 15 sep 2026 el catálogo pasó de 2 a 27 ministerios, se desplegó,
+     y en producción seguían saliendo 2, porque el navegador ya tenía
+     guardado el censo viejo y `migrar()` solo comprobaba que los arrays
+     existieran. Un despliegue que no llega al dato es un despliegue que
+     no sirve. */
+  const CATALOGO_V = 2;
+
   const MINISTERIOS = [{"codigo": "AMEC", "nombre": "AMEC · salud", "clase": "congregacional", "nivel": 3}, {"codigo": "CASA2", "nombre": "Casa2", "clase": "congregacional", "nivel": 2}, {"codigo": "CENTURIONES", "nombre": "Centuriones · militares y policía", "clase": "congregacional", "nivel": 2}, {"codigo": "CONSEJERIA", "nombre": "Consejería", "clase": "congregacional", "nivel": 3}, {"codigo": "DORADOS", "nombre": "Años Dorados", "clase": "congregacional", "nivel": 2}, {"codigo": "EJECUTIVOS", "nombre": "Ejecutivos y Empresarios", "clase": "congregacional", "nivel": 2}, {"codigo": "HOMBRES_BIEN", "nombre": "Hombres de Bien", "clase": "congregacional", "nivel": 2}, {"codigo": "J25", "nombre": "J+25", "clase": "congregacional", "nivel": 2}, {"codigo": "JOSUES", "nombre": "Josués", "clase": "congregacional", "nivel": 2}, {"codigo": "MUJER_INTEGRAL", "nombre": "Mujer Integral", "clase": "congregacional", "nivel": 2}, {"codigo": "NICODEMO", "nombre": "Nicodemo · nuevos", "clase": "congregacional", "nivel": 2}, {"codigo": "ROCAKIDS", "nombre": "RocaKids", "clase": "congregacional", "nivel": 4}, {"codigo": "TMT", "nombre": "tMt · jóvenes 11-25", "clase": "congregacional", "nivel": 2}, {"codigo": "ALABANZA", "nombre": "Alabanza", "clase": "equipo_operativo", "nivel": 2}, {"codigo": "CREATIVO", "nombre": "Creativo", "clase": "equipo_operativo", "nivel": 2}, {"codigo": "UJIERES", "nombre": "Ujieres", "clase": "equipo_operativo", "nivel": 2}, {"codigo": "VISA", "nombre": "VISA · técnica y sonido", "clase": "equipo_operativo", "nivel": 2}, {"codigo": "COMUNICACIONES", "nombre": "Comunicaciones", "clase": "erp", "nivel": 2}, {"codigo": "CONTABLE", "nombre": "Contable", "clase": "erp", "nivel": 3}, {"codigo": "CULTURA", "nombre": "Cultura", "clase": "erp", "nivel": 2}, {"codigo": "LEGAL", "nombre": "Legal", "clase": "erp", "nivel": 3}, {"codigo": "SEGURIDAD", "nombre": "Seguridad", "clase": "erp", "nivel": 2}, {"codigo": "TALENTO_HUMANO", "nombre": "Talento Humano", "clase": "erp", "nivel": 3}, {"codigo": "TECNOLOGIA", "nombre": "Tecnología", "clase": "erp", "nivel": 2}, {"codigo": "TESORERIA", "nombre": "Tesorería", "clase": "erp", "nivel": 3}, {"codigo": "CURSOS_CORTOS", "nombre": "Cursos cortos · ADN, Bautizo, Madurez, Llaves", "clase": "formacion", "nivel": 2}, {"codigo": "INSTITUTO", "nombre": "Instituto · IBLI y FACTER", "clase": "formacion", "nivel": 2}];
 
 
@@ -572,6 +582,7 @@
   ];
 
   window.IDENTIDAD = {
+    CATALOGO_V,
     NIVELES, ROLES, MODULOS, ACCIONES, MATRIZ, ALCANCES, SEDES, MINISTERIOS,
     PLANTILLAS, PLANTILLA_MODS, SEDES_FULL, MODSEDE_SEED, modulosDePlantilla, plantilla,
     PRESETS, preset, EQUIPOS,
