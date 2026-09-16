@@ -283,6 +283,22 @@
         "<div style='font-size:17px;font-weight:600;color:#1c1c1f;margin-bottom:8px'>" + titulo + "</div>" +
         "<div style='font-size:13px;line-height:20px'>" + detalle + "</div></div>";
       document.body.appendChild(d);
+
+      /* ⛔ Y SE VACÍA LO QUE HAY DEBAJO, no solo se tapa.
+         Una capa encima deja el contenido en el DOM: sigue en la
+         memoria del navegador, sale en una captura de pantalla si algo
+         falla al pintar, y se lee con dos clics en el inspector.
+         Para N3 y N4 eso no basta. Se marca el documento y una regla CSS
+         esconde TODO lo que no sea este aviso, así también desaparece lo
+         que la app dibuje después. */
+      document.documentElement.setAttribute("data-panel-cerrado", "1");
+      if (!document.getElementById("cr-css-cerrado")) {
+        const st = document.createElement("style");
+        st.id = "cr-css-cerrado";
+        st.textContent =
+          "html[data-panel-cerrado] body > *:not(#cr-sin-sesion){display:none!important;visibility:hidden!important}";
+        document.head.appendChild(st);
+      }
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", pinta);
     else pinta();
