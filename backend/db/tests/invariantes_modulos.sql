@@ -1,3 +1,6 @@
+-- ⛔ El fondo de prueba lleva sufijo aleatorio: iba cableado como 'GEN' y
+--    `fondos_codigo_key` es único, así que la batería no se podía correr
+--    dos veces seguidas sin recrear la base.
 -- =====================================================================
 -- BANCO DE INVARIANTES · MÓDULOS 03 a 10
 -- Aportes · RocaKids · Formación · Talento · Grupos · Asistencia · Consejería
@@ -16,7 +19,7 @@ DO $$
 DECLARE v_sede uuid; v_fondo uuid; v_p uuid; v_cuadra boolean; v_dif numeric;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-CHICO';
-  INSERT INTO aportes.fondos (codigo,nombre,tipo) VALUES ('GEN','Fondo general','general') RETURNING id INTO v_fondo;
+  INSERT INTO aportes.fondos (codigo,nombre,tipo) VALUES ('GEN-'||substr(md5(clock_timestamp()::text),1,6),'Fondo de prueba','general') RETURNING id INTO v_fondo;
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
   VALUES (v_sede,'Aportante','Uno',CURRENT_DATE - interval '40 years') RETURNING id INTO v_p;
 
@@ -26,7 +29,8 @@ BEGIN
 
   INSERT INTO aportes.cierres_control (sede_id,anio,mes,total_oficial,fuente)
   VALUES (v_sede, extract(year FROM CURRENT_DATE)::smallint, extract(month FROM CURRENT_DATE)::smallint,
-          1750000.50,'Tesorería · cierre mensual');
+          1750000.50,'Tesorería · cierre mensual')
+  ON CONFLICT (sede_id, anio, mes, moneda) DO NOTHING;
 
   SELECT cuadra, diferencia INTO v_cuadra, v_dif FROM aportes.v_reconciliacion
    WHERE sede_id=v_sede AND anio=extract(year FROM CURRENT_DATE)::smallint

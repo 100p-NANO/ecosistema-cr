@@ -1,3 +1,8 @@
+-- ⛔ LOS CORREOS DE PRUEBA LLEVAN SUFIJO ALEATORIO, Y NO ES UN CAPRICHO.
+--    Iban cableados ('carlos.prueba@example.org') y `personas_email_uq` es
+--    único, así que la batería SOLO se podía correr una vez: la segunda
+--    reventaba con «duplicate key». Una prueba que no se puede repetir sin
+--    recrear la base entera no es una prueba, es un trámite.
 -- =====================================================================
 -- BANCO DE PRUEBAS · EMPALME CON LOS MÓDULOS DEL EQUIPO 100p
 -- Certificados tributarios · permisos nombrados · bandeja de nuevos.
@@ -141,7 +146,7 @@ DECLARE v_sede uuid; v_nuevo uuid; v_p uuid; v_entro timestamptz; v_reg timestam
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-NORTE';
   INSERT INTO crm.nuevos_registros (sede_id,nombre,email,como_supo,es_cristiano,registrado_en)
-  VALUES (v_sede,'Marta Llegada','marta.llegada@example.org','amigo','duda', now() - interval '20 days')
+  VALUES (v_sede,'Marta Llegada','marta.llegada.'||substr(md5(clock_timestamp()::text),1,8)||'@example.org','amigo','duda', now() - interval '20 days')
   RETURNING id, registrado_en INTO v_nuevo, v_reg;
 
   v_p := crm.convertir_en_miembro(v_nuevo, NULL, 'Decidió integrarse');
@@ -170,14 +175,14 @@ DECLARE v_sede uuid; v_p1 uuid; v_nuevo uuid; v_p2 uuid; v_total bigint;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-NORTE';
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,email_principal,fecha_nacimiento)
-  VALUES (v_sede,'Pedro','Existente','pedro.existente@example.org',DATE '1990-02-02')
+  VALUES (v_sede,'Pedro','Existente','pedro.existente.'||substr(md5(clock_timestamp()::text),1,8)||'@example.org',DATE '1990-02-02')
   RETURNING id INTO v_p1;
   INSERT INTO crm.nuevos_registros (sede_id,nombre,email,como_supo)
-  VALUES (v_sede,'Pedro Existente','pedro.existente@example.org','redes') RETURNING id INTO v_nuevo;
+  VALUES (v_sede,'Pedro Existente','pedro.existente.'||substr(md5(clock_timestamp()::text),1,8)||'@example.org','redes') RETURNING id INTO v_nuevo;
 
   v_p2 := crm.convertir_en_miembro(v_nuevo, NULL, NULL);
   SELECT count(*) INTO v_total FROM nucleo.personas
-   WHERE email_principal='pedro.existente@example.org' AND eliminado_en IS NULL;
+   WHERE email_principal='pedro.existente.'||substr(md5(clock_timestamp()::text),1,8)||'@example.org' AND eliminado_en IS NULL;
   PERFORM pg_temp.rg(11,'Convertir a alguien que ya existe no lo duplica','1 persona',
     v_total::text||' persona(s)', v_p1 = v_p2 AND v_total = 1);
 END $$;

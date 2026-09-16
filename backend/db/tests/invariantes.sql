@@ -1,3 +1,8 @@
+-- ⛔ LOS CORREOS DE PRUEBA LLEVAN SUFIJO ALEATORIO, Y NO ES UN CAPRICHO.
+--    Iban cableados ('carlos.prueba@example.org') y `personas_email_uq` es
+--    único, así que la batería SOLO se podía correr una vez: la segunda
+--    reventaba con «duplicate key». Una prueba que no se puede repetir sin
+--    recrear la base entera no es una prueba, es un trámite.
 -- =====================================================================
 -- BANCO DE PRUEBAS DE INVARIANTES
 -- Cada prueba demuestra que una regla vive en la BASE, no en la pantalla.
@@ -86,7 +91,7 @@ DECLARE v_sede uuid; v_p uuid; v_antes boolean; v_despues boolean; v_revocado bo
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-CHICO';
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,email_principal,fecha_nacimiento)
-  VALUES (v_sede,'Carlos','Prueba','carlos.prueba@example.org',CURRENT_DATE - interval '30 years')
+  VALUES (v_sede,'Carlos','Prueba','carlos.prueba.'||substr(md5(clock_timestamp()::text),1,8)||'@example.org',CURRENT_DATE - interval '30 years')
   RETURNING id INTO v_p;
 
   v_antes := plataforma.puede_contactar(v_p,'email','convocatoria');
