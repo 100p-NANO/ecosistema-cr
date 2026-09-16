@@ -25,4 +25,39 @@ for f in *.html; do
 done
 
 echo "Sellado con v=$SELLO  ($(date -r "$SELLO" '+%Y-%m-%d %H:%M:%S'))"
+
+# ------------------------------------------------------------
+# COMPROBADOR DE PANTALLAS HUÉRFANAS
+# Por qué existe, con fecha: el 11 de septiembre de 2026 el commit
+# ff1a761 borró 423 líneas de master.js y dejó en pie las llamadas.
+# Durante CUATRO DÍAS el Control Tower no pudo crear nada: las seis
+# entradas de "+ Crear" reventaban con ReferenceError y con ellas dos
+# de los cuatro botones de Puesta en marcha. Nadie se enteró porque
+# un ReferenceError dentro de un manejador de clic no rompe la
+# página: simplemente no pasa nada al pulsar.
+#
+# Y el mensaje de ese mismo commit avisaba de que YA había ocurrido
+# antes con el auxiliar b_. Es el patrón de reemplazar un fichero
+# entero y perder funciones por el camino.
+#
+# Esto lo convierte en un aviso inmediato: si pintar() llama a una
+# vista que no existe, el sellado falla y no se despliega.
+# ------------------------------------------------------------
+HUERFANAS=""
+for FN in $(grep -oE 'html = v[A-Za-z0-9_]+\(\)' assets/js/master.js | grep -oE 'v[A-Za-z0-9_]+' | sort -u); do
+  grep -qE "function $FN\b" assets/js/master.js || HUERFANAS="$HUERFANAS $FN"
+done
+
+if [ -n "$HUERFANAS" ]; then
+  echo ""
+  echo "⛔ SELLADO ABORTADO · pantallas invocadas que NO existen:"
+  for FN in $HUERFANAS; do echo "     $FN()"; done
+  echo ""
+  echo "   pintar() las llama y no están definidas en master.js."
+  echo "   Al pulsar su botón no pasará nada: ReferenceError silencioso."
+  echo "   Restáurelas antes de sellar o desplegar."
+  exit 1
+fi
+
+echo "Comprobado: todas las pantallas que pintar() invoca existen."
 echo "Recuerde: en el navegador, recarga dura (cmd+shift+R) la primera vez."

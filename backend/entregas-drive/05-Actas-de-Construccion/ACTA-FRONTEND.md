@@ -39,6 +39,7 @@ El prototipo no es una maqueta decorativa. Cumple tres funciones concretas en el
 | Carpetas | `fase0-prototipo/` (231 archivos) y `web/` (77 archivos) |
 | Visibilidad | Privado, por invitación |
 | Commit del corte | `745b20f` |
+| Estado posterior | ⚠️ Ver `ACTA-CORRECCION-CONTROL-TOWER.md` (15 sep 2026, commit `da8f6eb`): el Sistema Master arrastraba una regresión desde `ff1a761` |
 
 **Este es el punto más importante de esta acta.** Hasta el 11 de septiembre de 2026, el
 prototipo era la única pieza del proyecto que **no tenía copia en ningún servidor**: existía
