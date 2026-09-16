@@ -153,8 +153,40 @@
       estado: madre ? "Sede madre" : pick(rng(50 + i), ["Saludable", "Saludable", "Saludable", "En crecimiento", "En crecimiento", "Requiere atención"]),
     };
   }
+  /* ============================================================
+     ⛔ DE DÓNDE SALEN LAS IGLESIAS · corregido el 15 sep 2026
+
+     Este archivo generaba sus propias 36 iglesias a partir de una lista
+     escrita a mano, mientras el centro de mando llevaba SU registro. Dos
+     censos distintos de la misma red: si la Dirección General abría una
+     iglesia en el master, aquí no aparecía nunca, y al revés.
+
+     Ahora el REGISTRO manda: qué iglesias existen lo dice el centro de
+     mando. Lo que sigue siendo generado son las CIFRAS de operación
+     (asistencia, aportes, presupuesto), porque todavía no hay backend
+     que las sirva, y eso se declara en pantalla en vez de disimularlo.
+
+     Si no hay sesión del master (alguien abre este archivo suelto), se
+     cae al juego completo de 36 para que la demo siga en pie.
+     ============================================================ */
   const SEDES = [];
-  for (let i = 0; i < 36; i++) SEDES.push(genSede(i));
+  const registro = (window.CENTRO && window.CENTRO.todaLaRed) ? window.CENTRO.sedes() : null;
+
+  if (registro && registro.length) {
+    registro.forEach(function (real, i) {
+      const base = genSede(i);            // las cifras, aún de demostración
+      base.id     = real.id;              // ⭐ el MISMO id que el master
+      base.nombre = real.nombre;
+      base.ciudad = real.ciudad || real.nombre;
+      base.pais   = real.pais || base.pais;
+      base.codigo = real.codigo || null;  // el código de trabajo, la llave de negocio
+      base.plantilla = real.plantilla || null;
+      base.delRegistro = true;
+      SEDES.push(base);
+    });
+  } else {
+    for (let i = 0; i < 36; i++) SEDES.push(genSede(i));
+  }
 
   /* ============================================================
      CRM MASTER — todas las personas de todas las sedes.

@@ -21,7 +21,17 @@ SELLO=$(find assets -type f \( -name '*.js' -o -name '*.css' \) -exec stat -f '%
 [ -n "$SELLO" ] || { echo "No encontré assets que sellar."; exit 1; }
 
 for f in *.html; do
+  # 1) refrescar los sellos que ya existen
   perl -pi -e "s/\?v=[0-9A-Za-z._-]+/?v=$SELLO/g" "$f"
+  # 2) ⛔ Y PONER SELLO A LOS QUE NUNCA LO TUVIERON.
+  #    El 15 sep 2026 se midió: 37 de 54 recursos iban SIN `?v=`, entre
+  #    ellos central.js, director.js, store.js y data.js. Como sellar.sh
+  #    solo reescribia sellos existentes, esos archivos se cacheaban para
+  #    siempre: se editaban, se desplegaban, y el navegador de quien ya
+  #    habia entrado seguia sirviendo la version vieja.
+  #    Es la MISMA trampa de caché que costó el día 11 de septiembre, solo
+  #    que tapada a medias: se arregló el HTML y un tercio del JS.
+  perl -pi -e "s{(src|href)=\"(assets/(?:js|css)/[^\"?]+\.(?:js|css))\"}{\$1=\"\$2?v=$SELLO\"}g" "$f"
 done
 
 echo "Sellado con v=$SELLO  ($(date -r "$SELLO" '+%Y-%m-%d %H:%M:%S'))"
