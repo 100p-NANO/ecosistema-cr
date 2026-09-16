@@ -158,9 +158,22 @@
   }
   function cargar() {
     if (D) return D;
-    try { const c = localStorage.getItem(LLAVE); D = c ? JSON.parse(c) : semilla(); }
-    catch (e) { D = semilla(); }
-    if (migrar(D)) guardar();
+    let habia = true;
+    try {
+      const c = localStorage.getItem(LLAVE);
+      if (c) { D = JSON.parse(c); } else { D = semilla(); habia = false; }
+    }
+    catch (e) { D = semilla(); habia = false; }
+    /* ⛔⛔ LA SEMILLA SE GRABA EN CUANTO SE LEE, Y NO ES UN DETALLE.
+       Los paneles por rol leen `casaroca_master_v1` para saber quién
+       entra y qué tiene encendido su iglesia (`permisos-panel.js`).
+       Si el master se quedaba con la semilla EN MEMORIA y solo grababa
+       al crear algo, esa llave no existía en un navegador limpio, así
+       que TODO panel abierto desde aquí contestaba «no tiene sesión»,
+       la vista previa incluida. Y como crear también estaba roto, la
+       llave no podía nacer nunca: un punto muerto circular.
+       Sembrar al cargar lo cierra de raíz. */
+    if (migrar(D) || !habia) guardar();
     return D;
   }
   function guardar() {
@@ -193,7 +206,8 @@
     },
 
     /* ⛔⛔ REGLA DE GOBIERNO DE CASA SOBRE LA ROCA
-       Los pastores se nombran SIEMPRE en matrimonio, pastor y pastora.
+       Los pastores se nombran SIEMPRE en matrimonio: el pastor y su esposa.
+       ⛔ El término correcto es ESPOSA DEL PASTOR, no «pastora».
        La iglesia nunca nombra un pastor solo, ni en la general ni en una
        local. Por eso esto no recibe una persona: recibe una PAREJA, y de
        cada uno la hoja de vida completa. */
@@ -266,7 +280,7 @@
     crearParejaPastoral(d) {
       const st = cargar();
       const f = this.validarFicha(d.el, "Pastor", this.OBLIGATORIO_PASTOR)
-        .concat(this.validarFicha(d.ella, "Pastora", this.OBLIGATORIO_PASTOR));
+        .concat(this.validarFicha(d.ella, "Esposa del pastor", this.OBLIGATORIO_PASTOR));
       if (f.length) return { ok:false, fallos:f };
       const el   = this.crearPersona(d.el.nombre,   d.el.documento,   d.el.correo,   d.el);
       const ella = this.crearPersona(d.ella.nombre, d.ella.documento, d.ella.correo, d.ella);
@@ -559,12 +573,12 @@
          restricción de la base, y aquí se aplica igual para no ofrecer
          algo que allá va a fallar. */
       if (!d.pastorId) return { ok:false, fallos:["Una iglesia no se crea sin su pastor. Elíjalo o créelo aquí mismo."] };
-      /* ⛔ Y el pastor no va solo: la iglesia nombra pastor Y pastora. */
-      if (!d.pastoraId) {
+      /* ⛔ Y el pastor no va solo: la iglesia nombra al pastor Y a su esposa. */
+      if (!d.esposaId) {
         const c = this.conyugeDe(d.pastorId);
         if (!c) return { ok:false, fallos:[
-          "Falta la pastora. En Casa Sobre la Roca los pastores se nombran en matrimonio: nunca se nombra un pastor solo."] };
-        d.pastoraId = c.id;
+          "Falta la esposa del pastor. En Casa Sobre la Roca los pastores se nombran en matrimonio: nunca se nombra un pastor solo."] };
+        d.esposaId = c.id;
       }
       if (st.sedes.some(s => s.nombre.toLowerCase() === d.nombre.toLowerCase()))
         return { ok:false, fallos:["Ya existe una iglesia con ese nombre."] };
@@ -577,17 +591,23 @@
       /* El pastor queda otorgado en el mismo acto. Crear la iglesia y
          luego "acordarse" de darle acceso al pastor es como quedaban las
          sedes huérfanas. */
-      [d.pastorId, d.pastoraId].forEach(pid => st.asignaciones.push({
+      /* ⛔ El techo sale del CATÁLOGO DE ROLES, no de un número a mano.
+         Estaba cableado en 2 y la migración 0034 subió el Pastor
+         Congregacional a N4, así que una iglesia nueva nacía con sus
+         pastores topados en N2 mientras los sembrados iban en N4: el
+         mismo rol con dos techos según cómo se hubiera creado. */
+      const techoPastor = (I.rol("PASTOR_CONGREGACIONAL") || {}).techo || 2;
+      [d.pastorId, d.esposaId].forEach(pid => st.asignaciones.push({
         id:"a-" + Math.random().toString(36).slice(2, 8),
         personaId:pid, rol:"PASTOR_CONGREGACIONAL", alcanceTipo:"sede",
-        alcanceId:id, nivelMax:2, desde:new Date().toISOString().slice(0,10),
+        alcanceId:id, nivelMax:techoPastor, desde:new Date().toISOString().slice(0,10),
         hasta:null, otorgadoPor:d.otorgadoPor || "master", acta:d.acta || "", delega:false }));
       guardar();
       const pl = I.plantilla(d.plantilla);
       anotar("CREACION", "master",
         `Iglesia «${d.nombre}» (${codigo}) creada con plantilla ${pl ? pl.nombre : d.plantilla}: ` +
         `${I.modulosDePlantilla(d.plantilla).length} de ${I.MODULOS.length} módulos encendidos, ` +
-        `pastoreada por ${(this.persona(d.pastorId) || {}).nombre} y ${(this.persona(d.pastoraId) || {}).nombre}.`);
+        `pastoreada por ${(this.persona(d.pastorId) || {}).nombre} y ${(this.persona(d.esposaId) || {}).nombre}.`);
       return { ok:true, id };
     },
 

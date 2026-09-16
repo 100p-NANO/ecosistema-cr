@@ -77,10 +77,19 @@
   function contexto() {
     let d = null;
     try { d = JSON.parse(localStorage.getItem("casaroca_master_v1") || "null"); } catch (e) {}
-    if (!d || !d.asignaciones) return null;
+    /* ⛔ ESTA GUARDA ESTABA ANTES DE LA VISTA PREVIA Y LA MATABA.
+       La vista previa trae SU PROPIA asignación de mentira, así que no
+       necesita el censo del master para existir; solo lo necesita para
+       saber qué módulos tiene encendidos la iglesia. Exigir `d` aquí
+       arriba hacía que el botón «comprobar cómo se ve» contestara
+       «este panel no tiene sesión» en cualquier navegador limpio.
+       Ahora la falta de censo NO tumba la previa: sigue con el catálogo
+       vacío, que es lo honesto (nada encendido todavía). El camino
+       REAL sí sigue exigiendo censo: sin él no se sabe quién entra. */
+    const censo = (d && d.asignaciones) ? d : null;
     /* Lo que la IGLESIA tiene encendido, primero: lo necesitan los dos
        caminos, el real y la vista previa. */
-    const msRows = d.modsede || [];
+    const msRows = (censo && censo.modsede) || [];
     const activo = (sedeId, modulo) => {
       const r = msRows.find(x => x.sede === sedeId && x.modulo === modulo);
       return !!(r && r.activo);
@@ -94,15 +103,19 @@
     try { sim = JSON.parse(localStorage.getItem("casaroca_panel_simulado") || "null"); } catch (e) {}
     if (sim && sim.rol) {
       return { persona: { nombre: sim.etiqueta || "Vista previa" },
-               asignaciones: [sim], activoEnSede: activo, previa: true, datos: d };
+               asignaciones: [sim], activoEnSede: activo, previa: true,
+               datos: censo || { personas:[], asignaciones:[], modsede:[] } };
     }
 
+    /* El camino REAL sí exige censo: sin él no hay forma de saber quién
+       entra, y abrir a ciegas sería permitir por defecto. */
+    if (!censo) return null;
     let pid = null;
     try { pid = localStorage.getItem("casaroca_panel_persona"); } catch (e) {}
     if (!pid) return null;                 // sin persona declarada, no se filtra
-    const persona = (d.personas || []).find(p => p.id === pid);
-    const asig = d.asignaciones.filter(a => a.personaId === pid);
-    return { persona, asignaciones: asig, activoEnSede: activo, datos: d };
+    const persona = (censo.personas || []).find(p => p.id === pid);
+    const asig = censo.asignaciones.filter(a => a.personaId === pid);
+    return { persona, asignaciones: asig, activoEnSede: activo, datos: censo };
   }
 
   const ctx = contexto();

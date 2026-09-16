@@ -25,6 +25,12 @@
   let YO = { personaId:"p-dg", nombre:"Ps. Director General",
              rol:"PASTOR_DIRECTOR_GENERAL", techo:4 };
 
+  /* La red completa a la que se aspira. Es una META, no un dato:
+     lo REAL sale siempre de M.sedes().length. Antes el "36" iba
+     cableado en la cabecera y en el tablero, así que la pantalla
+     decía "36 iglesias" con 6 registradas justo debajo. */
+  const META_IGLESIAS = 36;
+
   let vista = "arranque";   // el proceso, no el tablero
   let borrador = null;   // asistente de creación de acceso
   let filtro  = "";      // búsqueda de la lista
@@ -166,11 +172,18 @@
         ir:"n-equipo", btn:"Crear equipo",
         detalle:admin.length ? admin.map(e => e.nombre).join(", ") : "Ningún equipo creado todavía.",
         bloqueado: generales.length === 0, porque:"Primero tiene que existir la Dirección General." },
-      { n:3, t:"Iglesias", sub:"Cada una nace con su pastor y con una plantilla que define qué ve.",
-        hecho:sedes.length, meta:"36", ok:sedes.length > 0 && conPastor.length === sedes.length,
+      /* ⛔ El número y el visto tienen que medir LO MISMO. Antes el
+         contador decía "6 / 36" (iglesias creadas) pero el ✓ se
+         encendía por otra cosa (que TODAS tuvieran pastor), así que
+         se podía llegar a 36/36 y seguir sin visto, sin explicación.
+         Ahora ambos miden iglesias CON PASTOR, que es lo que hace
+         falta para que el paso siguiente tenga dónde apoyarse. */
+      { n:3, t:"Iglesias con pastor", sub:"Cada una nace con su pastor y con una plantilla que define qué ve.",
+        hecho:conPastor.length, meta:sedes.length || META_IGLESIAS,
+        ok:sedes.length > 0 && conPastor.length === sedes.length,
         ir:"n-iglesia", btn:"Crear iglesia",
         detalle:sedes.length
-          ? `${conPastor.length} de ${sedes.length} tienen pastor asignado.`
+          ? `${conPastor.length} de ${sedes.length} tienen pastor asignado. La red prevé ${META_IGLESIAS}.`
           : "Ninguna iglesia creada.",
         bloqueado: generales.length === 0, porque:"La Dirección General es quien crea iglesias." },
       { n:4, t:"Roles por iglesia", sub:"Directores, líderes, consejeros y tesorería de cada sede.",
@@ -535,7 +548,7 @@
     const porVencer = asg.filter(a => a.hasta && a.hasta >= hoy() && a.hasta <= new Date(Date.now()+30*864e5).toISOString().slice(0,10));
     const sinRol = per.filter(p => !vig.some(a => a.personaId === p.id));
     const n34 = vig.filter(a => a.nivelMax >= 3);
-    return head("Tablero de la red", "Estado del gobierno de accesos en las 36 iglesias.") + `
+    return head("Tablero de la red", `Estado del gobierno de accesos en las ${M.sedes().length} iglesias registradas, de ${META_IGLESIAS} previstas.`) + `
     <div class="ms-kpis">
       <div class="ms-kpi"><b>${I.SEDES.length}</b><span>iglesias registradas</span></div>
       <div class="ms-kpi"><b>${per.length}</b><span>personas con ficha</span></div>
@@ -903,6 +916,328 @@
       </div></div>`;
   }
 
+  /* ============================================================ SELECTOR DE PERMISOS
+     El MISMO componente en un rol, en un ministerio y en un equipo.
+     Tres niveles, no quince acciones. Si una pantalla usara palabras
+     distintas de otra, nadie entendería el sistema.
+
+     `techo` recorta lo que se puede ofrecer: un módulo por encima del
+     techo sale vedado y no se puede marcar. */
+  function selectorPermisos(permisos, techo, campo, modsVisibles) {
+    permisos = permisos || {};
+    const mods = (modsVisibles && modsVisibles.length)
+      ? I.MODULOS.filter(m => modsVisibles.indexOf(m.codigo) >= 0)
+      : I.MODULOS;
+    const n = Object.keys(permisos).filter(k => permisos[k]).length;
+    return `
+    <div class="ms-permsel">
+      <div class="ms-permsel__cab">
+        <span class="ms-lbl" style="margin:0">Módulo</span>
+        ${I.NIVELES_ACCESO.map(x => `<span class="ms-lbl" style="margin:0;text-align:center" title="${esc(x.ayuda)}">${esc(x.nombre)}</span>`).join("")}
+        <span class="ms-lbl" style="margin:0;text-align:center">Sin acceso</span>
+      </div>
+      ${mods.map(m => {
+        const vedado = m.nivel > techo;
+        const act = permisos[m.codigo] || null;
+        return `<div class="ms-permsel__f ${vedado ? "is-veda" : ""}">
+          <div class="ms-permsel__m"><b>${esc(m.nombre)}</b> ${pastilla(m.nivel)}
+            ${vedado ? `<span class="ms-porque">fuera del techo N${techo}</span>` : ""}</div>
+          ${I.NIVELES_ACCESO.map(x => `
+            <label class="ms-radio ${act === x.codigo ? "is-on" : ""}" title="${esc(x.ayuda)}">
+              <input type="radio" name="${esc(campo)}_${esc(m.codigo)}" ${act === x.codigo ? "checked" : ""}
+                ${vedado ? "disabled" : ""} data-perm-campo="${esc(campo)}"
+                data-perm-mod="${esc(m.codigo)}" data-perm-niv="${esc(x.codigo)}"></label>`).join("")}
+          <label class="ms-radio ${!act ? "is-on" : ""}" title="Sin acceso a este módulo">
+            <input type="radio" name="${esc(campo)}_${esc(m.codigo)}" ${!act ? "checked" : ""}
+              ${vedado ? "disabled" : ""} data-perm-campo="${esc(campo)}"
+              data-perm-mod="${esc(m.codigo)}" data-perm-niv=""></label>
+        </div>`;
+      }).join("")}
+      <div class="ms-permsel__pie">
+        <span class="ms-cuenta">${n} módulo(s) con acceso</span>
+        <div class="ms-barra__sp"></div>
+        ${I.NIVELES_ACCESO.map(x => `<button class="ms-btn ms-btn--peq" data-accion="perm-todos"
+          data-campo="${esc(campo)}" data-niv="${esc(x.codigo)}">Todo a «${esc(x.nombre.toLowerCase())}»</button>`).join("")}
+        <button class="ms-btn ms-btn--peq" data-accion="perm-todos" data-campo="${esc(campo)}" data-niv="">Ninguno</button>
+      </div>
+    </div>`;
+  }
+
+  /* ============================================================ FORMULARIOS DE CREACIÓN
+     Un patrón para todos: campos arriba, la consecuencia visible
+     abajo, y el botón deshabilitado hasta que la base lo aceptaría.
+     Nunca se deja pulsar algo que va a fallar. */
+  function b_() { return (borrador = borrador || {}); }
+  function selPersona(campo, etiqueta, ayuda) {
+    const b = b_();
+    return `<label class="ms-campo"><span>${esc(etiqueta)} <b class="ms-req">obligatorio</b></span>
+      <select data-campo="${campo}"><option value="">Elegir persona…</option>
+      ${M.personas().map(x => `<option value="${esc(x.id)}" ${b[campo] === x.id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}
+      </select></label>
+      <label class="ms-campo"><span>…o crear la ficha aquí mismo</span>
+        <input data-campo="${campo}_nueva" value="${esc(b[campo + "_nueva"] || "")}" placeholder="Nombre completo"></label>
+      ${ayuda ? `<div class="ms-nota">${esc(ayuda)}</div>` : ""}`;
+  }
+  function selSede(campo, etiqueta) {
+    const b = b_();
+    return `<label class="ms-campo"><span>${esc(etiqueta)} <b class="ms-req">obligatorio</b></span>
+      <select data-campo="${campo}"><option value="">Elegir iglesia…</option>
+      ${M.sedes().map(x => `<option value="${esc(x.id)}" ${b[campo] === x.id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}
+      </select></label>`;
+  }
+  function pie(fallos, textoBtn, accion) {
+    return `${fallos.length
+      ? `<div class="ms-alerta ms-alerta--roja"><b>Falta para poder crear:</b><ul>${fallos.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>`
+      : `<div class="ms-alerta ms-alerta--verde"><b>Listo.</b> La base aceptaría esto.</div>`}
+      <div class="ms-acciones">
+        <button class="ms-btn ms-btn--primario" data-accion="${accion}" ${fallos.length ? "disabled" : ""}>${esc(textoBtn)}</button>
+        <button class="ms-btn" data-accion="limpiar">Limpiar</button>
+      </div>`;
+  }
+
+  /* ---------- PERSONA ----------
+     El formulario se GENERA de `MSTORE.FICHA`, que es la copia exacta
+     de las columnas de `nucleo.personas`. Una sola fuente de verdad: si
+     mañana entra una columna nueva en la base, aparece aquí sola.
+
+     Ese es el arreglo del defecto que encontró Daniel: el formulario
+     pedía tres cosas y la ficha mostraba nueve en «sin registrar»,
+     porque cada uno tenía su propia lista. */
+  function campoFicha(c, pref) {
+    const b = b_(), k = (pref || "") + c.k, v = b[k] || "";
+    const req = c.req ? ' <b class="ms-req">obligatorio</b>' : "";
+    const niv = c.n != null ? " " + pastilla(c.n) : "";
+    let control;
+    if (c.opciones) {
+      control = `<select data-campo="${esc(k)}"><option value="">Elegir…</option>
+        ${c.opciones.map(o => { const val = Array.isArray(o) ? o[0] : o, txt = Array.isArray(o) ? o[1] : o;
+          return `<option value="${esc(val)}" ${v === val ? "selected" : ""}>${esc(txt)}</option>`; }).join("")}
+        </select>`;
+    } else if (c.k === "sedeId") {
+      control = `<select data-campo="${esc(k)}"><option value="">Elegir iglesia…</option>
+        ${M.sedes().map(x => `<option value="${esc(x.id)}" ${v === x.id ? "selected" : ""}>${esc(x.nombre)} · ${esc(x.codigo || "")}</option>`).join("")}
+        </select>`;
+    } else {
+      control = `<input type="${esc(c.tipo || "text")}" data-campo="${esc(k)}" value="${esc(v)}">`;
+    }
+    return `<label class="ms-campo"><span>${esc(c.l)}${req}${niv}</span>${control}
+      ${c.ayuda ? `<small class="ms-ayuda">${esc(c.ayuda)}</small>` : ""}</label>`;
+  }
+  function grupoFicha(grupo, pref) {
+    const cs = M.FICHA.filter(c => c.g === grupo);
+    if (!cs.length) return "";
+    return `<div class="ms-grupo"><div class="ms-lbl">${esc(grupo)}</div>
+      <div class="ms-grid-campos">${cs.map(c => campoFicha(c, pref)).join("")}</div></div>`;
+  }
+
+  function vNPersona() {
+    const b = b_();
+    const f = M.validarFicha(b, "Ficha");
+    const grupos = [...new Set(M.FICHA.map(c => c.g))];
+    return `<div class="ms-ancho--lectura">` + head("Crear persona",
+      "Los campos son exactamente las columnas de <code>nucleo.personas</code> en el backend. Lo que se llena aquí es lo que se verá en su ficha, sin sorpresas.") + `
+      <div class="ms-paso">
+        ${grupos.map(g => grupoFicha(g)).join("")}
+      </div>
+      <div class="ms-nota">La ficha por sí sola no da acceso a nada. El acceso se otorga después,
+        o al crear la iglesia, el ministerio o el equipo donde va a servir.</div>
+      ` + pie(f, "Crear persona", "hacer-persona") + `</div>`;
+  }
+
+  /* ---------- IGLESIA ---------- */
+  function vNIglesia() {
+    const b = b_(), f = [];
+    if (!b.nombre) f.push("El nombre de la iglesia.");
+    if (!b.plantilla) f.push("La plantilla: define qué módulos verá esta iglesia.");
+    if (!b.pastorId && !b.pastorId_nueva) f.push("Su pastor. Una iglesia no se crea sin pastor.");
+    /* ⛔ REGLA DE LA IGLESIA: nunca se nombra un pastor solo. El motor ya
+       la exigía en `crearIglesia`, pero el formulario no ofrecía dónde
+       poner a la esposa, así que la creación fallaba siempre salvo que
+       la persona ya tuviera el vínculo CONYUGE registrado. */
+    if (!b.esposaId && !b.esposaId_nueva) f.push("Su esposa. Los pastores se nombran en matrimonio, nunca uno solo.");
+    if (b.pastorId && b.esposaId && b.pastorId === b.esposaId)
+      f.push("El pastor y su esposa no pueden ser la misma persona.");
+    const mods = b.plantilla ? I.modulosDePlantilla(b.plantilla) : [];
+    return `<div class="ms-ancho--lectura">` + head("Crear iglesia",
+      "Tres cosas y queda operando: cómo se llama, qué plantilla usa y quién la pastorea.") + `
+      <div class="ms-paso"><h3><i>1</i> Identidad</h3>
+        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
+          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Bogotá Norte"></label>
+        <div class="ms-fila2">
+          <label class="ms-campo"><span>Ciudad</span>
+            <input data-campo="ciudad" value="${esc(b.ciudad || "")}" placeholder="Bogotá"></label>
+          <label class="ms-campo"><span>País</span>
+            <select data-campo="pais">
+              <option value="CO" ${b.pais === "CO" || !b.pais ? "selected" : ""}>Colombia</option>
+              <option value="ES" ${b.pais === "ES" ? "selected" : ""}>España</option>
+              <option value="US" ${b.pais === "US" ? "selected" : ""}>Estados Unidos</option>
+              <option value="PA" ${b.pais === "PA" ? "selected" : ""}>Panamá</option>
+            </select></label>
+        </div>
+      </div>
+
+      <div class="ms-paso"><h3><i>2</i> Plantilla</h3>
+        <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
+          Aquí se decide qué ve esta iglesia. No todas son iguales: una plantación arranca con lo
+          mínimo y crece cuando se consolida.</p>
+        <div class="ms-plant">
+          ${I.PLANTILLAS.map(pl => {
+            const n = I.modulosDePlantilla(pl.codigo).length;
+            return `<button class="ms-plantc ${b.plantilla === pl.codigo ? "is-on" : ""}"
+              data-accion="plantilla" data-cod="${esc(pl.codigo)}" style="text-align:left;cursor:pointer;font:inherit">
+              <h4>${esc(pl.nombre)}</h4><p>${esc(pl["desc"] || "")}</p>
+              <span class="ms-plantc__n">${n} de ${I.MODULOS.length} módulos</span></button>`;
+          }).join("")}
+        </div>
+        ${b.plantilla ? `<div class="ms-lbl">Con esta plantilla verá</div>
+          <div class="ms-chips">${I.MODULOS.map(m => mods.indexOf(m.codigo) >= 0
+            ? `<span class="ms-chip">${esc(m.nombre)} ${pastilla(m.nivel)}</span>`
+            : `<span class="ms-chip ms-chip--veda">${esc(m.nombre)}</span>`).join("")}</div>
+          <div class="ms-nota">Lo tachado se puede encender después desde <b>Qué ve cada iglesia</b>.
+            Los módulos de dato sensible piden evidencia legal para encenderse.</div>` : ""}
+      </div>
+
+      <div class="ms-paso"><h3><i>3</i> Sus pastores</h3>
+        <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
+          En Casa Sobre la Roca los pastores se nombran en matrimonio. Nunca se nombra un pastor
+          solo, así que aquí van los dos y los dos quedan con el mismo acceso.</p>
+        ${selPersona("pastorId", "Pastor congregacional",
+          "Queda nombrado en el mismo acto, con alcance de esta sede y el techo que le da el catálogo de roles. La base lo exige: una sede sin pastor no existe.")}
+        ${selPersona("esposaId", "Esposa del pastor",
+          "Queda nombrada en el mismo acto y con el mismo acceso que él.")}
+      </div>` + pie(f, "Crear iglesia y nombrar a sus pastores", "hacer-iglesia") + `</div>`;
+  }
+
+  /* ---------- MINISTERIO ---------- */
+  function vNMinisterio() {
+    const b = b_(), f = [];
+    if (!b.nombre) f.push("El nombre del ministerio.");
+    if (!b.sedeId) f.push("La iglesia a la que pertenece.");
+    if (!b.liderId && !b.liderId_nueva) f.push("Su director. Un ministerio no se crea sin alguien a cargo.");
+    if (!Object.keys(b.permisos || {}).some(k => b.permisos[k]))
+      f.push("Al menos un módulo con acceso. Un ministerio que no puede ver nada no sirve de nada.");
+    return `<div class="ms-ancho--forma">` + head("Crear ministerio",
+      "RocaKids, tMt, Mujer Integral, Hombres de Bien. Cada uno pertenece a una iglesia y tiene alguien al frente.") + `
+      <div class="ms-paso"><h3><i>1</i> Qué y dónde</h3>
+        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
+          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Mujer Integral"></label>
+        ${selSede("sedeId", "Iglesia")}
+      </div>
+      <div class="ms-paso"><h3><i>2</i> Qué puede hacer este ministerio</h3>
+        <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
+          Los mismos tres niveles que en cualquier otra parte del sistema. Es lo que podrán hacer
+          quienes sirvan aquí.</p>
+        ${selectorPermisos(b.permisos, b.techo != null ? +b.techo : 2, "permisos")}
+        <label class="ms-campo" style="margin-top:12px"><span>Techo del ministerio</span>
+          <select data-campo="techo">
+            ${I.NIVELES.map(n => `<option value="${n.nivel}" ${(b.techo != null ? +b.techo : 2) === n.nivel ? "selected" : ""}>N${n.nivel} · ${esc(n["desc"])}</option>`).join("")}
+          </select></label>
+      </div>
+
+      <div class="ms-paso"><h3><i>3</i> Quién lo dirige</h3>
+        ${selPersona("liderId", "Director del ministerio",
+          "Queda nombrado en el mismo acto, con alcance de este ministerio. Un ministerio sin nadie al frente es una carpeta que nadie revisa, y el día que hay un problema con un menor no hay a quién preguntarle.")}
+        ${b.nombre && /roca|kid|nin|niñ/i.test(b.nombre) ? `<div class="ms-nota ms-nota--ojo">
+          Este ministerio parece de menores. Los módulos de menores son <b>N4</b>: exigen antecedentes
+          verificados y vigentes para servir, y acta de respaldo para el acceso.</div>` : ""}
+      </div>` + pie(f, "Crear ministerio y nombrar a su director", "hacer-ministerio") + `</div>`;
+  }
+
+  /* ---------- EQUIPO ---------- */
+  function vNEquipo() {
+    const b = b_(), f = [];
+    const roles = b.roles || [];
+    const local = (b.ambito || "local") === "local";
+    if (!b.nombre) f.push("El nombre del equipo.");
+    if (!roles.length) f.push("Al menos un rol. Un equipo sin roles no otorga nada.");
+    if (local && !b.sedeId) f.push("La iglesia, o márquelo como corporativo.");
+    if (!b.liderId && !b.liderId_nueva) f.push("Su responsable.");
+    return `<div class="ms-ancho--lectura">` + head("Crear equipo administrativo",
+      "Un equipo no es un rol: es un conjunto de roles que se otorgan juntos. Sirve para no repetir cuatro veces la misma asignación.") + `
+      <div class="ms-paso"><h3><i>1</i> Qué equipo</h3>
+        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
+          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Tesorería Bogotá Chicó"></label>
+        <label class="ms-campo"><span>Ámbito</span>
+          <div class="ms-seg">
+            <button data-accion="ambito" data-v="local" class="${local ? "is-on" : ""}">Local, de una iglesia</button>
+            <button data-accion="ambito" data-v="corporativo" class="${!local ? "is-on" : ""}">Corporativo, de toda la red</button>
+          </div></label>
+        ${local ? selSede("sedeId", "Iglesia") : `<div class="ms-nota">Un equipo corporativo alcanza TODAS las iglesias de la red. Úselo solo para Contable, Legal y Tecnología.</div>`}
+        ${I.EQUIPOS.length ? `<div class="ms-lbl" style="margin-top:12px">Atajos de los 8 equipos del back-office</div>
+          <div class="ms-chips">${I.EQUIPOS.map(e => `<button class="ms-chip" style="cursor:pointer"
+            data-accion="equipo-atajo" data-cod="${esc(e.codigo)}">${esc(e.nombre)}</button>`).join("")}</div>` : ""}
+      </div>
+
+      <div class="ms-paso"><h3><i>2</i> Qué puede hacer este equipo</h3>
+        <p class="ms-sub" style="font-family:var(--ui);margin:0 0 12px">
+          Los mismos tres niveles que en un rol o en un ministerio. Vocabulario único en todo el sistema.</p>
+        ${selectorPermisos(b.permisos, b.techo != null ? +b.techo : 3, "permisos")}
+        <label class="ms-campo" style="margin-top:12px"><span>Techo del equipo</span>
+          <select data-campo="techo">
+            ${I.NIVELES.map(n => `<option value="${n.nivel}" ${(b.techo != null ? +b.techo : 3) === n.nivel ? "selected" : ""}>N${n.nivel} · ${esc(n["desc"])}</option>`).join("")}
+          </select></label>
+
+        <div class="ms-lbl" style="margin-top:16px">Roles que otorga al responsable</div>
+        <div class="ms-sel">
+          ${M.rolesTodos().map(r => {
+            const on = roles.indexOf(r.codigo) >= 0;
+            return `<label class="ms-opt ${on ? "is-on" : ""}">
+              <input type="checkbox" data-rol="${esc(r.codigo)}" ${on ? "checked" : ""}>
+              <div><b>${esc(r.nombre)}</b><small>techo N${r.techo}</small></div></label>`;
+          }).join("")}
+        </div>
+      </div>
+
+      <div class="ms-paso"><h3><i>3</i> Quién responde</h3>
+        ${selPersona("liderId", "Responsable del equipo",
+          "Recibe todos los roles marcados en el mismo acto.")}
+      </div>` + pie(f, "Crear equipo y nombrar a su responsable", "hacer-equipo") + `</div>`;
+  }
+
+  /* ---------- ROL ---------- */
+  function vNRol() {
+    const b = b_(), f = [];
+    if (!b.nombre) f.push("El nombre del rol.");
+    if (b.techo == null) f.push("El techo: la sensibilidad máxima que alcanzará.");
+    return `<div class="ms-ancho--forma">` + head("Crear rol",
+      "El catálogo es extensible a propósito: cada módulo nuevo trae sus roles. Lo que no cambia nunca es el techo.") + `
+      <div class="ms-paso">
+        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
+          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Líder de Oración"></label>
+        <label class="ms-campo"><span>Techo de sensibilidad <b class="ms-req">obligatorio</b></span></label>
+        <div class="ms-niveles">
+          ${I.NIVELES.map(n => `<button class="ms-nivbtn ${b.techo === n.nivel ? "is-on" : ""}"
+            data-accion="techo" data-n="${n.nivel}">${pastilla(n.nivel)}<span>${esc(n["desc"])}</span></button>`).join("")}
+        </div>
+        ${b.techo != null ? `<div class="ms-nota">Con techo N${b.techo} este rol podrá alcanzar
+          <b>${I.MODULOS.filter(m => m.nivel <= b.techo).length}</b> de los ${I.MODULOS.length} módulos.
+          Los demás le quedan vedados para siempre: el techo no se negocia por asignación.</div>` : ""}
+      </div>` + pie(f, "Crear rol", "hacer-rol") + `</div>`;
+  }
+
+  /* ---------- MÓDULO ---------- */
+  function vNModulo() {
+    const b = b_(), f = [];
+    if (!b.nombre) f.push("El nombre del módulo.");
+    if (b.nivel == null) f.push("El nivel del dato que maneja.");
+    return `<div class="ms-ancho--forma">` + head("Crear módulo",
+      "Un módulo nuevo declara qué dato maneja. De ese nivel sale, automáticamente, qué roles pueden alcanzarlo.") + `
+      <div class="ms-paso">
+        <label class="ms-campo"><span>Nombre <b class="ms-req">obligatorio</b></span>
+          <input data-campo="nombre" value="${esc(b.nombre || "")}" placeholder="Peticiones de oración"></label>
+        <label class="ms-campo"><span>Nivel del dato <b class="ms-req">obligatorio</b></span></label>
+        <div class="ms-niveles">
+          ${I.NIVELES.map(n => `<button class="ms-nivbtn ${b.nivel === n.nivel ? "is-on" : ""}"
+            data-accion="nivelmod" data-n="${n.nivel}">${pastilla(n.nivel)}<span>${esc(n["desc"])}</span></button>`).join("")}
+        </div>
+        ${b.nivel != null ? `<div class="ms-nota">Con dato N${b.nivel}, solo los roles con techo N${b.nivel}
+          o mayor podrán recibir permisos aquí: <b>${M.rolesTodos().filter(r => r.techo >= b.nivel).length}</b>
+          de ${M.rolesTodos().length} roles.
+          ${b.nivel >= 3 ? " Además activa cifrado, bitácora de lectura y enmascarado." : ""}</div>` : ""}
+      </div>` + pie(f, "Crear módulo", "hacer-modulo") + `</div>`;
+  }
+
+
   /* ============================================================ ROLES */
   function vRoles() {
     return head("Roles y techos",
@@ -1181,7 +1516,7 @@
       la base lo exige y aquí quedó sin cumplir.</div>` : ""}
     ${past.length === 1 ? `<div class="ms-alerta ms-alerta--ambar">
       <b>Solo hay un pastor nombrado.</b> En Casa Sobre la Roca los pastores se nombran en
-      matrimonio: falta la pastora.</div>` : ""}
+      matrimonio: falta su esposa.</div>` : ""}
 
     <div class="ms-lbl">Pastores</div>
     ${past.length ? `<table class="ms-tabla"><thead><tr>
@@ -1458,15 +1793,69 @@
   }
 
   /* ============================================================ MÓDULOS DE OPERACIÓN */
+  /* ⛔ ESTA PANTALLA NO ES UN ERROR, PERO LO PARECÍA.
+     Once pestañas del menú caen aquí. Antes salían con el nombre del
+     módulo a secas y una tarjeta de datos, y se leían como una pantalla
+     rota o a medio hacer. No lo están: el master gobierna QUIÉN entra,
+     y la operación diaria vive en la app del rol. Ahora lo dice de
+     frente y ofrece el atajo, en vez de dejar al usuario adivinando. */
+  const APP_DEL_MODULO = {
+    rocakids:  { src:"rocakids-director.html",   lbl:"RocaKids · dirección" },
+    consejeria:{ src:"consejeria-director.html", lbl:"Consejería · dirección" },
+    grupos:    { src:"lider.html",               lbl:"Líder de grupo" },
+    crm:       { src:"pastor.html",              lbl:"Pastor de sede" },
+    personas:  { src:"pastor.html",              lbl:"Pastor de sede" },
+    asistencia:{ src:"pastor.html",              lbl:"Pastor de sede" },
+    aportes:   { src:"central.html",             lbl:"Dirección General" },
+    talento:   { src:"central.html",             lbl:"Dirección General" },
+    formacion: { src:"central.html",             lbl:"Dirección General" },
+  };
   function vModulo(cod) {
     const m = I.modulo(cod);
     const yo = M.deLaPersona(YO.personaId);
     const alcanza = I.puedeVer(yo, cod);
-    return head(m.nombre, `Módulo <code>${esc(cod)}</code> del backend.`) +
+    const app = APP_DEL_MODULO[cod];
+    const destino = app && (NAV.find(x => x.src === app.src) || {}).id;
+    return head(m.nombre, "Ficha de gobierno del módulo. Aquí se decide quién entra, no se opera el día a día.") +
       (alcanza ? "" : `<div class="ms-alerta ms-alerta--roja">Su rol no alcanza este módulo.</div>`) +
       fichaModulo(cod) + `
-      <div class="ms-nota">La pantalla de operación de este módulo vive en la app del rol que lo usa.
-        Ábrala desde <b>Apps por rol</b>, en el menú. Aquí se gobierna <b>quién entra</b>, no el día a día.</div>`;
+      <div class="ms-nota">
+        <b>Esta pestaña no tiene pantalla de operación, y es a propósito.</b>
+        El sistema master gobierna accesos: qué nivel de dato es este módulo, qué controles activa
+        y qué roles lo alcanzan. El trabajo diario de <b>${esc(m.nombre)}</b> se hace en la app del
+        rol que lo usa.
+        ${destino ? `<div style="margin-top:10px">
+          <button class="ms-btn ms-btn--primario" data-accion="ir" data-vista="${esc(destino)}">Abrir ${esc(app.lbl)}</button>
+        </div>` : ` Ábrala desde <b>Apps por rol</b>, en el menú.`}
+      </div>`;
+  }
+
+  /* ============================================================ PLANTILLAS
+     La pestaña decía «Plantillas de iglesia» y caía en la ficha genérica
+     del módulo `organizacion`, así que el título que salía era «Organización
+     y sedes». El menú prometía una cosa y la pantalla mostraba otra.
+     El catálogo existe (I.PLANTILLAS), solo faltaba enseñarlo. */
+  function vPlantillas() {
+    const usoPorPlantilla = cod => M.sedes().filter(x => x.plantilla === cod).length;
+    return `<div class="ms-ancho--lectura">` + head("Plantillas de iglesia",
+      "Con qué módulos nace una iglesia según su madurez. Se elige al crearla y se puede ajustar después en <b>Qué ve cada iglesia</b>.") + `
+      ${I.PLANTILLAS.map(pl => {
+        const mods = I.modulosDePlantilla(pl.codigo);
+        const n = usoPorPlantilla(pl.codigo);
+        return `<div class="ms-paso">
+          <h3>${esc(pl.nombre)}</h3>
+          <p>${esc(pl["desc"] || "")}</p>
+          <div class="ms-lbl">En uso</div>
+          <div class="ms-val">${n} ${n === 1 ? "iglesia la usa" : "iglesias la usan"}</div>
+          <div class="ms-lbl" style="margin-top:12px">Enciende ${mods.length} de ${I.MODULOS.length} módulos</div>
+          <div class="ms-chips">${I.MODULOS.map(m => mods.indexOf(m.codigo) >= 0
+            ? `<span class="ms-chip">${esc(m.nombre)} ${pastilla(m.nivel)}</span>`
+            : `<span class="ms-chip ms-chip--veda">${esc(m.nombre)}</span>`).join("")}</div>
+        </div>`;
+      }).join("")}
+      <div class="ms-nota">Lo tachado no es un veto permanente: se enciende iglesia por iglesia.
+        Los módulos de dato sensible piden evidencia legal para encenderse.</div>
+    </div>`;
   }
 
   /* ============================================================ APP EMBEBIDA */
@@ -1510,7 +1899,7 @@
     return `
     <header class="ms-top">
       <div class="ms-marca"><div class="ms-logo">CR</div>
-        <div><b>Casa Roca · Sistema Master</b><small>Dirección General · 36 iglesias</small></div></div>
+        <div><b>Casa Roca · Sistema Master</b><small>Dirección General · ${M.sedes().length} de ${META_IGLESIAS} iglesias</small></div></div>
       <div class="ms-sp"></div>
       <button class="ms-ck" data-accion="abrircmd" title="Ir a cualquier parte">
         <span>Buscar o ir a…</span><kbd>\u2318K</kbd></button>
@@ -1575,6 +1964,7 @@
       case "n-modulo":  html = vNModulo();  break;
       case "iglesias":  html = vIglesias();break;
       case "modsede":   html = vModSede(); break;
+      case "plantillas":html = vPlantillas(); break;
       default:          html = n.mod ? vModulo(n.mod) : vTablero();
     }
     document.getElementById("app").innerHTML = shell(html);
@@ -1737,7 +2127,8 @@
     if (a === "hacer-iglesia") {
       const nom = b.nombre, pl = I.plantilla(b.plantilla);
       const r2 = M.crearIglesia({ nombre:nom, ciudad:b.ciudad, pais:b.pais,
-        plantilla:b.plantilla, pastorId:resolverPersona("pastorId"), otorgadoPor:YO.personaId });
+        plantilla:b.plantilla, pastorId:resolverPersona("pastorId"),
+        esposaId:resolverPersona("esposaId"), otorgadoPor:YO.personaId });
       if (r2.ok) borrador = { verSede:r2.id };
       const sd = r2.ok && M.sedes().find(x => x.id === r2.id);
       if (r2.ok) { logroSede = r2.id; }
