@@ -106,7 +106,9 @@ BEGIN
       ('rocakids','salas'),('consejeria','topicos'),('aportes','fondos'),
       ('talento','cargos'),('formacion','cursos'),('formacion','programas'),
       ('sistema','modulos'),('sistema','acciones'),('sistema','plantillas'),
-      ('sistema','plantilla_modulos'),('sistema','matriz_permisos'));
+      ('sistema','plantilla_modulos'),('sistema','matriz_permisos'),
+      -- 0040: nombres del Drive 100p apuntando a roles y acciones existentes
+      ('identidad','roles_alias'),('sistema','acciones_alias'));
   PERFORM pg_temp.rg(6,'Tablas con datos de persona legibles sin politica',
     'ninguna', detalle, fugas = 0);
 END $$;

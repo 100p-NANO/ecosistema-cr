@@ -171,18 +171,22 @@ END $$;
 
 -- P11 · Si la persona YA existe en el maestro, se vincula en vez de duplicar.
 DO $$
-DECLARE v_sede uuid; v_p1 uuid; v_nuevo uuid; v_p2 uuid; v_total bigint;
+DECLARE v_sede uuid; v_p1 uuid; v_nuevo uuid; v_p2 uuid; v_total bigint; v_email text;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-NORTE';
+  /* ⛔ Un solo correo. `clock_timestamp()` cambia en cada llamada: generarlo
+     tres veces daba tres correos distintos y la prueba fallaba sin que el
+     sistema tuviera nada roto. */
+  v_email := 'pedro.existente.'||substr(md5(clock_timestamp()::text),1,8)||'@example.org';
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,email_principal,fecha_nacimiento)
-  VALUES (v_sede,'Pedro','Existente','pedro.existente.'||substr(md5(clock_timestamp()::text),1,8)||'@example.org',DATE '1990-02-02')
+  VALUES (v_sede,'Pedro','Existente',v_email,DATE '1990-02-02')
   RETURNING id INTO v_p1;
   INSERT INTO crm.nuevos_registros (sede_id,nombre,email,como_supo)
-  VALUES (v_sede,'Pedro Existente','pedro.existente.'||substr(md5(clock_timestamp()::text),1,8)||'@example.org','redes') RETURNING id INTO v_nuevo;
+  VALUES (v_sede,'Pedro Existente',v_email,'redes') RETURNING id INTO v_nuevo;
 
   v_p2 := crm.convertir_en_miembro(v_nuevo, NULL, NULL);
   SELECT count(*) INTO v_total FROM nucleo.personas
-   WHERE email_principal='pedro.existente.'||substr(md5(clock_timestamp()::text),1,8)||'@example.org' AND eliminado_en IS NULL;
+   WHERE email_principal=v_email AND eliminado_en IS NULL;
   PERFORM pg_temp.rg(11,'Convertir a alguien que ya existe no lo duplica','1 persona',
     v_total::text||' persona(s)', v_p1 = v_p2 AND v_total = 1);
 END $$;

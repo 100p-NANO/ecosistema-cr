@@ -15,53 +15,60 @@ RETURNS void LANGUAGE sql AS $$ INSERT INTO _mod VALUES (p_n,p_nombre,p_esp,p_ob
 -- ═══════════════════════ APORTES ═══════════════════════
 
 -- M1 · La reconciliación cuadra al peso.
+/* ⛔ UN MES LIBRE POR CORRIDA. `cierres_control` no admite UPDATE ni DELETE
+   (reglas DO INSTEAD NOTHING, a propósito: un cierre de tesorería no se
+   reescribe) ni ON CONFLICT (PostgreSQL lo prohíbe en tablas con reglas).
+   Con el mes en curso fijo, la segunda corrida chocaba con la llave del
+   cierre. Cada corrida toma el mes más reciente, hacia atrás desde 2025,
+   que no tenga ni cierre ni aportes en la sede: así se repite sin fin y
+   sin tocar la garantía. Una sede sintética no sirve: exige pastor. */
 DO $$
-DECLARE v_sede uuid; v_fondo uuid; v_p uuid; v_cuadra boolean; v_dif numeric;
+DECLARE v_sede uuid; v_fondo uuid; v_p uuid; v_cuadra boolean; v_dif numeric; v_mes date;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-CHICO';
+  SELECT d::date INTO v_mes
+    FROM generate_series(DATE '2025-12-01', DATE '1990-01-01', interval '-1 month') d
+   WHERE NOT EXISTS (SELECT 1 FROM aportes.cierres_control c
+                      WHERE c.sede_id=v_sede AND c.anio=extract(year FROM d) AND c.mes=extract(month FROM d))
+     AND NOT EXISTS (SELECT 1 FROM aportes.aportes a
+                      WHERE a.sede_id=v_sede AND date_trunc('month',a.fecha)=d)
+   ORDER BY d DESC LIMIT 1;
   INSERT INTO aportes.fondos (codigo,nombre,tipo) VALUES ('GEN-'||substr(md5(clock_timestamp()::text),1,6),'Fondo de prueba','general') RETURNING id INTO v_fondo;
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
-  VALUES (v_sede,'Aportante','Uno',CURRENT_DATE - interval '40 years') RETURNING id INTO v_p;
+  VALUES (v_sede,'Aportante','Uno',DATE '1960-01-01') RETURNING id INTO v_p;
 
   INSERT INTO aportes.aportes (sede_id,persona_id,fondo_id,tipo,monto,medio,fecha) VALUES
-    (v_sede,v_p,v_fondo,'diezmo',  1500000.00,'transferencia', date_trunc('month',CURRENT_DATE)::date),
-    (v_sede,v_p,v_fondo,'ofrenda',  250000.50,'efectivo',      date_trunc('month',CURRENT_DATE)::date);
-
-  /* ⛔ Se limpia antes de sembrar. `cierres_control` tiene una REGLA de
-     INSERT, y PostgreSQL no admite ON CONFLICT sobre una tabla con
-     reglas: «INSERT with ON CONFLICT clause cannot be used with table
-     that has INSERT or UPDATE rules». Lo intenté y me lo dijo la base.
-     Un DELETE previo hace la prueba repetible sin pelearse con la regla. */
-  DELETE FROM aportes.cierres_control
-   WHERE sede_id=v_sede AND anio=extract(year FROM CURRENT_DATE)::smallint
-     AND mes=extract(month FROM CURRENT_DATE)::smallint;
+    (v_sede,v_p,v_fondo,'diezmo',  1500000.00,'transferencia', v_mes),
+    (v_sede,v_p,v_fondo,'ofrenda',  250000.50,'efectivo',      v_mes);
 
   INSERT INTO aportes.cierres_control (sede_id,anio,mes,total_oficial,fuente)
-  VALUES (v_sede, extract(year FROM CURRENT_DATE)::smallint, extract(month FROM CURRENT_DATE)::smallint,
-          1750000.50,'Tesorería · cierre mensual')
-  ;
+  VALUES (v_sede, extract(year FROM v_mes)::smallint, extract(month FROM v_mes)::smallint,
+          1750000.50,'Tesorería · cierre mensual');
 
   SELECT cuadra, diferencia INTO v_cuadra, v_dif FROM aportes.v_reconciliacion
-   WHERE sede_id=v_sede AND anio=extract(year FROM CURRENT_DATE)::smallint
-     AND mes=extract(month FROM CURRENT_DATE)::smallint;
+   WHERE sede_id=v_sede AND anio=extract(year FROM v_mes)::smallint
+     AND mes=extract(month FROM v_mes)::smallint;
 
   PERFORM pg_temp.reg(1,'Reconciliacion de aportes cuadra','cuadra=true, dif=0',
     'cuadra='||v_cuadra||', dif='||v_dif, v_cuadra AND v_dif = 0);
 END $$;
 
--- M2 · Un peso de diferencia rompe la reconciliación.
+-- M2 · Un peso de diferencia rompe la reconciliación (sobre el mes de M1).
 DO $$
-DECLARE v_sede uuid; v_fondo uuid; v_p uuid; v_cuadra boolean; v_dif numeric;
+DECLARE v_sede uuid; v_fondo uuid; v_p uuid; v_cuadra boolean; v_dif numeric; v_mes date;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-CHICO';
-  SELECT id INTO v_fondo FROM aportes.fondos WHERE codigo='GEN';
-  SELECT id INTO v_p FROM nucleo.personas WHERE primer_nombre='Aportante';
+  SELECT make_date(anio, mes, 1) INTO v_mes FROM aportes.cierres_control
+   WHERE sede_id=v_sede AND fuente='Tesorería · cierre mensual'
+   ORDER BY cargado_en DESC LIMIT 1;
+  SELECT fondo_id, persona_id INTO v_fondo, v_p FROM aportes.aportes
+   WHERE sede_id=v_sede AND fecha=v_mes LIMIT 1;
   INSERT INTO aportes.aportes (sede_id,persona_id,fondo_id,tipo,monto,medio,fecha)
-  VALUES (v_sede,v_p,v_fondo,'ofrenda',1.00,'efectivo', date_trunc('month',CURRENT_DATE)::date);
+  VALUES (v_sede,v_p,v_fondo,'ofrenda',1.00,'efectivo', v_mes);
 
   SELECT cuadra, diferencia INTO v_cuadra, v_dif FROM aportes.v_reconciliacion
-   WHERE sede_id=v_sede AND anio=extract(year FROM CURRENT_DATE)::smallint
-     AND mes=extract(month FROM CURRENT_DATE)::smallint;
+   WHERE sede_id=v_sede AND anio=extract(year FROM v_mes)::smallint
+     AND mes=extract(month FROM v_mes)::smallint;
 
   PERFORM pg_temp.reg(2,'Un peso de mas detiene la compuerta','cuadra=false, dif=1.00',
     'cuadra='||v_cuadra||', dif='||v_dif, (NOT v_cuadra) AND v_dif = 1.00);
@@ -72,7 +79,7 @@ DO $$
 DECLARE v_sede uuid; v_fondo uuid;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-CHICO';
-  SELECT id INTO v_fondo FROM aportes.fondos WHERE codigo='GEN';
+  SELECT id INTO v_fondo FROM aportes.fondos WHERE codigo LIKE 'GEN-%' LIMIT 1;
   BEGIN
     INSERT INTO aportes.aportes (sede_id,persona_id,es_anonimo,fondo_id,tipo,monto,medio,fecha)
     VALUES (v_sede,NULL,false,v_fondo,'ofrenda',50000,'efectivo',CURRENT_DATE);

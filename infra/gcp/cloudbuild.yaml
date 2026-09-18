@@ -1,0 +1,99 @@
+# =====================================================================
+# CI/CD de CasaRoca System en Cloud Build.
+#
+# Push a main (100p-NANO/ecosistema-cr) → este archivo:
+#   1. construye las dos imágenes (API y migrador), en paralelo
+#   2. las sube a Artifact Registry
+#   3. ejecuta el Job del migrador con la imagen nueva y ESPERA
+#   4. solo si el migrador terminó bien, despliega la API
+#
+# ⛔ El orden 3 → 4 es la garantía: la API nueva nunca arranca contra una
+#    base sin las migraciones que espera. Si el migrador falla, el build
+#    se detiene y la API anterior sigue sirviendo.
+# ⚠️ Esto exige migraciones que la API ANTERIOR tolere (añadir columnas y
+#    tablas sí; renombrar o borrar, en dos despliegues). Es la regla de
+#    «expandir y luego contraer».
+#
+# Contexto: la raíz del repositorio. Manual, desde la raíz:
+#   gcloud builds submit --config infra/gcp/cloudbuild.yaml \
+#     --substitutions=_REGION=us-east1,_PREFIJO=casaroca .
+# =====================================================================
+substitutions:
+  _REGION: us-east1
+  _PREFIJO: casaroca
+
+options:
+  # Obligatorio cuando el build corre con una cuenta de servicio propia.
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+
+timeout: 1800s
+
+steps:
+  # ── 1. Imágenes ─────────────────────────────────────────────────────
+  # La etiqueta es el BUILD_ID: existe también en builds manuales, y el
+  # commit queda en la etiqueta OCI de la imagen.
+  - id: construir-api
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - --pull
+      - --label=org.opencontainers.image.revision=$COMMIT_SHA
+      - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_PREFIJO}/api:$BUILD_ID
+      - backend/api
+
+  - id: construir-migrador
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - --pull
+      - --label=org.opencontainers.image.revision=$COMMIT_SHA
+      - --file=backend/Dockerfile.migrador
+      - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_PREFIJO}/migrador:$BUILD_ID
+      - backend
+
+  # ── 2. Subida ───────────────────────────────────────────────────────
+  - id: subir-api
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['construir-api']
+    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_PREFIJO}/api:$BUILD_ID']
+
+  - id: subir-migrador
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['construir-migrador']
+    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_PREFIJO}/migrador:$BUILD_ID']
+
+  # ── 3. Migraciones ──────────────────────────────────────────────────
+  # `jobs execute --wait` devuelve error si la ejecución falla, y con eso
+  # el build se detiene aquí.
+  - id: migrar
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    waitFor: ['subir-migrador', 'subir-api']
+    entrypoint: bash
+    args:
+      - -euo
+      - pipefail
+      - -c
+      - |
+        gcloud run jobs update ${_PREFIJO}-migrador \
+          --region=${_REGION} \
+          --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_PREFIJO}/migrador:$BUILD_ID \
+          --quiet
+        gcloud run jobs execute ${_PREFIJO}-migrador --region=${_REGION} --wait
+
+  # ── 4. Despliegue de la API ─────────────────────────────────────────
+  # Solo cambia la imagen. Variables, secretos, cuenta de servicio y
+  # tamaños los fija Terraform y se conservan.
+  - id: desplegar-api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    waitFor: ['migrar']
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_PREFIJO}-api
+      - --region=${_REGION}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_PREFIJO}/api:$BUILD_ID
+      - --quiet

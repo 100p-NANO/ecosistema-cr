@@ -10,3 +10,4 @@ psql -d "$PGDATABASE" -v ON_ERROR_STOP=1 -f "$RAIZ/db/tests/consola_sistemas.sql
 psql -d "$PGDATABASE" -v ON_ERROR_STOP=1 -f "$RAIZ/db/tests/empalme_100p.sql"
 psql -d "$PGDATABASE" -v ON_ERROR_STOP=1 -f "$RAIZ/db/tests/catalogos_no_vacios.sql"
 psql -d "$PGDATABASE" -v ON_ERROR_STOP=1 -f "$RAIZ/db/tests/rls_tablas_hijas.sql"
+psql -d "$PGDATABASE" -v ON_ERROR_STOP=1 -f "$RAIZ/db/tests/modelo_drive_100p.sql"

@@ -35,10 +35,49 @@ export class PersonasService {
       `SELECT id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
               tipo_documento, numero_documento, fecha_nacimiento, email_principal,
               telefono_movil, direccion, estado, genero, estado_civil,
-              nivel_compromiso, ha_sido_bautizado, fecha_bautismo, sede_id, creado_en
+              nivel_compromiso, ha_sido_bautizado, fecha_bautismo, sede_id, creado_en,
+              telefono_fijo, fecha_conversion, foto_url,
+              nombre_corto, nacionalidad, pais_residencia, ciudad_residencia, zona,
+              email_secundario, telefono_emergencia, es_cristiano, iglesia_anterior,
+              es_ministro, en_directorio_publico
          FROM nucleo.personas WHERE id = $1 AND eliminado_en IS NULL`, [id]);
     if (!rows.length) throw new NotFoundException('No existe esa persona, o no está a su alcance.');
     return rows[0];
+  }
+
+  /**
+   * «Módulo de PERSONAS: mantiene datos actualizados» (documento de
+   * Usuarios v1.2). Solo los campos de la lista: el cliente nunca elige
+   * columnas, y la sede, el estado y el linaje no se tocan desde aquí.
+   * La auditoría la escribe la base: cada campo cambiado queda con su
+   * valor anterior (ver `modelo100p.auditoria_personas`).
+   */
+  async actualizar(c: PoolClient, id: string, d: Record<string, any>) {
+    const EDITABLES = ['primer_nombre','segundo_nombre','primer_apellido','segundo_apellido',
+      'tipo_documento','numero_documento','fecha_nacimiento','email_principal','telefono_movil',
+      'telefono_fijo','direccion','genero','estado_civil','nivel_compromiso','fecha_conversion',
+      'ha_sido_bautizado','fecha_bautismo','foto_url','nombre_corto','nacionalidad',
+      'pais_residencia','ciudad_residencia','zona','email_secundario','telefono_emergencia',
+      'es_cristiano','iglesia_anterior','es_ministro','en_directorio_publico'];
+    const campos = Object.keys(d ?? {}).filter(k => EDITABLES.includes(k));
+    if (!campos.length) {
+      throw new BadRequestException(`Nada que actualizar. Campos permitidos: ${EDITABLES.join(', ')}.`);
+    }
+    const sets = campos.map((k, i) => `${k} = $${i + 2}`).join(', ');
+    try {
+      const { rowCount } = await c.query(
+        `UPDATE nucleo.personas SET ${sets}, actualizado_en = now()
+          WHERE id = $1 AND eliminado_en IS NULL`,
+        [id, ...campos.map(k => d[k] === '' ? null : d[k])]);
+      if (!rowCount) throw new NotFoundException('No existe esa persona, o no está a su alcance.');
+    } catch (e: any) {
+      if (e.code === '22P02' || e.code === '23514' || e.code === '22007' || e.code === '23503') {
+        throw new BadRequestException('Algún valor no es válido: ' + e.message);
+      }
+      if (e.code === '23505') throw new BadRequestException('Ese correo o documento ya pertenece a otra persona.');
+      throw e;
+    }
+    return this.ficha(c, id);
   }
 
   /** ⭐ La línea de tiempo: todo lo que le ha pasado, venga del módulo que venga. */

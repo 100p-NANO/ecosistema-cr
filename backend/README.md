@@ -7,7 +7,7 @@ SQL que corren, con un banco de pruebas que demuestra cada garantía.
 ## Qué hay aquí
 
 ```
-db/migrations/   32 migraciones SQL planas, en orden, revisables línea a línea
+db/migrations/   41 migraciones SQL planas, en orden, revisables línea a línea
 db/seeds/        catálogos (16 tipos de documento, 24 vínculos, 14 roles) + sedes demo
 db/tests/        6 bancos: invariantes, aislamiento, módulos, consola y empalme 100p
 api/             API NestJS del Módulo de Nuevos, sobre el contrato del equipo 100p
@@ -19,8 +19,8 @@ entregas-drive/  documentos listos para subir al Drive «Sistema 100p», por car
 
 ```bash
 ./scripts/arrancar.sh    # levanta PostgreSQL 16 local en el puerto 5433
-./scripts/migrar.sh      # recrea casaroca_dev y aplica las 32 migraciones + seeds
-./scripts/probar.sh      # corre las 89 pruebas
+./scripts/migrar.sh      # recrea casaroca_dev y aplica las 41 migraciones + seeds
+./scripts/probar.sh      # corre las 104 pruebas de la base
 ```
 
 Requiere PostgreSQL 16 (Postgres.app). No hay dependencias de red ni de nube.
@@ -39,6 +39,23 @@ Requiere PostgreSQL 16 (Postgres.app). No hay dependencias de red ni de nube.
 | Linaje de migración (`source_system` + `source_id`) en todo lo migrable | `0002`, `0003`, `0005`, `0009`, `0010` |
 
 ## Estado
+
+**18 de septiembre de 2026 · todo lo del Drive «Sistema 100p» quedó en el sistema** (migración
+`0040`, seed `018`). Base desde cero: **41 migraciones, 104 pruebas, 104 pasan** en 7 bancos
+(el nuevo, `modelo_drive_100p`, prueba cada renglón del Drive). API: `probar-api.sh` 5/5 y
+`probar-api-drive.sh` 22/22 contra la API corriendo.
+
+- El modelo del Drive se lee con SUS nombres en el esquema `modelo100p` (15 tablas, solo
+  lectura, con la RLS de siempre) y por HTTP en `GET /api/v1/modelo100p/<tabla>`.
+- Donaciones: `GET/POST /api/v1/aportes`, `POST /aportes/:id/confirmar`,
+  `POST /aportes/certificados`, `GET /aportes/certificados/:id/documento`, `POST …/anular`.
+- Avisos (bienvenida, coordinador, miembro, pago, certificado): se encolan en la base y los
+  envía `POST /api/v1/notificaciones/procesar` por SendGrid (`SENDGRID_API_KEY`, `NOTIFICACIONES_TOKEN`).
+- Despliegue en GCP según el plan de costos de Jhon: `infra/gcp/` (sin aplicar).
+- ⛔ `api/node_modules` es un enlace a `node_modules.nosync`: iCloud vaciaba las dependencias
+  del Escritorio y la API se quedaba colgada al arrancar sin decir nada.
+
+**Histórico:**
 
 **Reverificado el 11 de septiembre de 2026 corriendo los tres scripts, no leyendo el código:**
 

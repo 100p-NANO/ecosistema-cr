@@ -6,6 +6,8 @@ import { OrganizacionModule } from './organizacion/organizacion.module';
 import { PersonasModule } from './personas/personas.module';
 import { IdentidadModule } from './identidad/identidad.module';
 import { AportesModule } from './aportes/aportes.module';
+import { NotificacionesModule } from './notificaciones/notificaciones';
+import { Modelo100pModule } from './modelo100p/modelo100p';
 
 /**
  * ⭐ De UN módulo a SEIS. Hasta el 15 de septiembre de 2026 la API cubría
@@ -15,6 +17,8 @@ import { AportesModule } from './aportes/aportes.module';
  */
 @Module({
   imports: [DbModule, SesionModule, OrganizacionModule, PersonasModule,
-            IdentidadModule, AportesModule, NuevosModule],
+            IdentidadModule, AportesModule, NuevosModule,
+            // 18 sep 2026 · lo que pide el Drive 100p: avisos y su modelo de datos
+            NotificacionesModule, Modelo100pModule],
 })
 export class AppModule {}

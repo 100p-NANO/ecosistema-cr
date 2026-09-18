@@ -15,6 +15,8 @@ export interface RegistrarNuevo {
   sede: string;
   /** Canales que la persona autorizó en el formulario. */
   autoriza?: Array<'email' | 'sms' | 'whatsapp' | 'llamada'>;
+  /** Token del reCAPTCHA del formulario de casaroca.org. */
+  recaptcha_token?: string;
 }
 
 export interface RegistrarContacto {
@@ -28,5 +30,8 @@ export interface RegistrarContacto {
 
 export interface ConvertirMiembro {
   fecha_conversion?: string;
+  /** Flujo 3 del documento M-Nuevos: grupo pequeño y padrino. */
+  grupo_id?: string;
+  padrino_id?: string;
   notas?: string;
 }

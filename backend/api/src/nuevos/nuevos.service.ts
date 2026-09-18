@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { DbService } from '../db/db.service';
 import { contextoActual, contextoPublico } from '../contexto/contexto';
+import { verificarRecaptcha } from '../comun/recaptcha';
 import type { RegistrarNuevo, RegistrarContacto, ConvertirMiembro } from './dto';
 
 /**
@@ -24,6 +25,7 @@ export class NuevosService {
     if (!datos.email && !datos.telefono) {
       throw new BadRequestException('Hace falta un correo o un teléfono para poder contactarle.');
     }
+    await verificarRecaptcha(datos.recaptcha_token, ip);
     const sedeId = await this.sedePorCodigo(datos.sede);
 
     return this.db.enTransaccion(contextoPublico(sedeId, ip), async (c) => {
@@ -33,7 +35,7 @@ export class NuevosService {
           `INSERT INTO crm.nuevos_registros
              (sede_id, nombre, email, telefono, como_supo, es_cristiano, comentarios, fuente, ip_registro)
            VALUES ($1,$2,$3,$4,$5,$6,$7,'web',$8)
-           RETURNING id, estado, registrado_en`,
+           RETURNING id, estado, registrado_en, coordinador_id, proximo_contacto`,
           [sedeId, datos.nombre.trim(), datos.email ?? null, datos.telefono ?? null,
            datos.como_supo ?? null, datos.es_cristiano ?? null, datos.comentarios ?? null, ip],
         ));
@@ -62,26 +64,46 @@ export class NuevosService {
         );
       }
 
+      // La respuesta es la del documento M-Nuevos: quién le va a llamar y
+      // cuándo. El coordinador lo asigna la base (el que menos casos tiene).
+      let coordinador: string | null = null;
+      if (nuevo.coordinador_id) {
+        const { rows: [p] } = await c.query(
+          `SELECT nombre_completo FROM nucleo.v_personas WHERE id = $1`, [nuevo.coordinador_id]);
+        coordinador = p?.nombre_completo ?? null;
+      }
       return {
         id: nuevo.id,
         estado: 'registrado',
         mensaje: '¡Bienvenido! Pronto nos contactaremos',
+        coordinador_asignado: coordinador,
+        contacto_esperado: nuevo.proximo_contacto,
         registrado_en: nuevo.registrado_en,
       };
     });
   }
 
   /** Tablero del coordinador. El filtro de sede no se escribe: lo pone RLS. */
-  async dashboard(estado?: string, limite = 50) {
+  async dashboard(estado?: string, limite = 50, sedeId?: string, ordenarPor?: string) {
+    // Los tres órdenes que nombra el documento. Nunca se interpola lo que
+    // manda el cliente: se elige de una lista cerrada.
+    const orden = ({
+      fecha_registro: 'registrado_en DESC',
+      proxima_accion: `(proxima_accion = 'ATRASADO') DESC, proximo_contacto NULLS LAST, registrado_en DESC`,
+      prioridad: `array_position(ARRAY['alta','media','baja'], prioridad), registrado_en DESC`,
+    } as Record<string, string>)[ordenarPor ?? 'proxima_accion']
+      ?? `(proxima_accion = 'ATRASADO') DESC, registrado_en DESC`;
     return this.db.enTransaccion(contextoActual(), async (c) => {
       const { rows } = await c.query(
         `SELECT id, nombre, email, telefono, como_supo, es_cristiano, estado, prioridad,
-                registrado_en, proximo_contacto, contactos, ultimo_contacto, proxima_accion
+                registrado_en, proximo_contacto, contactos, ultimo_contacto, proxima_accion,
+                coordinador_id, sede_id
          FROM crm.v_bandeja_nuevos
          WHERE ($1::text IS NULL OR estado = $1::crm.estado_nuevo)
-         ORDER BY (proxima_accion = 'ATRASADO') DESC, registrado_en DESC
+           AND ($3::uuid IS NULL OR sede_id = $3::uuid)
+         ORDER BY ${orden}
          LIMIT $2`,
-        [estado ?? null, limite],
+        [estado ?? null, limite, sedeId ?? null],
       );
       return { total: rows.length, nuevos: rows };
     });
@@ -132,6 +154,14 @@ export class NuevosService {
          datos.siguiente_paso ?? null, datos.fecha_siguiente_contacto ?? null],
       );
 
+      // «Notas (solo coordinador ve)»: van a su propia tabla, con su propia
+      // cerradura, no al resumen que ve todo el equipo de la sede.
+      if (datos.notas?.trim()) {
+        await c.query(
+          `INSERT INTO crm.notas_privadas_nuevos (nuevo_id, autor_id, nota) VALUES ($1,$2,$3)`,
+          [id, ctx.personaId, datos.notas.trim()]);
+      }
+
       // El estado del registro se deriva de la reacción: no se pide al
       // cliente que lo mande, porque entonces dos pantallas podrían
       // discrepar sobre en qué punto está la misma persona.
@@ -164,15 +194,24 @@ export class NuevosService {
       let personaId: string;
       try {
         const { rows: [r] } = await c.query(
-          `SELECT crm.convertir_en_miembro($1,$2,$3) AS persona_id`,
-          [id, ctx.personaId, datos.notas ?? null],
+          `SELECT crm.convertir_en_miembro($1,$2,$3,$4,$5,$6) AS persona_id`,
+          [id, ctx.personaId, datos.notas ?? null, datos.grupo_id ?? null,
+           datos.padrino_id ?? null, datos.fecha_conversion ?? null],
         );
         personaId = r.persona_id;
       } catch (e: any) {
         if (e.code === '02000') throw new NotFoundException('No existe ese registro en la bandeja.');
-        if (e.code === '23514') throw new ConflictException('Ese registro ya fue convertido.');
+        if (e.code === '23514') throw new ConflictException(e.message?.includes('sede')
+          ? 'El grupo pertenece a otra sede: la persona se integra en la sede donde llegó.'
+          : 'Ese registro ya fue convertido.');
+        if (e.code === '23503') throw new BadRequestException('El grupo indicado no existe o está cerrado.');
         throw e;
       }
+      const { rows: [integ] } = await c.query(
+        `SELECT i.grupo_asignado, pd.nombre_completo AS padrino
+           FROM modelo100p.integracion_personas i
+           LEFT JOIN nucleo.v_personas pd ON pd.id = i.padrino_id
+          WHERE i.nuevo_id = $1`, [id]);
 
       const { rows: [p] } = await c.query(
         `SELECT nombre_completo FROM nucleo.v_personas WHERE id = $1`, [personaId]);
@@ -185,6 +224,8 @@ export class NuevosService {
         persona_id: personaId,
         nombre: p?.nombre_completo,
         estado: 'convertido',
+        grupo_asignado: integ?.grupo_asignado ?? null,
+        padrino: integ?.padrino ?? null,
         recorrido_4c: r4c ?? null,
         mensaje: 'Nuevo miembro integrado al sistema',
       };

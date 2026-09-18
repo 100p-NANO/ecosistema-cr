@@ -25,6 +25,12 @@ export class PersonasController {
     return conSesion(this.db, req, (c) => this.personas.ficha(c, id));
   }
 
+  /** Actualizar los datos de la persona (campos del documento de Usuarios v1.2). */
+  @Put(':id')
+  actualizar(@Req() req: Request, @Param('id') id: string, @Body() d: any) {
+    return conSesion(this.db, req, (c) => this.personas.actualizar(c, id, d));
+  }
+
   /** ⭐ La ficha 360: todo lo que le ha pasado, de todos los módulos. */
   @Get(':id/linea-tiempo')
   linea(@Req() req: Request, @Param('id') id: string, @Query('limite') limite?: string) {

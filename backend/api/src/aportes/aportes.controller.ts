@@ -1,12 +1,14 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AportesService } from './aportes.service';
+import { DonacionesService } from './donaciones.service';
 import { DbService } from '../db/db.service';
 import { conSesion, ipDe } from '../comun/identidad.helper';
 
 @Controller('api/v1/aportes')
 export class AportesController {
-  constructor(private readonly aportes: AportesService, private readonly db: DbService) {}
+  constructor(private readonly aportes: AportesService, private readonly donaciones: DonacionesService,
+              private readonly db: DbService) {}
 
   /** ⛔ Pública: la llama PayU, no una persona. La firma es la puerta. */
   @Post('pasarela/webhook')
@@ -22,5 +24,49 @@ export class AportesController {
   @Post('pagos/:id/emparejar')
   emparejar(@Req() req: Request, @Param('id') id: string, @Body() d: any) {
     return conSesion(this.db, req, (c) => this.aportes.emparejar(c, id, d?.personaId));
+  }
+
+  // ── Módulo de Donaciones (documento del Drive 100p) ──────────────
+
+  /** Consulta de Tesorería: ?anio=2026&tipo=diezmo&estado=confirmado&persona_id=… */
+  @Get()
+  listar(@Req() req: Request, @Query() f: any) {
+    return conSesion(this.db, req, (c) => this.donaciones.listar(c, f ?? {}));
+  }
+
+  /** Registro manual (REGISTRAR_APORTE). */
+  @Post()
+  registrar(@Req() req: Request, @Body() d: any) {
+    return conSesion(this.db, req, (c) => this.donaciones.registrar(c, d));
+  }
+
+  /** Aprobación (APROBAR_APORTE = CONFIRMAR_APORTE). */
+  @Post(':id/confirmar')
+  confirmar(@Req() req: Request, @Param('id') id: string) {
+    return conSesion(this.db, req, (c) => this.donaciones.confirmar(c, id));
+  }
+
+  /** Expedir certificado (GENERAR_CERTIFICADO): { persona_id, anio } o { fecha_inicio, fecha_fin }. */
+  @Post('certificados')
+  expedir(@Req() req: Request, @Body() d: any) {
+    return conSesion(this.db, req, (c) => this.donaciones.expedirCertificado(c, d));
+  }
+
+  @Get('certificados/:id')
+  certificado(@Req() req: Request, @Param('id') id: string) {
+    return conSesion(this.db, req, (c) => this.donaciones.certificado(c, id));
+  }
+
+  /** El certificado imprimible (la `url_pdf` apunta aquí). */
+  @Get('certificados/:id/documento')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  documento(@Req() req: Request, @Param('id') id: string) {
+    return conSesion(this.db, req, (c) => this.donaciones.documento(c, id));
+  }
+
+  /** Anulación con motivo escrito (solo Tesorería). */
+  @Post('certificados/:id/anular')
+  anular(@Req() req: Request, @Param('id') id: string, @Body() d: any) {
+    return conSesion(this.db, req, (c) => this.donaciones.anularCertificado(c, id, d?.motivo));
   }
 }

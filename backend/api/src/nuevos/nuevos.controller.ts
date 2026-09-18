@@ -15,7 +15,7 @@ import type { RegistrarNuevo, RegistrarContacto, ConvertirMiembro } from './dto'
 export class NuevosController {
   constructor(private readonly nuevos: NuevosService, private readonly db: DbService) {}
 
-  /** 1 · Público. Sin autenticación (el reCAPTCHA lo valida el borde). */
+  /** 1 · Público. Sin autenticación: lo protege el reCAPTCHA (RECAPTCHA_SECRET). */
   @Post('registrar')
   registrar(@Body() datos: RegistrarNuevo, @Req() req: Request) {
     return this.nuevos.registrar(datos, ip(req));
@@ -23,8 +23,10 @@ export class NuevosController {
 
   /** 2 · Tablero del coordinador. */
   @Get('dashboard')
-  dashboard(@Req() req: Request, @Query('estado') estado?: string, @Query('limite') limite?: string) {
-    return this.conIdentidad(req, () => this.nuevos.dashboard(estado, Number(limite) || 50));
+  dashboard(@Req() req: Request, @Query('estado') estado?: string, @Query('limite') limite?: string,
+            @Query('sede_id') sedeId?: string, @Query('ordenar_por') ordenarPor?: string) {
+    return this.conIdentidad(req, () =>
+      this.nuevos.dashboard(estado, Number(limite) || 50, sedeId, ordenarPor));
   }
 
   /** 3 · Registrar un contacto. */
