@@ -3,7 +3,7 @@
 # y Cloud CDN (fase 2). Solo se crea si hay dominio: sin dominio no hay
 # certificado que emitir.
 #
-# ⚠️ casaroca.io está por comprar. El certificado gestionado queda en
+# ⚠️ El dominio de la iglesia es casaroca.org. El certificado gestionado queda en
 #    PROVISIONING hasta que el DNS del dominio apunte a la IP de salida
 #    `ip_balanceador`; mientras tanto el balanceador no sirve HTTPS.
 #

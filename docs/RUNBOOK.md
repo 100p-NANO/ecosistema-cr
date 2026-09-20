@@ -46,18 +46,83 @@ Nueve compuertas. **Una en rojo y no se despliega.** Lo mismo que corre la integ
 ./scripts/restaurar.sh     # restaura en una base APARTE y la verifica
 ```
 
-**⛔ La restauración se ejecuta de verdad al menos una vez al mes**, y deja su fecha y su duración en `docs/EVIDENCIA-restauracion.txt`. La compuerta 9 de `verificar.sh` falla si la última tiene más de 45 días. Una copia que nunca se restauró es un archivo, no una copia.
+**⛔ La restauración se ejecuta de verdad al menos una vez al mes**, y deja su fecha y su duración en `backend/docs/EVIDENCIA-restauracion.txt`. La compuerta 9 de `verificar.sh` falla si la última tiene más de 45 días. Una copia que nunca se restauró es un archivo, no una copia.
 
 `restaurar.sh` nunca toca la base viva: restaura en `casaroca_restaurada`, cuenta filas, comprueba que no haya fugas de lectura y la borra.
 
 ## 4 · Rotar la llave de cifrado (N4)
 
-La llave que cifra los datos críticos vive en **Cloud KMS** (`infra/gcp/kms.tf`), nunca en el código ni en el entorno ni en la propia base.
+> ⛔ **Este punto estaba MAL escrito hasta el 19 de septiembre de 2026 y seguirlo destruía datos.**
+> Decía: «**No** hay que recifrar los datos: la envoltura usa la versión con la que se cifró cada fila».
+> Eso describe un cifrado de sobre con versión por fila. **El sistema no hace eso.** Cifra con
+> `pgp_sym_encrypt(dato, llave)` y **una sola llave simétrica** que la aplicación pasa en
+> `app.llave_n4`; no se guarda ninguna versión. Rotar sin recifrar deja ilegibles **los códigos de
+> entrega de los menores de RocaKids**, y si además se destruye la versión anterior en KMS, la
+> pérdida es definitiva. El procedimiento correcto es el de abajo, y **existe como guion**.
 
-1. Crear una versión nueva de la llave en KMS.
-2. Actualizar el secreto en Secret Manager y desplegar la revisión de Cloud Run.
-3. **No** hay que recifrar los datos: la envoltura usa la versión con la que se cifró cada fila.
-4. Registrar la rotación en `docs/DECISIONES/` con fecha y quién la hizo.
+Lo que está cifrado hoy (la lista vive en `plataforma.columnas_cifradas`, no en este documento):
+
+| Columna | Qué guarda |
+|---|---|
+| `nucleo.acudientes.codigo_entrega_cifrado` | Código con el que un acudiente retira a un menor |
+| `rocakids.checkins.codigo_cifrado` | Código de entrega emitido al ingresar a la sala |
+
+**Antes de empezar:** la llave vieja tiene que seguir viva en KMS durante todo el proceso. Es lo
+único que abre los datos actuales.
+
+1. **Mirar sin tocar.** Dice cuántas filas hay cifradas y cuáles se leen con la llave vigente:
+
+   ```bash
+   CASAROCA_LLAVE_VIEJA="$(gcloud secrets versions access latest --secret=llave-n4)" \
+   CASAROCA_LLAVE_NUEVA="$(openssl rand -base64 32)" \
+   ./scripts/rotar-llave-n4.sh
+   ```
+
+   Si aparece alguna fila ilegible **con la llave vieja**, pare: hay datos cifrados con una llave
+   que ya no se tiene. Averígüelo antes de seguir; el recifrado no las va a tocar.
+
+2. **Crear la versión nueva en KMS** y guardarla en Secret Manager, *sin desplegar todavía*.
+
+3. **Recifrar.** Descifra con la vieja y vuelve a cifrar con la nueva, fila por fila. Se puede
+   cortar a la mitad y volver a correr: lo que ya está con la llave nueva no se toca.
+
+   ```bash
+   CASAROCA_LLAVE_VIEJA=... CASAROCA_LLAVE_NUEVA=... ./scripts/rotar-llave-n4.sh --aplicar
+   ```
+
+4. **Comprobar.** El propio guion lo hace y se planta si algo queda ilegible. La regla es
+   literal: **cero ilegibles con la llave nueva, o no se sigue.**
+
+5. **Desplegar** la revisión de Cloud Run con el secreto nuevo.
+
+6. **Probar una entrega de verdad** en RocaKids (un check-in y su entrega con código) antes de
+   dar la rotación por buena.
+
+7. **Solo entonces** programar la destrucción de la versión anterior en KMS. Nunca antes del
+   punto 6. Google la destruye 24 h después de pedirlo: ese es el último punto de rescate.
+
+8. **Anotar** la rotación en `docs/DECISIONES/` con fecha, responsable y el resultado de la
+   comprobación del punto 4.
+
+**Si algo sale mal a mitad de camino:** no hay que deshacer nada. Mientras la llave vieja exista,
+`rotar-llave-n4.sh --aplicar` se vuelve a correr y termina el trabajo; y si hace falta volver
+atrás, se corre con las dos llaves al revés.
+
+### Custodia de la llave: quién la tiene y qué pasa si se pierde
+
+La llave N4 vive en **Cloud KMS** y llega a la aplicación por **Secret Manager**. Nunca en el
+código, ni en el entorno de una máquina personal, ni en la base.
+
+- **Quién puede leerla:** solo la cuenta de servicio de Cloud Run y el rol de administración de
+  la central. Cualquier otro acceso es un incidente (punto 11).
+- **Quién puede destruir una versión:** nadie a solas. Se destruye después del punto 6 de arriba
+  y con el visto bueno escrito de la dirección de la central.
+- **Si se pierde la llave y no hay versión anterior:** los códigos de entrega cifrados **no se
+  recuperan**. No hay puerta trasera y eso es a propósito. El plan de continuidad es el de papel
+  (punto «Si el check-in de RocaKids falla un domingo») mientras se emiten códigos nuevos: los
+  datos que cuentan (quién es el acudiente de quién) están en claro y no se pierden.
+- **Copias:** las copias de `respaldar.sh` se cifran con `CASAROCA_LLAVE_RESPALDO`, que es
+  **otra** llave. Guardar las dos en el mismo sitio anula el propósito de tener dos.
 
 **Toda credencial recibida de un tercero se rota el mismo día.** Sin excepción.
 
@@ -98,7 +163,8 @@ SELECT identidad.suspender_cuenta(<persona>, 'motivo escrito');
 En este orden, sin saltarse pasos:
 
 1. `GET /salud/detalle` · ¿responde? ¿qué dice `estado`?
-2. ¿La base responde y en cuántos milisegundos? (`baseMs`)
+2. ¿La base responde y en cuántos milisegundos? En `/salud/detalle` el campo es `base.ms`
+   (`baseMs`, sin punto, es el del `/salud` corto, que NO consulta la base).
 3. ¿Las particiones están en `BIEN`? Un `HUECO` o un `CRITICO` se arregla con
    `SELECT plataforma.asegurar_particiones(3);`
 4. ¿`fugasDeLectura` es 0? Si no, hay una tabla legible sin política: **eso se atiende antes que el rendimiento**.
@@ -125,7 +191,28 @@ SELECT * FROM plataforma.v_salud_particiones;   -- todo en BIEN
 | Domingo 7:00 a 13:00 | Guardia de turno del equipo de Sistemas de la central | 15 minutos |
 | Resto de la semana | Mesa de ayuda | Siguiente día hábil |
 
-**⛔ La ventana de mantenimiento jamás cae en domingo.** Martes o miércoles, 22:00 a 00:00.
+> 🔴 **Pendiente que no depende del código: falta el NOMBRE.**
+> «Guardia de turno» es un puesto, no una persona. A las 9:10 de un domingo, con la fila de
+> RocaKids parada, nadie llama a un puesto. Antes de la primera misa con el sistema en vivo hay
+> que llenar esto, con nombre, teléfono y suplente, y dejarlo aquí escrito:
+>
+> | Turno | Nombre | Teléfono | Suplente |
+> |---|---|---|---|
+> | Guardia dominical | _(por definir)_ | _(por definir)_ | _(por definir)_ |
+> | Segunda persona que sabe operar el sistema | _(por definir)_ | _(por definir)_ | — |
+>
+> La segunda persona es la que quita el riesgo de que todo dependa de uno solo. Mientras esa
+> casilla esté vacía, el sistema tiene un punto único de fallo que ninguna nube arregla.
+
+**⛔ Ninguna ventana de mantenimiento cae en domingo.** Son dos, y no es lo mismo:
+
+| Ventana | Cuándo | Quién la fija |
+|---|---|---|
+| Mantenimiento de Google (Cloud SQL y Memorystore) | **Martes 03:00 Bogotá** (08:00 UTC) | `infra/gcp/sql.tf` y `red_y_redis.tf`. No se negocia sobre la marcha: se cambia en Terraform. |
+| Despliegues y trabajos nuestros (migraciones, recifrado, cargas) | **Martes o miércoles, 22:00 a 00:00 Bogotá** | El equipo. Se anuncia con 24 h. |
+
+Si alguna vez hay que moverlas, se mueven **en Terraform**, no en este documento: lo que manda es
+lo que está aplicado.
 
 **Si el check-in de RocaKids falla un domingo:** se activa el procedimiento en papel de la sede (planilla con nombre del menor, acudiente y código manual), y se carga después. La entrega de un niño **nunca** se hace sin verificar al acudiente, con sistema o sin él.
 

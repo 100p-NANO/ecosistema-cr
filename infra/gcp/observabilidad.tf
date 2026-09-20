@@ -166,3 +166,83 @@ resource "google_billing_budget" "fase" {
 
   depends_on = [google_project_service.apis]
 }
+
+# ── Sonda externa de disponibilidad ───────────────────────────────────
+#
+# ⛔ Esto FALTABA, y es el agujero más tonto de todo el monitoreo: las
+#    alertas de arriba viven DENTRO del mismo proyecto que vigilan. Si
+#    Cloud Run se cae entero, o el proyecto se queda sin cuota, no hay
+#    quien avise; el sistema se apaga en silencio y nos enteramos un
+#    domingo a las 9:05 por la fila de RocaKids.
+#
+#    Una sonda de disponibilidad llama a `/salud` desde fuera, cada minuto,
+#    desde varias regiones del mundo. Es lo que responde a «¿está caído o
+#    es mi internet?» sin discusión.
+#
+#    Solo se puede apuntar a un nombre público, así que se enciende cuando
+#    hay dominio. Sin dominio no hay nada que sondear desde fuera.
+resource "google_monitoring_uptime_check_config" "api" {
+  count        = var.dominio_api != "" ? 1 : 0
+  display_name = "CasaRoca · API viva"
+  timeout      = "10s"
+  period       = "60s"
+
+  http_check {
+    path         = "/salud"
+    port         = 443
+    use_ssl      = true
+    validate_ssl = true
+  }
+
+  monitored_resource {
+    type = "uptime_url"
+    labels = {
+      project_id = var.proyecto
+      host       = var.dominio_api
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_monitoring_alert_policy" "api_caida" {
+  count        = var.dominio_api != "" && length(local.canales) > 0 ? 1 : 0
+  display_name = "CasaRoca · la API no responde desde fuera"
+  combiner     = "OR"
+  # ⛔ A diferencia de las demás, esta NO depende de `local.hay_alertas`:
+  #    no tiene sentido decir «en la fase 0 no nos enteramos de que está
+  #    caído». Si hay dominio y hay a quién avisar, se avisa.
+  notification_channels = local.canales
+
+  conditions {
+    display_name = "La sonda de disponibilidad falla"
+    condition_threshold {
+      filter = join(" AND ", [
+        "metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\"",
+        "resource.type=\"uptime_url\"",
+        "metric.label.check_id=\"${google_monitoring_uptime_check_config.api[0].uptime_check_id}\"",
+      ])
+      comparison      = "COMPARISON_GT"
+      threshold_value = 1
+      duration        = "120s"
+
+      aggregations {
+        alignment_period     = "1200s"
+        per_series_aligner   = "ALIGN_NEXT_OLDER"
+        cross_series_reducer = "REDUCE_COUNT_FALSE"
+        group_by_fields      = ["resource.label.host"]
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  documentation {
+    content   = "La API no contesta /salud desde fuera del proyecto. Siga docs/RUNBOOK.md punto 8."
+    mime_type = "text/markdown"
+  }
+
+  depends_on = [google_project_service.apis]
+}

@@ -200,7 +200,14 @@ Descomentar el bloque `backend "gcs"` de `versions.tf` con ese nombre.
 ```bash
 cd infra/gcp
 cp terraform.tfvars.example terraform.tfvars   # llenar proyecto y fase
-terraform init
+# ⛔ El estado NO se guarda en el Mac. `versions.tf` declara el backend de
+#    GCS como configuración parcial, así que el bucket se pasa aquí:
+terraform init \
+  -backend-config="bucket=$PROYECTO-tfstate" \
+  -backend-config="prefix=casaroca/gcp"
+
+# (Para solo validar o correr las pruebas, sin tocar el estado remoto:
+#    terraform init -backend=false && terraform validate && terraform test)
 terraform test                                  # no toca GCP: proveedores simulados
 terraform plan -out=fase0.tfplan                # LEER el plan antes de seguir
 terraform apply fase0.tfplan

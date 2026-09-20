@@ -147,14 +147,30 @@ resource "google_cloud_run_v2_service" "api" {
         mount_path = "/cloudsql"
       }
 
-      # La API no tiene ruta de salud todavía; basta con que el puerto
-      # abra. NestJS en 0,25 vCPU tarda unos segundos: margen de 60 s.
+      # ⛔ Antes esto era un `tcp_socket`: bastaba con que el puerto abriera.
+      #    Un proceso puede tener el puerto abierto y la base caída, y Cloud
+      #    Run le mandaba tráfico igual. `/salud` SÍ consulta la base, así que
+      #    una revisión que no puede trabajar no recibe peticiones.
+      #    NestJS en 0,25 vCPU tarda unos segundos: margen de 60 s.
       startup_probe {
-        tcp_socket {
+        http_get {
+          path = "/salud"
           port = 8080
         }
         period_seconds    = 3
         failure_threshold = 20
+      }
+
+      # Y si la base se cae DESPUÉS de arrancar, la revisión se reinicia en
+      # vez de contestar 500 en silencio durante horas.
+      liveness_probe {
+        http_get {
+          path = "/salud"
+          port = 8080
+        }
+        period_seconds    = 30
+        timeout_seconds   = 5
+        failure_threshold = 3
       }
     }
   }

@@ -42,11 +42,20 @@ variable "prefijo" {
 # ---------------------------------------------------------------------
 variable "api_publica" {
   description = <<-EOT
-    ⛔ Si la API se abre a internet (allUsers como invocador).
-    HOY la API toma la identidad de la cabecera X-Persona-Id: quien conozca
-    un id de persona puede hacerse pasar por ella, incluido el Pastor Director
-    General con N4 sobre toda la red. NO se pone en true hasta que la API
-    valide un token real (Keycloak u otro) Y esté cargado recaptcha-secreto.
+    Si la API se abre a internet (allUsers como invocador).
+
+    ⛔ ESTA DESCRIPCIÓN ESTABA VENCIDA. Decía que la API se identificaba con
+    la cabecera X-Persona-Id y que por eso no podía abrirse. Esa cabecera se
+    eliminó el 19 de septiembre de 2026: hoy la identidad va en un token
+    firmado, con sesión revocable en el instante y segundo factor obligatorio
+    para los roles N3 y N4, con 19 pruebas de punta a punta que lo sostienen.
+
+    Lo que SÍ queda antes de ponerla en true:
+      · `recaptcha-secreto` cargado (el formulario público sin validar es un
+        grifo abierto de registros falsos);
+      · la prueba de intrusión externa de la compuerta G5;
+      · Cloud Armor fuera de modo vista previa (`armor_solo_observar = false`).
+
     Mientras tanto se prueba con `gcloud run services proxy` (ver README).
   EOT
   type        = bool
@@ -54,13 +63,13 @@ variable "api_publica" {
 }
 
 variable "dominio_api" {
-  description = "Dominio de la API detrás del balanceador (p. ej. api.casaroca.io). Vacío = sin balanceador. casaroca.io está POR COMPRAR."
+  description = "Dominio de la API detrás del balanceador (p. ej. api.casaroca.org, que es el dominio de la iglesia). Vacío = sin balanceador."
   type        = string
   default     = ""
 }
 
 variable "dominio_app" {
-  description = "Dominio del frontend (p. ej. app.casaroca.io o 100p.casaroca.org). Solo se usa si existe la imagen del frontend."
+  description = "Dominio del frontend (p. ej. app.casaroca.org o 100p.casaroca.org). Solo se usa si existe la imagen del frontend."
   type        = string
   default     = ""
 }
@@ -72,9 +81,17 @@ variable "cors_origenes" {
 }
 
 variable "armor_solo_observar" {
-  description = "Cloud Armor en modo vista previa: registra lo que bloquearía, sin bloquear. Recomendado la primera semana de la fase 1 para cazar falsos positivos; luego false."
+  description = <<-EOT
+    Cloud Armor en modo vista previa: registra lo que bloquearía, SIN bloquear.
+
+    ⛔ El valor por omisión era `true`, es decir: el cortafuegos de aplicación
+    quedaba encendido y sin morder, y el inventario lo daba por protección.
+    Ahora por omisión BLOQUEA. Quien quiera la semana de observación para
+    cazar falsos positivos la pide a propósito (`armor_solo_observar = true`)
+    y la apaga después; no se queda así por olvido.
+  EOT
   type        = bool
-  default     = true
+  default     = false
 }
 
 # ---------------------------------------------------------------------
