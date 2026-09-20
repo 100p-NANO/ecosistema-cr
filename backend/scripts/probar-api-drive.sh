@@ -58,6 +58,19 @@ TOK_DIG="$(tok "$DIG")"
 TOK_N2="$(tok "$N2")"
 TOK_PASTOR="$(tok "$PASTOR")"
 TOK_TES="$(tok "$TES")"
+# Un N4 de ESTA sede: el volcado del modelo exige el nivel de su columna
+# mas sensible, y la comprobacion de sede necesita a alguien que pueda verlo.
+N4P=$(psql_admin -d "$PGDATABASE" -qAt <<SQL
+WITH nueva AS (
+  INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
+  VALUES ('$PTY','DirectorN4','Prueba$SX',DATE '1980-01-01') RETURNING id),
+ asig AS (
+  INSERT INTO identidad.asignaciones (persona_id,rol,alcance_tipo,alcance_id,nivel_max,acta_referencia)
+  SELECT id,'PASTOR_CONGREGACIONAL','sede','$PTY',4,'laboratorio: banco drive' FROM nueva RETURNING persona_id)
+SELECT persona_id FROM asig
+SQL
+)
+TOK_PASTOR_N4="$(tok "$N4P")"
 comprobar "Contacto con nota privada" "201" \
   "$(codigo -X POST -H "$H" -H "Authorization: Bearer $TOK_PASTOR" -d '{"tipo_contacto":"llamada","resumen":"Primera llamada","reaccion":"interesado","notas":"Solo para el coordinador"}' $A/nuevos/$NID/registrar-contacto)"
 comprobar "…la nota queda en su tabla privada" "1" "$(sql "SELECT count(*) FROM crm.notas_privadas_nuevos WHERE nuevo_id='$NID'")"
@@ -93,8 +106,19 @@ comprobar "Anular con motivo libera los 2 aportes" "2" \
 echo "── Personas y modelo del Drive"
 comprobar "Actualizar campos del Drive (zona, es_cristiano)" "Zona Norte" \
   "$(curl -s -X PUT -H "$H" -H "Authorization: Bearer $TOK_TES" -d '{"zona":"Zona Norte","es_cristiano":"si","es_ministro":false}' $A/personas/$DON | campo "['zona']")"
-comprobar "modelo100p/personas solo trae su sede" "True" \
-  "$(curl -s -H "Authorization: Bearer $TOK_TES" "$A/modelo100p/personas?limite=1000" | python3 -c "import json,sys;d=json.load(sys.stdin)['datos'];print(len(d)>0 and all(x['sede_id']=='$PTY' for x in d))")"
+# ⛔ 20 sep 2026 · Esta ruta devuelve TODAS las columnas (`SELECT *`),
+#    incluidas salud, menores y consejeria. La RLS acotaba la sede pero
+#    NADIE acotaba la sensibilidad: una sesion N1 podia pedir
+#    /modelo100p/menores y llevarse el volcado entero de su sede. Ahora
+#    cada tabla exige el nivel de su columna mas sensible.
+#    La tesorera es N3 y `personas` exige N4: se le niega, y esa negativa
+#    es justamente la garantia nueva.
+comprobar "Una sesion N3 se lleva el volcado con todas las columnas" "403" \
+  "$(codigo -H "Authorization: Bearer $TOK_TES" "$A/modelo100p/personas?limite=5")"
+comprobar "…y la negativa dice que hay rutas curadas" "si" \
+  "$(curl -s -H "Authorization: Bearer $TOK_TES" "$A/modelo100p/personas?limite=5" | python3 -c "import json,sys;print('si' if 'curadas' in json.load(sys.stdin).get('mensaje','') else 'no')")"
+comprobar "modelo100p/personas solo trae su sede (con N4)" "True" \
+  "$(curl -s -H "Authorization: Bearer $TOK_PASTOR_N4" "$A/modelo100p/personas?limite=1000" | python3 -c "import json,sys;d=json.load(sys.stdin)['datos'];print(len(d)>0 and all(x['sede_id']=='$PTY' for x in d))")"
 comprobar "Tabla fuera del modelo se rechaza" "400" "$(codigo -H "Authorization: Bearer $TOK_TES" $A/modelo100p/pg_authid)"
 comprobar "El trabajador de avisos exige su token" "503" "$(codigo -X POST $A/notificaciones/procesar)"
 

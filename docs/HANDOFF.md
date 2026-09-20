@@ -9,8 +9,8 @@
 
 | Columna | Estado | Evidencia |
 |---|---|---|
-| **Backend · datos** | ✅ | 58 migraciones + 22 semillas, aplicadas desde cero en máquina limpia · **16 bancos, 217 invariantes en verde** · `scripts/probar.sh` |
-| **Backend · API** | ✅ | Autenticación real con segundo factor · **19 pruebas de autenticación + 42 de la API** (humo, Drive 100p y extremo a extremo), las tres dentro de la compuerta · `openapi.yaml` con **62 rutas**, todas descritas · validación, límite de peticiones, cabeceras, traza y `/salud` · la API **se niega a arrancar** con un rol que pueda saltarse RLS |
+| **Backend · datos** | ✅ | 60 migraciones + 22 semillas, aplicadas desde cero en máquina limpia · **16 bancos, 219 invariantes en verde** · `scripts/probar.sh` |
+| **Backend · API** | ✅ | Autenticación real con segundo factor · **21 pruebas de autenticación + 50 de la API** (humo, Drive 100p y extremo a extremo), las tres dentro de la compuerta · `openapi.yaml` con **70 rutas**, todas descritas · validación, límite de peticiones, cabeceras, traza y `/salud` · la API **se niega a arrancar** con un rol que pueda saltarse RLS |
 | **Frontend** | 🟠 | Aplicación real con entrada, segundo factor, navegación **por permiso**, búsqueda, check-in **sin conexión** y consola de catálogos. Verificada en navegador, móvil y escritorio, contraste AA medido. **Cubre 3 de los 22 módulos declarados** |
 | **Infraestructura** | 🔴 | **16 archivos de Terraform, validados de verdad** (`validate`, `fmt -check`, `test`: 6 casos) y **sin aplicar**. Copia y **restauración ejecutadas** (`backend/docs/EVIDENCIA-restauracion.txt`), integración continua escrita, **once compuertas** en `scripts/verificar.sh`. **Falta crear los proyectos de GCP y aplicar** |
 
@@ -67,6 +67,9 @@ estaban en el producto, no en las pruebas**:
 | H-20 | **El estado de Terraform iba a quedar en un portátil** | El `backend "gcs"` estaba comentado. Dos personas aplicando se pisan, no hay bloqueo, y perder el portátil es perder el mapa de la nube | Backend parcial activo: el bucket se pasa en el `init` |
 | H-21 | **Nadie se enteraba de una caída completa** | Todas las alertas viven dentro del proyecto que vigilan. Y la sonda de arranque de Cloud Run era TCP: puerto abierto bastaba, aunque la base estuviera caída | Sonda **externa** de disponibilidad con su alerta, y sondas de arranque y de vida contra `/salud` |
 | H-22 | **El domingo se podía desplegar, y sin copia previa** | Un push a `main` llegaba a producción cualquier día, y las migraciones corrían sin una copia hecha a propósito | Freno de domingo con escape explícito y registrado, y copia bajo demanda etiquetada con el build, antes de migrar |
+| H-24 | **Los derechos del titular no tenían ni una ruta** | La Ley 1581 estaba implementada en la base desde la 0053 (plazos en días hábiles, prórroga con motivo, supresión real) y solo se podía ejercer con `psql`. Un derecho que solo ejerce quien sabe SQL no es un derecho, y ante la Superintendencia «está en la base» no es una respuesta | Ocho rutas (`/api/v1/cumplimiento`), la bandeja avisa de las vencidas y responder dice si fue fuera de plazo |
+| H-25 | **Revocar el consentimiento fallaba entero desde la API** | `revocar_consentimiento` cancela lo ya encolado y la aplicación solo tiene `SELECT` sobre esa cola: la revocación no se registraba y el correo salía igual. Y revocaba TODO, también lo que se apoya en contrato u obligación legal, que la ley no deja renunciar | `SECURITY DEFINER` con la comprobación de alcance por dentro, y solo revoca lo revocable (migración 0058) |
+| H-26 | **El volcado del modelo 100p ignoraba el nivel** | `GET /modelo100p/<tabla>` devuelve `SELECT *`: todas las columnas, incluidas salud, menores y consejería. La RLS acotaba la sede y **nadie acotaba la sensibilidad**: una sesión N1 podía pedir `/modelo100p/menores` y llevarse el volcado de su sede | Cada tabla exige el nivel de su columna más sensible, que lo dice la base y no una lista escrita a mano |
 | H-23 | **Las conexiones no daban para el domingo** | 10 de negocio y 5 de autenticación por instancia; la puerta era más angosta que la casa. Con 36 sedes a la vez las peticiones no fallan: **se encolan**, justo en la pantalla de check-in | Los pozos salen de la tabla de fases, igual que el número de instancias, y Cloud SQL declara `max_connections` con la misma cuenta. La API avisa al arrancar cuántas instancias caben |
 
 **Y cuatro pruebas que habían dejado de probar lo que decían** (una sala sembrada compartida, un
@@ -82,7 +85,7 @@ Todo está en **`docs/RUNBOOK.md`**, escrito para que lo siga alguien que no con
 cd backend
 ./scripts/arrancar.sh    # levanta la base local
 ./scripts/migrar.sh      # recrea desde cero
-./scripts/probar.sh      # 16 bancos, 217 invariantes
+./scripts/probar.sh      # 16 bancos, 219 invariantes
 ./scripts/verificar.sh   # LA COMPUERTA: once verificaciones
 ./scripts/desplegar.sh staging
 ```
@@ -131,4 +134,4 @@ cd backend
 
 ## 7 · La advertencia que sigue vigente
 
-Esto certifica que **lo diseñado** cubre los controles y que **lo construido** pasa 217 invariantes de base, 19 pruebas de autenticación, 42 de la API y una prueba de carga. **No certifica que lo desplegado los cumpla en producción**, porque todavía no hay producción. Eso lo certifica la prueba de intrusión externa de la compuerta G5, sobre la infraestructura aplicada.
+Esto certifica que **lo diseñado** cubre los controles y que **lo construido** pasa 219 invariantes de base, 21 pruebas de autenticación, 50 de la API y una prueba de carga. **No certifica que lo desplegado los cumpla en producción**, porque todavía no hay producción. Eso lo certifica la prueba de intrusión externa de la compuerta G5, sobre la infraestructura aplicada.
