@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { esc, cargando, error, distintivoNivel } from '../ui.js';
+import { esc, cargando, error, errorDeBloque, engancharReintentar, distintivoNivel } from '../ui.js';
 
 /** El panel se pinta contra lo que la BASE dice que esta persona alcanza,
     no contra una lista escrita en el cliente. Ahí estaba el agujero del
@@ -7,10 +7,19 @@ import { esc, cargando, error, distintivoNivel } from '../ui.js';
 export async function pintarPanel(c, sesion) {
   c.innerHTML = cargando(4);
   try {
-    const [sedes, salud] = await Promise.all([
-      api.obtener('/api/v1/organizacion/sedes').catch(() => []),
-      api.obtener('/salud/detalle').catch(() => null),
+    /* ⛔ Antes cada bloque hacía `.catch(() => [])` y la pantalla se pintaba
+       como si todo estuviera bien: desaparecían las sedes y el estado del
+       sistema sin una sola advertencia. Un pastor no podía distinguir «no
+       tengo sedes» de «el sistema está caído». Ahora cada bloque dice lo
+       suyo. */
+    const [rSedes, rSalud] = await Promise.allSettled([
+      api.obtener('/api/v1/organizacion/sedes'),
+      api.obtener('/salud/detalle'),
     ]);
+    const sedes = rSedes.status === 'fulfilled' ? rSedes.value : null;
+    const salud = rSalud.status === 'fulfilled' ? rSalud.value : null;
+    const fallaSedes = rSedes.status === 'rejected' ? rSedes.reason : null;
+    const fallaSalud = rSalud.status === 'rejected' ? rSalud.reason : null;
     const s = sesion.alcance ?? {};
     c.innerHTML = `
       <h1>Buen día${sesion.persona?.nombre ? ', ' + esc(sesion.persona.nombre.split(' ')[0]) : ''}</h1>
@@ -34,8 +43,9 @@ export async function pintarPanel(c, sesion) {
         </div>` :
         `<div class="tarjeta"><p>Todavía no tiene módulos asignados. Comuníquese con la central.</p></div>`}
 
-      ${sedes.length ? `
-        <h2 style="margin-top:2rem">Sedes que alcanza</h2>
+      <h2 style="margin-top:2rem">Sedes que alcanza</h2>
+      ${fallaSedes ? errorDeBloque('las sedes', fallaSedes.message) : ''}
+      ${sedes?.length ? `
         <div class="tarjeta" style="padding:0;overflow:hidden">
           <table class="tabla">
             <thead><tr><th>Código</th><th>Sede</th><th>Ciudad</th></tr></thead>
@@ -45,10 +55,11 @@ export async function pintarPanel(c, sesion) {
                   <td data-th="Ciudad">${esc(x.ciudad ?? '')}</td></tr>`).join('')}
             </tbody>
           </table>
-        </div>` : ''}
+        </div>` : (fallaSedes ? '' : '<p style="color:var(--cr-texto-suave)">No alcanza ninguna sede todavía.</p>')}
 
+      <h2 style="margin-top:2rem">Estado del sistema</h2>
+      ${fallaSalud ? errorDeBloque('el estado del sistema', fallaSalud.message) : ''}
       ${salud ? `
-        <h2 style="margin-top:2rem">Estado del sistema</h2>
         <div class="tarjeta">
           <p>${salud.estado === 'sano'
             ? '<span class="distintivo distintivo--ok">sano</span>'
@@ -56,7 +67,11 @@ export async function pintarPanel(c, sesion) {
             ${(salud.problemas ?? []).map(p => `<br><span class="etiqueta">${esc(p)}</span>`).join('')}</p>
         </div>` : ''}
     `;
-  } catch (e) { c.innerHTML = error(e.message, e.peticionId); }
+    engancharReintentar(c, () => pintarPanel(c, sesion));
+  } catch (e) {
+    c.innerHTML = error(e.message, e.peticionId);
+    engancharReintentar(c, () => pintarPanel(c, sesion));
+  }
 }
 
 const ficha = (t, v, p) => `

@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { almacen, type Contexto } from '../contexto/contexto';
 
@@ -12,7 +12,7 @@ import { almacen, type Contexto } from '../contexto/contexto';
  * de filtrar datos en silencio.
  */
 @Injectable()
-export class DbService implements OnModuleDestroy {
+export class DbService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('DbService');
   private readonly pool = new Pool({
     host: process.env.PGHOST ?? '/tmp',
@@ -23,6 +23,33 @@ export class DbService implements OnModuleDestroy {
     max: 10,
     idle_in_transaction_session_timeout: 10_000,
   } as any);
+
+  /**
+   * ⛔ LA API NO ARRANCA COMO SUPERUSUARIO.
+   *
+   * El 19 de septiembre de 2026 el banco de extremo a extremo se puso en
+   * rojo dentro de la compuerta y verde a mano: la diferencia era que la
+   * compuerta exportaba PGUSER de administrador y la API se conectaba con
+   * el. Un superusuario (o cualquier rol con BYPASSRLS) SALTA todas las
+   * politicas: la doble cerradura queda de adorno y Medellin ve la bandeja
+   * de Bogota sin que nada falle a la vista.
+   *
+   * No es un aviso: el proceso se niega a levantar. Un arranque que no
+   * ocurre se nota; una fuga silenciosa, no.
+   */
+  async onModuleInit() {
+    const { rows: [r] } = await this.pool.query(
+      `SELECT current_user AS usuario, rolsuper, rolbypassrls
+         FROM pg_roles WHERE rolname = current_user`);
+    if (r?.rolsuper || r?.rolbypassrls) {
+      throw new Error(
+        `La API esta conectada como «${r.usuario}», que ` +
+        `${r.rolsuper ? 'es superusuario' : 'puede saltarse RLS'}. ` +
+        'Con ese rol el aislamiento entre sedes NO se aplica. ' +
+        'Use casaroca_app (o casaroca_api_dev en desarrollo) y vuelva a arrancar.');
+    }
+    this.log.log(`base conectada como ${r.usuario} · sin privilegio para saltar RLS`);
+  }
 
   async onModuleDestroy() { await this.pool.end(); }
 

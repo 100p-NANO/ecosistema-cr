@@ -221,6 +221,41 @@ paths:
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "429": { description: "demasiadas peticiones" }
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/identidad/catalogos/:catalogo/valores/:codigo/retirar:
+    post:
+      summary: "Retirar un valor"
+      description: "Retira, no borra: las filas historicas siguen legibles y lo que se impide es usarlo en filas nuevas. Exige motivo."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/identidad/catalogos/:catalogo/valores:
+    get:
+      summary: "Valores de un catalogo"
+      description: "Incluye los retirados, que siguen siendo legibles para la historia."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    post:
+      summary: "Agregar un valor"
+      description: "Sin migracion y sin despliegue. Exige alcance de organizacion. Una maquina de estados lo rechaza y dice por que."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/identidad/catalogos:
+    get:
+      summary: "Catalogos de la red"
+      description: "Los que se pueden ampliar y los cerrados a proposito, estos ultimos con su motivo escrito."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /api/v1/identidad/matriz:
     get:
       summary: "Matriz de permisos"
@@ -457,6 +492,69 @@ paths:
     get:
       summary: "Buscar personas"
       description: "Tolera errores de digitacion, tildes, documento, telefono y correo. Respeta la seguridad por fila: lo que no alcanza la sesion no sale."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/rocakids/checkin:
+    post:
+      summary: "Registrar la entrada de un menor"
+      description: "Devuelve el codigo UNA vez; despues solo existe cifrado. IDEMPOTENTE por menor, sala y dia: la cola sin conexion puede reintentar sin duplicar el ingreso."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/rocakids/entregar:
+    post:
+      summary: "Entregar al menor"
+      description: "La base verifica acudiente autorizado Y codigo. Un intento fallido queda registrado con hora y nombre."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/rocakids/menores/:id/acudientes:
+    get:
+      summary: "Quien puede entregar y retirar a este menor"
+      description: "La pantalla ofrece esta lista, no un campo de texto libre: un texto libre convierte la salvaguarda en una formalidad."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/rocakids/salas/:id/entrar-a-servir:
+    post:
+      summary: "Entrar a servir en una sala"
+      description: "La base rechaza a quien no tenga antecedentes de salvaguarda vigentes."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/rocakids/salas/:id/roster:
+    get:
+      summary: "Censo de la sala"
+      description: "Quien puede entrar hoy: nombre, edad y si ya esta dentro. NO devuelve condiciones medicas ni codigos: esto se guarda en el equipo para trabajar sin conexion, y lo que se guarda en un equipo se pierde con el equipo."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/rocakids/salas/:id/servidores:
+    get:
+      summary: "Quien sirve hoy en la sala"
+      description: "Es la respuesta a «quien estaba con los ninos ese dia», la primera pregunta de cualquier incidente."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/rocakids/salas:
+    get:
+      summary: "Salas de ninos y su estado de ahora"
+      description: "Con cuantos ninos hay dentro y si se cumple la regla de dos adultos. Exige N4."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }

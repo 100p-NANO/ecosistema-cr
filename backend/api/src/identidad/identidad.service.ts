@@ -132,4 +132,39 @@ export class IdentidadService {
        d.nivel, d.opciones ? JSON.stringify(d.opciones) : null, d.ayuda ?? null]);
     return { id: rows[0].id, codigo: d.codigo };
   }
+
+  /* ── Catálogos editables (migración 0046) ─────────────────────────
+     Es la respuesta a «si mañana necesito un culto de jóvenes, debe ser
+     fácil»: agregar un valor es una llamada, no un despliegue. Y las
+     máquinas de estado salen marcadas como cerradas, con su motivo. */
+
+  async catalogos(c: PoolClient) {
+    const { rows } = await c.query(
+      `SELECT codigo, nombre, descripcion, editable_por_sede, cerrado, motivo_cerrado,
+              valores_vigentes, valores_retirados
+         FROM sistema.v_catalogos ORDER BY cerrado, codigo`);
+    return rows;
+  }
+
+  async valoresDeCatalogo(c: PoolClient, catalogo: string) {
+    const { rows } = await c.query(
+      `SELECT codigo, etiqueta, descripcion, orden, vigente, sede_id
+         FROM sistema.catalogo_valores
+        WHERE catalogo = $1 ORDER BY vigente DESC, orden, etiqueta`, [catalogo]);
+    return rows;
+  }
+
+  async agregarValor(c: PoolClient, catalogo: string, v: {
+    codigo: string; etiqueta: string; descripcion?: string | null; sedeId?: string | null; quien: string;
+  }) {
+    await c.query(`SELECT sistema.agregar_valor($1,$2,$3,$4,$5,$6,$7)`,
+      [catalogo, v.codigo, v.etiqueta, v.descripcion ?? null, 100, v.sedeId ?? null, v.quien]);
+    return { agregado: true, aviso: 'Disponible de inmediato. No hubo que desplegar nada.' };
+  }
+
+  async retirarValor(c: PoolClient, catalogo: string, codigo: string, motivo: string) {
+    await c.query(`SELECT sistema.retirar_valor($1,$2,$3)`, [catalogo, codigo, motivo]);
+    return { retirado: true,
+             aviso: 'Las filas que ya lo usaban siguen legibles; lo que se impide es usarlo en filas nuevas.' };
+  }
 }

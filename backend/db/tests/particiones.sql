@@ -68,7 +68,9 @@ DO $$
 DECLARE ok boolean := false;
 BEGIN
   BEGIN PERFORM plataforma.asegurar_particiones(0);
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(6,'Se acepta un colchon de cero anos','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;

@@ -202,7 +202,7 @@ END $$;
 DO $$
 DECLARE v_incumple bigint;
 BEGIN
-  SELECT count(*) INTO v_incumple FROM plataforma.v_control_clasificacion WHERE incumple_cifrado;
+  SELECT count(*) INTO v_incumple FROM plataforma.v_control_clasificacion WHERE secreto_sin_cifrar;
   PERFORM pg_temp.registrar(14,'Control de clasificacion (compuerta G5)','0 hallazgos',
     v_incumple::text||' hallazgos', v_incumple = 0);
 END $$;

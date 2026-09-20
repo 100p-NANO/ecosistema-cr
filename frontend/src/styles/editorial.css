@@ -72,6 +72,10 @@ h3 { font-size: var(--cr-tx-md); }
 
 /* ── Estructura ── */
 .marco { min-height: 100dvh; display: flex; flex-direction: column; }
+/* ⛔ Sin esto, en movil y con poco contenido la barra de navegacion quedaba
+   flotando a media pantalla con un hueco debajo: `.nav` es sticky bottom
+   pero `.columna` no estiraba dentro de `.marco`. Se veia roto. */
+.marco > .columna { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
 .cabecera {
   display: flex; align-items: center; gap: var(--cr-sp-3);
   padding: var(--cr-sp-3) var(--cr-sp-4);

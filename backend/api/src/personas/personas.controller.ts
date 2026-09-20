@@ -3,6 +3,7 @@ import type { Request } from 'express';
 import { PersonasService } from './personas.service';
 import { DbService } from '../db/db.service';
 import { conSesion } from '../comun/identidad.helper';
+import { uuid } from '../comun/validar';
 
 @Controller('api/v1/personas')
 export class PersonasController {
@@ -23,33 +24,33 @@ export class PersonasController {
   /** Quién podría ser la misma persona registrada dos veces. */
   @Get(':id/duplicados')
   duplicados(@Req() req: Request, @Param('id') id: string) {
-    return conSesion(this.db, req, (c) => this.personas.duplicados(c, id));
+    return conSesion(this.db, req, (c) => this.personas.duplicados(c, uuid(id, 'id')));
   }
 
   @Get(':id')
   ficha(@Req() req: Request, @Param('id') id: string) {
-    return conSesion(this.db, req, (c) => this.personas.ficha(c, id));
+    return conSesion(this.db, req, (c) => this.personas.ficha(c, uuid(id, 'id')));
   }
 
   /** Actualizar los datos de la persona (campos del documento de Usuarios v1.2). */
   @Put(':id')
   actualizar(@Req() req: Request, @Param('id') id: string, @Body() d: any) {
-    return conSesion(this.db, req, (c) => this.personas.actualizar(c, id, d));
+    return conSesion(this.db, req, (c) => this.personas.actualizar(c, uuid(id, 'id'), d));
   }
 
   /** ⭐ La ficha 360: todo lo que le ha pasado, de todos los módulos. */
   @Get(':id/linea-tiempo')
   linea(@Req() req: Request, @Param('id') id: string, @Query('limite') limite?: string) {
-    return conSesion(this.db, req, (c) => this.personas.lineaTiempo(c, id, Number(limite) || 200));
+    return conSesion(this.db, req, (c) => this.personas.lineaTiempo(c, uuid(id, 'id'), Number(limite) || 200));
   }
 
   @Get(':id/atributos')
   atributos(@Req() req: Request, @Param('id') id: string) {
-    return conSesion(this.db, req, (c) => this.personas.atributos(c, id));
+    return conSesion(this.db, req, (c) => this.personas.atributos(c, uuid(id, 'id')));
   }
 
   @Put(':id/atributos/:codigo')
   fijar(@Req() req: Request, @Param('id') id: string, @Param('codigo') codigo: string, @Body() d: any) {
-    return conSesion(this.db, req, (c) => this.personas.fijarAtributo(c, id, codigo, d?.valor));
+    return conSesion(this.db, req, (c) => this.personas.fijarAtributo(c, uuid(id, 'id'), codigo, d?.valor));
   }
 }

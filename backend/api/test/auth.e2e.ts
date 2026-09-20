@@ -184,9 +184,15 @@ async function main() {
 
   // A12 · Refrescar rota el token: el refresco viejo deja de servir.
   let refresco2 = '';
+  let acceso2 = '';
   {
     const r1 = await pedir('/api/v1/auth/refrescar', { method: 'POST', body: JSON.stringify({ refresco }) });
     refresco2 = r1.cuerpo?.refresco ?? '';
+    /* ⛔ Refrescar ROTA la sesion: el token de acceso anterior queda muerto
+       en ese instante. A13 seguia usando el viejo y media «401 y 401», que
+       parecia que cerrar sesion no hacia nada cuando en realidad el token
+       ya estaba cortado por el refresco de arriba. Se guarda el nuevo. */
+    acceso2 = r1.cuerpo?.acceso ?? '';
     const r2 = await pedir('/api/v1/auth/refrescar', { method: 'POST', body: JSON.stringify({ refresco }) });
     rg(12, 'Un refresco usado dos veces sigue sirviendo', 'primero 200, segundo 401',
        `${r1.estado} y ${r2.estado}`, r1.estado === 200 && r2.estado === 401);
@@ -194,9 +200,10 @@ async function main() {
 
   // A13 · ⭐ Cerrar la sesión la corta EN EL INSTANTE, no cuando expire.
   {
-    const antes = await pedir('/api/v1/auth/quien-soy', { headers: { Authorization: `Bearer ${acceso}` } });
-    await pedir('/api/v1/auth/salir', { method: 'POST', headers: { Authorization: `Bearer ${acceso}` } });
-    const despues = await pedir('/api/v1/auth/quien-soy', { headers: { Authorization: `Bearer ${acceso}` } });
+    const vivo = acceso2 || acceso;
+    const antes = await pedir('/api/v1/auth/quien-soy', { headers: { Authorization: `Bearer ${vivo}` } });
+    await pedir('/api/v1/auth/salir', { method: 'POST', headers: { Authorization: `Bearer ${vivo}` } });
+    const despues = await pedir('/api/v1/auth/quien-soy', { headers: { Authorization: `Bearer ${vivo}` } });
     rg(13, 'Cerrar sesion no surte efecto hasta que expire el token', 'antes 200, despues 401',
        `${antes.estado} y ${despues.estado}`, antes.estado === 200 && despues.estado === 401);
   }

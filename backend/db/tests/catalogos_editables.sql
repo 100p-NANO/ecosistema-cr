@@ -44,7 +44,9 @@ BEGIN
   BEGIN
     INSERT INTO asistencia.servicios (sede_id, tipo, fecha, hora_inicio, nombre)
     VALUES ((SELECT id FROM org.sedes WHERE codigo='CHIA'),'lo_que_sea', CURRENT_DATE, '19:00', 'x');
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(3,'Se acepta un valor que no esta en el catalogo','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;
@@ -74,7 +76,9 @@ DO $$
 DECLARE ok boolean := false;
 BEGIN
   BEGIN PERFORM sistema.agregar_valor('tipo_grupo','grupo de jóvenes','Grupo de jovenes');
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(6,'Se acepta un codigo con espacios y acentos','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;
@@ -85,7 +89,9 @@ DECLARE ok boolean := false;
 BEGIN
   BEGIN PERFORM sistema.agregar_valor('tipo_grupo','celula_x','Celula X', NULL, 100::smallint,
     (SELECT id FROM org.sedes WHERE codigo='CHIA'));
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(7,'Una sede mete valores en un catalogo de la red','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;
@@ -95,7 +101,9 @@ DO $$
 DECLARE ok boolean := false;
 BEGIN
   BEGIN PERFORM sistema.retirar_valor('tipo_servicio','culto_jovenes','x');
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(8,'Retirar un valor sin motivo','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;
@@ -114,7 +122,9 @@ BEGIN
   BEGIN
     INSERT INTO asistencia.servicios (sede_id, tipo, fecha, hora_inicio, nombre)
     VALUES ((SELECT id FROM org.sedes WHERE codigo='CHIA'),'culto_jovenes', CURRENT_DATE, '19:00', 'Nuevo');
-  EXCEPTION WHEN others THEN ok_nuevo := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok_nuevo := true; END;
 
   DELETE FROM asistencia.servicios WHERE id = v_id;
   PERFORM pg_temp.rg(9,'Retirar un valor rompe la historia o deja crear filas nuevas',

@@ -5,6 +5,27 @@
 -- Datos sintéticos, con sufijo aleatorio para que la batería se repita.
 -- =====================================================================
 \set ON_ERROR_STOP on
+-- ⛔ AYUDA DE LABORATORIO. Desde la migracion 0053, encolar un aviso EXIGE
+--    consentimiento vigente de esa persona para ese canal y esa finalidad.
+--    Los datos de prueba tienen que ser tan legales como los de verdad: si
+--    el banco pudiera saltarse el consentimiento, estaria probando un
+--    sistema que no existe.
+CREATE OR REPLACE FUNCTION pg_temp.consentir(p_persona uuid) RETURNS void
+LANGUAGE sql AS $$
+  INSERT INTO plataforma.consentimientos
+    (persona_id, sede_id, finalidad, canal, acto, ocurrido_en, evidencia_tipo, evidencia_ref)
+  SELECT p_persona, p.sede_id, f.codigo, c.canal, 'otorgado', now(), 'formulario_web', 'banco de pruebas'
+  FROM nucleo.personas p
+  CROSS JOIN plataforma.finalidades f
+  CROSS JOIN (SELECT unnest(enum_range(NULL::plataforma.canal_contacto)) AS canal) c
+  WHERE p.id = p_persona
+    -- ⛔ Sin ON CONFLICT: `consentimientos` es append-only con REGLAS, y
+    --    PostgreSQL no admite ON CONFLICT sobre una tabla con reglas.
+    AND NOT EXISTS (SELECT 1 FROM plataforma.consentimientos x
+                    WHERE x.persona_id = p_persona AND x.canal = c.canal
+                      AND x.finalidad = f.codigo);
+$$;
+
 CREATE TEMP TABLE _d (n int, nombre text, esperado text, obtenido text, paso boolean);
 CREATE OR REPLACE FUNCTION pg_temp.rg(a int,b text,c text,d text,e boolean) RETURNS void
 LANGUAGE sql AS $$ INSERT INTO _d VALUES (a,b,c,d,e); $$;
@@ -78,11 +99,11 @@ BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='MED';
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,email_principal,fecha_nacimiento)
   VALUES (v_sede,'Coordinadora','Medellin','coord.'||sx||'@example.org',DATE '1980-01-01') RETURNING id INTO v_coord;
+  PERFORM pg_temp.consentir(v_coord);
   INSERT INTO identidad.asignaciones (persona_id,rol,alcance_tipo,alcance_id,nivel_max,vigente_desde)
   VALUES (v_coord,'COORDINADOR_NUEVOS','sede',v_sede,2,CURRENT_DATE);
 
-  INSERT INTO crm.nuevos_registros (sede_id,nombre,email,como_supo)
-  VALUES (v_sede,'Juan Formulario','juan.'||sx||'@example.org','amigo')
+  INSERT INTO crm.nuevos_registros (sede_id,nombre,email,como_supo,canales_autorizados,autorizado_en) VALUES (v_sede,'Juan Formulario','juan.'||sx||'@example.org','amigo',ARRAY['email','whatsapp']::plataforma.canal_contacto[],now())
   RETURNING coordinador_id, proximo_contacto, id INTO v_n;
 
   SELECT count(*) INTO v_avisos FROM plataforma.notificaciones
@@ -101,8 +122,8 @@ BEGIN
   INSERT INTO grupos.grupos (sede_id,tipo,nombre) VALUES (v_sede,'pequeno','Grupo Crecimiento '||sx) RETURNING id INTO v_grupo;
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
   VALUES (v_sede,'Padrino','Pastor',DATE '1975-05-05') RETURNING id INTO v_padrino;
-  INSERT INTO crm.nuevos_registros (sede_id,nombre,email,como_supo,es_cristiano)
-  VALUES (v_sede,'Maria Decidida','maria.'||sx||'@example.org','evento','duda') RETURNING id INTO v_nuevo;
+  PERFORM pg_temp.consentir(v_padrino);
+  INSERT INTO crm.nuevos_registros (sede_id,nombre,email,como_supo,es_cristiano,canales_autorizados,autorizado_en) VALUES (v_sede,'Maria Decidida','maria.'||sx||'@example.org','evento','duda',ARRAY['email','whatsapp']::plataforma.canal_contacto[],now()) RETURNING id INTO v_nuevo;
 
   v_p := crm.convertir_en_miembro(v_nuevo, v_padrino, 'Decidió en el grupo', v_grupo, v_padrino, CURRENT_DATE);
 
@@ -122,7 +143,7 @@ BEGIN
   SELECT id INTO v_med FROM org.sedes WHERE codigo='MED';
   SELECT id INTO v_bog FROM org.sedes WHERE codigo='BOG-CHICO';
   INSERT INTO grupos.grupos (sede_id,tipo,nombre) VALUES (v_bog,'pequeno','Grupo Bogota D7') RETURNING id INTO v_grupo;
-  INSERT INTO crm.nuevos_registros (sede_id,nombre,telefono) VALUES (v_med,'Pedro Otra Sede','+57 3001112233') RETURNING id INTO v_nuevo;
+  INSERT INTO crm.nuevos_registros (sede_id,nombre,telefono,canales_autorizados,autorizado_en) VALUES (v_med,'Pedro Otra Sede','+57 3001112233',ARRAY['email','whatsapp']::plataforma.canal_contacto[],now()) RETURNING id INTO v_nuevo;
   BEGIN
     PERFORM crm.convertir_en_miembro(v_nuevo, NULL, NULL, v_grupo, NULL, NULL);
   EXCEPTION WHEN check_violation THEN ok := true;
@@ -137,10 +158,11 @@ BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-NORTE';
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
   VALUES (v_sede,'Autor','Nota',DATE '1990-01-01') RETURNING id INTO v_autor;
+  PERFORM pg_temp.consentir(v_autor);
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
   VALUES (v_sede,'Otro','Curioso',DATE '1990-01-01') RETURNING id INTO v_otro;
-  INSERT INTO crm.nuevos_registros (sede_id,nombre,telefono,coordinador_id)
-  VALUES (v_sede,'Con Nota','+57 3009998877', v_otro) RETURNING id INTO v_nuevo;
+  PERFORM pg_temp.consentir(v_otro);
+  INSERT INTO crm.nuevos_registros (sede_id,nombre,telefono,coordinador_id,canales_autorizados,autorizado_en) VALUES (v_sede,'Con Nota','+57 3009998877', v_otro,ARRAY['email','whatsapp']::plataforma.canal_contacto[],now()) RETURNING id INTO v_nuevo;
   -- El coordinador es «Otro»; se lo quitamos para probar a un tercero sin relación.
   UPDATE crm.nuevos_registros SET coordinador_id = NULL WHERE id = v_nuevo;
 
@@ -182,6 +204,7 @@ BEGIN
   INSERT INTO aportes.fondos (codigo,nombre,tipo) VALUES ('ANU-'||sx,'Fondo anulacion','general') RETURNING id INTO v_f;
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
   VALUES (v_sede,'Donante','Corregido',DATE '1970-07-07') RETURNING id INTO v_p;
+  PERFORM pg_temp.consentir(v_p);
   INSERT INTO aportes.aportes (sede_id,persona_id,fondo_id,tipo,monto,medio,fecha) VALUES
     (v_sede,v_p,v_f,'diezmo',100000,'transferencia',DATE '2026-02-01'),
     (v_sede,v_p,v_f,'diezmo',100000,'transferencia',DATE '2026-03-01');
@@ -237,8 +260,10 @@ BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='PTY';
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
   VALUES (v_sede,'Tesorera','Panama',DATE '1982-02-02') RETURNING id INTO v_t;
+  PERFORM pg_temp.consentir(v_t);
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
   VALUES (v_sede,'Digitador','Panama',DATE '1992-02-02') RETURNING id INTO v_d;
+  PERFORM pg_temp.consentir(v_d);
   INSERT INTO identidad.asignaciones (persona_id,rol,alcance_tipo,alcance_id,nivel_max,vigente_desde)
   VALUES (v_t,'TESORERIA','sede',v_sede,3,CURRENT_DATE),
          (v_d,'DIGITADOR_APORTES','sede',v_sede,3,CURRENT_DATE);

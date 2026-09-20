@@ -76,6 +76,27 @@ jobs:
         working-directory: backend
         run: ./scripts/probar-auth.sh
 
+      # ⛔ 19 sep 2026 · Estos tres bancos (42 comprobaciones) estaban muertos
+      #    desde que se elimino la cabecera X-Persona-Id, y NO estaban aqui.
+      #    Al revivirlos aparecieron dos fallos reales: toda donacion daba 500
+      #    y no se podia convertir en miembro a quien no autorizo correo.
+      - name: Bancos de la API (humo, Drive 100p y extremo a extremo)
+        working-directory: backend
+        run: |
+          ./scripts/probar-api.sh
+          ./scripts/probar-api-drive.sh
+          ( cd api && npm run probar )
+
+      - name: Ningún cast de la API apunta a un tipo borrado
+        working-directory: backend
+        run: |
+          MUERTOS=""
+          for t in $(python3 scripts/tipos-citados.py api/src); do
+            N=$(psql -qtA -c "SELECT count(*) FROM pg_type y JOIN pg_namespace m ON m.oid=y.typnamespace WHERE m.nspname||'.'||y.typname='$t';")
+            [ "$N" = "0" ] && MUERTOS="$MUERTOS $t"
+          done
+          [ -z "$MUERTOS" ] || { echo "⛔ la API escribe a tipos BORRADOS:$MUERTOS"; exit 1; }
+
       - name: La especificación está al día
         working-directory: backend
         run: |

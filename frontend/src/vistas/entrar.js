@@ -9,7 +9,7 @@ import { esc, unaVez } from '../ui.js';
  *       tampoco entra a los datos.
  *   3 · código de seis dígitos en cada entrada.
  */
-export function pintarEntrar(contenedor, alEntrar) {
+export function pintarEntrar(contenedor, alEntrar, mensajeInicial = '') {
   let paso = 'clave';
   let tokenLimitado = null, secreto = null, uri = null;
 
@@ -117,5 +117,5 @@ export function pintarEntrar(contenedor, alEntrar) {
     });
   }
 
-  pintar();
+  pintar(mensajeInicial, mensajeInicial ? 'error' : 'info');
 }

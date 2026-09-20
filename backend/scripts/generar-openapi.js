@@ -18,6 +18,11 @@ const API = path.join(__dirname, '..', 'api');
 process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 process.env.APP_JWT_SECRETO = process.env.APP_JWT_SECRETO || 'generacion-de-especificacion-no-usar-0000';
 process.env.APP_LLAVE_N4 = process.env.APP_LLAVE_N4 || 'generacion-de-especificacion-no-usar-0000';
+// ⛔ Este guion LEVANTA la aplicacion para leerle las rutas, asi que se
+//    conecta a la base de verdad. Si hereda el PGUSER de quien lo invoca
+//    (verificar.sh exporta el de administrador), arranca como superusuario
+//    y la API se niega, con razon: con ese rol RLS no se aplica.
+process.env.PGUSER = process.env.PGUSER_API || 'casaroca_api_dev';
 
 const { NestFactory } = require(path.join(API, 'node_modules', '@nestjs', 'core'));
 const { AppModule } = require(path.join(API, 'dist', 'src', 'app.module.js'));
@@ -81,6 +86,18 @@ const DESCRIPCIONES = {
   'GET /api/v1/modelo100p': ['Vistas del Drive «Sistema 100p»', 'Los mismos datos publicados con los nombres del documento del equipo.'],
   'GET /api/v1/modelo100p/:tabla': ['Una vista del modelo 100p'],
   'POST /api/v1/notificaciones/procesar': ['Procesar la cola de avisos', 'Tarea programada. Respeta el consentimiento por canal: sin registro, no se contacta.'],
+  'GET /api/v1/rocakids/salas': ['Salas de ninos y su estado de ahora', 'Con cuantos ninos hay dentro y si se cumple la regla de dos adultos. Exige N4.'],
+  'GET /api/v1/rocakids/salas/:id/roster': ['Censo de la sala', 'Quien puede entrar hoy: nombre, edad y si ya esta dentro. NO devuelve condiciones medicas ni codigos: esto se guarda en el equipo para trabajar sin conexion, y lo que se guarda en un equipo se pierde con el equipo.'],
+  'GET /api/v1/rocakids/salas/:id/servidores': ['Quien sirve hoy en la sala', 'Es la respuesta a «quien estaba con los ninos ese dia», la primera pregunta de cualquier incidente.'],
+  'POST /api/v1/rocakids/salas/:id/entrar-a-servir': ['Entrar a servir en una sala', 'La base rechaza a quien no tenga antecedentes de salvaguarda vigentes.'],
+  'GET /api/v1/rocakids/menores/:id/acudientes': ['Quien puede entregar y retirar a este menor', 'La pantalla ofrece esta lista, no un campo de texto libre: un texto libre convierte la salvaguarda en una formalidad.'],
+  'POST /api/v1/rocakids/checkin': ['Registrar la entrada de un menor', 'Devuelve el codigo UNA vez; despues solo existe cifrado. IDEMPOTENTE por menor, sala y dia: la cola sin conexion puede reintentar sin duplicar el ingreso.'],
+  'POST /api/v1/rocakids/entregar': ['Entregar al menor', 'La base verifica acudiente autorizado Y codigo. Un intento fallido queda registrado con hora y nombre.'],
+  'GET /api/v1/identidad/catalogos': ['Catalogos de la red', 'Los que se pueden ampliar y los cerrados a proposito, estos ultimos con su motivo escrito.'],
+  'GET /api/v1/identidad/catalogos/:catalogo/valores': ['Valores de un catalogo', 'Incluye los retirados, que siguen siendo legibles para la historia.'],
+  'POST /api/v1/identidad/catalogos/:catalogo/valores': ['Agregar un valor', 'Sin migracion y sin despliegue. Exige alcance de organizacion. Una maquina de estados lo rechaza y dice por que.'],
+  'POST /api/v1/identidad/catalogos/:catalogo/valores/:codigo/retirar': ['Retirar un valor', 'Retira, no borra: las filas historicas siguen legibles y lo que se impide es usarlo en filas nuevas. Exige motivo.'],
+
   'GET /salud': ['Salud para el balanceador', 'Comprueba la base de verdad.'],
   'GET /salud/detalle': ['Salud detallada', 'Base, particiones, fugas de lectura y ultimo mantenimiento.'],
 };
@@ -158,7 +175,7 @@ async function main() {
     }
   }
 
-  const salida = path.join(API, 'openapi.yaml');
+  const salida = process.env.OPENAPI_SALIDA || path.join(API, 'openapi.yaml');
   fs.writeFileSync(salida, y, 'utf8');
   const sinDescribir = rutas.filter(r => !DESCRIPCIONES[r.metodo + ' ' + r.ruta]).length;
   console.log(`✔ ${salida}`);

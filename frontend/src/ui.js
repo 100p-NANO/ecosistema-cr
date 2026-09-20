@@ -19,13 +19,39 @@ export const vacio = (icono, titulo, texto, accion = '') => `
     ${accion}
   </div>`;
 
-export const error = (mensaje, peticionId, alReintentar = 'ui.reintentar()') => `
+/**
+ * ⛔ Sin `onclick` en línea. La versión anterior interpolaba el manejador
+ * como atributo: funcionaba solo porque no había Content-Security-Policy, y
+ * el día que se pusiera una, TODOS los botones «Reintentar» quedaban
+ * muertos. Además la cadena se interpolaba sin escapar.
+ * Ahora el botón lleva `data-reintentar` y quien lo pinta engancha el
+ * manejador con `engancharReintentar`.
+ */
+export const error = (mensaje, peticionId) => `
   <div class="estado estado--error" role="alert">
     <div class="estado__icono" aria-hidden="true">⚠</div>
     <p class="estado__titulo">No se pudo cargar</p>
     <p>${esc(mensaje)}</p>
     ${peticionId ? `<p class="etiqueta">código de la petición: ${esc(peticionId)}</p>` : ''}
-    <p style="margin-top:1rem"><button class="boton boton--suave" onclick="${alReintentar}">Reintentar</button></p>
+    <p style="margin-top:1rem"><button class="boton boton--suave" data-reintentar>Reintentar</button></p>
+  </div>`;
+
+/** Engancha el botón «Reintentar» de un estado de error. */
+export function engancharReintentar(contenedor, fn) {
+  contenedor.querySelectorAll('[data-reintentar]').forEach(b =>
+    b.addEventListener('click', () => fn()));
+}
+
+/**
+ * Error EN LÍNEA, para un bloque que falla dentro de una pantalla que por
+ * lo demás funciona. Sin esto, un `.catch(() => [])` pinta la pantalla
+ * como si todo estuviera bien y el usuario no puede distinguir «no tengo
+ * sedes» de «el sistema está caído».
+ */
+export const errorDeBloque = (que, mensaje) => `
+  <div class="aviso aviso--error" role="alert" style="margin:0">
+    No se pudo cargar ${esc(que)}: ${esc(mensaje)}
+    <button class="boton boton--suave" data-reintentar style="margin-left:.5rem">Reintentar</button>
   </div>`;
 
 export const distintivoNivel = (n) => {

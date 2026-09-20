@@ -3,6 +3,7 @@ import type { Request } from 'express';
 import { OrganizacionService } from './organizacion.service';
 import { DbService } from '../db/db.service';
 import { conSesion } from '../comun/identidad.helper';
+import { uuid } from '../comun/validar';
 
 @Controller('api/v1/organizacion')
 export class OrganizacionController {
@@ -25,11 +26,11 @@ export class OrganizacionController {
 
   @Get('sedes/:id/ministerios')
   deSede(@Req() req: Request, @Param('id') id: string) {
-    return conSesion(this.db, req, (c) => this.org.ministeriosDe(c, id));
+    return conSesion(this.db, req, (c) => this.org.ministeriosDe(c, uuid(id, 'id')));
   }
 
   @Put('sedes/:id/ministerios/:min')
   fijar(@Req() req: Request, @Param('id') id: string, @Param('min') min: string, @Body() d: any) {
-    return conSesion(this.db, req, (c) => this.org.fijarMinisterio(c, id, min, !!d?.activo));
+    return conSesion(this.db, req, (c) => this.org.fijarMinisterio(c, uuid(id, 'id'), min, !!d?.activo));
   }
 }

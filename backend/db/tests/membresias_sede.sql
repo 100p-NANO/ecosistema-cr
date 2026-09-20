@@ -52,7 +52,9 @@ BEGIN
   BEGIN
     UPDATE nucleo.personas SET sede_id=(SELECT v FROM lab WHERE k='chia')
     WHERE id=(SELECT v FROM lab WHERE k='ana');
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(2,'Cambiar la sede con UPDATE (reescribe el pasado)','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;
@@ -62,9 +64,13 @@ DO $$
 DECLARE sin_motivo boolean := false; misma boolean := false;
 BEGIN
   BEGIN PERFORM nucleo.trasladar((SELECT v FROM lab WHERE k='ana'), (SELECT v FROM lab WHERE k='chia'), 'x');
-  EXCEPTION WHEN others THEN sin_motivo := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN sin_motivo := true; END;
   BEGIN PERFORM nucleo.trasladar((SELECT v FROM lab WHERE k='ana'), (SELECT v FROM lab WHERE k='chico'), 'se muda al mismo sitio');
-  EXCEPTION WHEN others THEN misma := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN misma := true; END;
   PERFORM pg_temp.rg(3,'Traslado sin motivo o a la propia sede','los dos RECHAZADOS',
     CASE WHEN sin_motivo AND misma THEN 'los dos RECHAZADOS' ELSE 'alguno paso (mal)' END,
     sin_motivo AND misma);
@@ -77,7 +83,9 @@ BEGIN
   BEGIN
     INSERT INTO nucleo.membresias_sede (persona_id, sede_id, tipo, es_principal)
     VALUES ((SELECT v FROM lab WHERE k='ana'), (SELECT v FROM lab WHERE k='med'), 'servidor', true);
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(4,'Un servidor se marca como sede principal','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;
@@ -101,7 +109,9 @@ BEGIN
   BEGIN
     INSERT INTO nucleo.membresias_sede (persona_id, sede_id, tipo)
     VALUES ((SELECT v FROM lab WHERE k='ana'), (SELECT v FROM lab WHERE k='med'), 'invitado');
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(6,'Dos membresias vigentes en la misma sede','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;

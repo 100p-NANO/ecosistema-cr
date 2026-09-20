@@ -34,12 +34,19 @@ BANCOS=(
   catalogos_editables
   identidad_y_sesion
   salvaguarda_menores
+  cumplimiento
 )
 
 rojos=(); verdes=0; total_pruebas=0
 for b in "${BANCOS[@]}"; do
   f="$RAIZ/db/tests/$b.sql"
-  [[ -f "$f" ]] || continue
+  # ⛔ Un banco declarado y sin archivo se saltaba EN SILENCIO: no sumaba a
+  #    verdes, no sumaba a rojos, no avisaba. `identidad_y_sesion` llevaba
+  #    dias figurando como si corriera y nunca existio. Ahora es rojo.
+  if [[ ! -f "$f" ]]; then
+    echo "⛔ BANCO DECLARADO Y SIN ARCHIVO: $b.sql"
+    rojos+=("$b · FALTA EL ARCHIVO"); continue
+  fi
   salida="$(psql -d "$PGDATABASE" -v ON_ERROR_STOP=1 -f "$f" 2>&1)"
   rc=$?
   echo "$salida"
@@ -50,6 +57,11 @@ done
 
 echo
 echo "════════════════════════════════════════════════════════"
+# Y el conteo tiene que cuadrar con lo declarado.
+if [[ ${#rojos[@]} -eq 0 && $verdes -ne ${#BANCOS[@]} ]]; then
+  rojos+=("corrieron $verdes de ${#BANCOS[@]} bancos declarados")
+fi
+
 if [[ ${#rojos[@]} -eq 0 ]]; then
   echo "  TODOS LOS BANCOS EN VERDE · $verdes bancos · $total_pruebas invariantes"
   echo "════════════════════════════════════════════════════════"

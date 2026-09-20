@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
+import { exigir } from '../comun/permiso';
 import { DbService } from '../db/db.service';
 import { contextoPublico } from '../contexto/contexto';
 
@@ -117,12 +118,22 @@ export class AportesService {
 
   /** Lo que hay que mirar cada día: dinero que entró y no tiene ficha. */
   async sinDueno(c: PoolClient) {
+    /* ⛔ Faltaba el candado de ACCIÓN. La RLS decide qué filas se ven;
+       esto decide quién puede ejecutar la operación. Sin él, cualquier
+       rol con nivel 3 (AUDITOR, CONTABILIDAD, TALENTO_HUMANO) tocaba el
+       dinero sin tener el permiso de tesorería. */
+    await exigir(c, 'aportes', 'ver');
     const { rows } = await c.query(`SELECT * FROM aportes.v_pagos_sin_dueno ORDER BY confirmada_en`);
     return rows;
   }
 
   /** Emparejar a mano lo que el automático no pudo. */
   async emparejar(c: PoolClient, trxId: string, personaId: string) {
+    /* ⛔ Faltaba el candado de ACCIÓN. La RLS decide qué filas se ven;
+       esto decide quién puede ejecutar la operación. Sin él, cualquier
+       rol con nivel 3 (AUDITOR, CONTABILIDAD, TALENTO_HUMANO) tocaba el
+       dinero sin tener el permiso de tesorería. */
+    await exigir(c, 'aportes', 'editar');
     await c.query(
       `UPDATE aportes.pasarela_transacciones SET persona_id=$2, actualizada_en=now() WHERE id=$1`,
       [trxId, personaId]);

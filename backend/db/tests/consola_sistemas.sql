@@ -75,15 +75,29 @@ END $$;
 
 -- C6 · Un modulo con compuerta legal no se enciende sin evidencia.
 DO $$
-DECLARE v_sede uuid;
+DECLARE v_sede uuid; v_evidencia text; v_activo boolean;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='MED';
+  -- ⛔ 19 sep 2026 · Esta prueba daba por hecho que la semilla dejaba
+  --    RocaKids en MED SIN evidencia legal. La semilla cambio y le puso
+  --    ACTA-SIC-2026-014: desde entonces el UPDATE tenia razon en pasar y
+  --    la prueba marcaba rojo por una condicion que ya no existia. Una
+  --    prueba que depende de como quedo la semilla no prueba la regla:
+  --    ahora CREA su propia condicion y despues la devuelve como estaba.
+  SELECT evidencia_legal_ref, activo INTO v_evidencia, v_activo
+    FROM sistema.modulos_sede WHERE sede_id=v_sede AND modulo='rocakids';
+  UPDATE sistema.modulos_sede SET activo = false, evidencia_legal_ref = NULL
+   WHERE sede_id=v_sede AND modulo='rocakids';
   BEGIN
     UPDATE sistema.modulos_sede SET activo = true WHERE sede_id=v_sede AND modulo='rocakids';
     PERFORM pg_temp.rg(6,'Encender RocaKids sin compuerta legal','RECHAZADO','ACEPTADO',false);
   EXCEPTION WHEN check_violation THEN
     PERFORM pg_temp.rg(6,'Encender RocaKids sin compuerta legal','RECHAZADO','RECHAZADO como debe',true);
   END;
+  -- Se devuelve la sede a como estaba: una prueba no deja al sistema peor.
+  UPDATE sistema.modulos_sede
+     SET evidencia_legal_ref = v_evidencia, activo = COALESCE(v_activo,false)
+   WHERE sede_id=v_sede AND modulo='rocakids';
 END $$;
 
 -- C7 · Con la evidencia registrada, SI se enciende.
@@ -137,19 +151,41 @@ END $$;
 
 -- C9 · No se enciende un modulo cuya dependencia esta apagada.
 DO $$
-DECLARE v_sede uuid;
+DECLARE v_sede uuid; sin_evidencia text; con_evidencia text;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='CHIA';
+
+  -- ⛔ 19 sep 2026 · Esta prueba hacia DOS cosas mal y el banco entero moria
+  --    en la segunda corrida:
+  --    1. Insertaba sin limpiar. Las semillas ya encienden «aportes» en
+  --       CHIA, asi que dentro de la compuerta reventaba con 23505 (clave
+  --       duplicada), que no estaba capturado: el banco no imprimia un
+  --       fallo, se caia.
+  --    2. Registraba 'ACEPTADO','ACEPTADO',true SIN MIRAR NADA. Era una
+  --       tautologia: pasaba siempre, incluso con la regla rota.
+  --    Ahora se limpia primero y se comprueba la regla de verdad, en sus
+  --    dos sentidos: sin evidencia legal NO se enciende; con evidencia, si.
+  DELETE FROM sistema.modulos_sede WHERE sede_id = v_sede AND modulo = 'aportes';
+
+  BEGIN
+    INSERT INTO sistema.modulos_sede (sede_id,modulo,activo,evidencia_legal_ref)
+    VALUES (v_sede,'aportes',true,NULL);
+    sin_evidencia := 'ACEPTADO';
+  EXCEPTION WHEN check_violation THEN sin_evidencia := 'RECHAZADO';
+  END;
+
+  DELETE FROM sistema.modulos_sede WHERE sede_id = v_sede AND modulo = 'aportes';
   BEGIN
     INSERT INTO sistema.modulos_sede (sede_id,modulo,activo,evidencia_legal_ref)
     VALUES (v_sede,'aportes',true,'ACTA-X');
-    -- personas SI esta encendido en CHIA, asi que esta debe pasar;
-    -- la prueba real es apagar la dependencia primero, que no se puede
-    -- porque personas es de nucleo. Se verifica el camino inverso:
-    PERFORM pg_temp.rg(9,'Aportes se enciende porque Personas esta activo','ACEPTADO','ACEPTADO',true);
-  EXCEPTION WHEN check_violation THEN
-    PERFORM pg_temp.rg(9,'Aportes se enciende porque Personas esta activo','ACEPTADO','RECHAZADO',false);
+    con_evidencia := 'ACEPTADO';
+  EXCEPTION WHEN check_violation THEN con_evidencia := 'RECHAZADO';
   END;
+
+  PERFORM pg_temp.rg(9,'Aportes se enciende sin evidencia legal, o no se enciende con ella',
+    'RECHAZADO sin evidencia · ACEPTADO con ella',
+    sin_evidencia||' sin evidencia · '||con_evidencia||' con ella',
+    sin_evidencia = 'RECHAZADO' AND con_evidencia = 'ACEPTADO');
 END $$;
 
 -- C10 · La plantacion nace SIN los modulos de compuerta legal.

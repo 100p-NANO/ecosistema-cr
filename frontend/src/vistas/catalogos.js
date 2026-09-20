@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { esc, cargando, error, unaVez, avisar } from '../ui.js';
+import { esc, cargando, error, engancharReintentar, unaVez, avisar } from '../ui.js';
 
 /**
  * La consola de catálogos.
@@ -15,19 +15,24 @@ import { esc, cargando, error, unaVez, avisar } from '../ui.js';
 export async function pintarCatalogos(c) {
   c.innerHTML = cargando(4);
   try {
-    const cats = await api.obtener('/api/v1/identidad/catalogos').catch(() => null);
-    if (!cats) {
-      c.innerHTML = `
-        <h1>Catálogos</h1>
-        <div class="aviso aviso--info">
-          Esta pantalla lee <code>sistema.v_catalogos</code>. La ruta de la API
-          todavía no está expuesta; la base ya tiene el registro y las funciones
-          <code>sistema.agregar_valor()</code> y <code>sistema.retirar_valor()</code>.
-        </div>`;
-      return;
-    }
+    /* ⛔ La versión anterior hacía `.catch(() => null)` y pintaba SIEMPRE
+       «la ruta todavía no está expuesta». Con eso, quedarse sin red, no
+       tener permiso o que el servidor se cayera producían el mismo
+       diagnóstico, y era falso: la ruta existe. Alguien abría un ticket
+       contra el backend por una función que ya funciona. */
+    const cats = await api.obtener('/api/v1/identidad/catalogos');
     pintar(cats);
-  } catch (e) { c.innerHTML = error(e.message, e.peticionId); }
+  } catch (e) {
+    const porQue =
+      e.estado === 0   ? 'No hay conexión con el servidor.'
+    : e.estado === 401 ? 'Su sesión no es válida. Vuelva a entrar.'
+    : e.estado === 403 ? 'Su rol no tiene permiso para ver los catálogos de la red.'
+    : e.estado === 404 ? 'Esta ruta todavía no está expuesta en la API.'
+    : e.estado >= 500  ? 'El servidor tuvo un problema.'
+    : e.message;
+    c.innerHTML = `<h1>Catálogos</h1>` + error(porQue, e.peticionId);
+    engancharReintentar(c, () => pintarCatalogos(c));
+  }
 
   function pintar(cats) {
     const abiertos = cats.filter(x => !x.cerrado);

@@ -17,11 +17,48 @@ const R: Array<{ n: number; nombre: string; obtenido: string; paso: boolean }> =
 const reg = (n: number, nombre: string, obtenido: string, paso: boolean) =>
   R.push({ n, nombre, obtenido, paso });
 
+/** Token de una persona, cacheado por corrida. */
+const tokens = new Map<string, string>();
+async function tokenDe(persona: string): Promise<string> {
+  if (tokens.has(persona)) return tokens.get(persona)!;
+  /* ⛔ execFileSync BLOQUEA el bucle de eventos, y la API que este banco
+     acaba de levantar corre EN ESTE MISMO PROCESO: el hijo pedia el token
+     a un servidor que no podia contestar hasta que el hijo terminara.
+     «fetch failed», que parecia red y era un abrazo mortal. Asincrono. */
+  const { execFile } = require('node:child_process');
+  const { promisify } = require('node:util');
+  const path = require('path');
+  const fs = require('fs');
+  /* Corre compilado (api/dist/test) y, si alguien lo invoca desde el
+     fuente (api/test), tambien. Se prueba donde esta de verdad en vez de
+     contar saltos de carpeta de memoria. */
+  const candidatos = [
+    path.resolve(__dirname, '..', '..', '..', 'scripts', 'token-para.js'),
+    path.resolve(__dirname, '..', '..', 'scripts', 'token-para.js'),
+  ];
+  const guion = candidatos.find((c: string) => fs.existsSync(c));
+  if (!guion) throw new Error('No encuentro scripts/token-para.js: el banco no puede identificarse');
+  const { stdout } = await promisify(execFile)('node', [guion, persona], { env: process.env });
+  const t = String(stdout).trim();
+  tokens.set(persona, t);
+  return t;
+}
+
 async function main() {
-  process.env.PGUSER ||= 'casaroca_api_dev';
+  /* ⛔ 19 sep 2026 · Aqui decia `||=`: si quien llamaba ya traia PGUSER en
+     el entorno (verificar.sh lo exporta como administrador), la API se
+     conectaba como SUPERUSUARIO y RLS no se aplicaba. El banco daba verde
+     a mano y cuatro rojos dentro de la compuerta, y los rojos eran los de
+     verdad: Medellin veia la bandeja de Bogota. El banco que prueba el
+     aislamiento NO puede heredar el usuario de quien lo invoca. */
+  process.env.PGUSER = process.env.PGUSER_API ?? 'casaroca_api_dev';
   const app = await NestFactory.create(AppModule, { logger: ['error'] });
   await app.listen(0);
   const base = (await app.getUrl()).replace('[::1]', '127.0.0.1').replace(/\/$/, '') + '/';
+  /* ⛔ token-para.js pide el token a $API. Sin esta linea lo pedia a la API
+     del :3000 (otro proceso, otro secreto JWT) y ESTA API lo rechazaba con
+     un 401 que parecia un fallo de permisos. */
+  process.env.API = base.replace(/\/$/, '');
 
   const admin = new Client({
     host: process.env.PGHOST ?? '/tmp', port: Number(process.env.PGPORT ?? 5433),
@@ -37,11 +74,16 @@ async function main() {
     `SELECT a.persona_id AS id FROM identidad.asignaciones a JOIN org.sedes s ON s.id=a.alcance_id
       WHERE a.rol='PASTOR_CONGREGACIONAL' AND s.codigo='MED' LIMIT 1`);
 
-  const pedir = (ruta: string, opts: RequestInit = {}, persona?: string) =>
+  /* ⛔ Antes la identidad iba en 'X-Persona-Id'. Esa cabecera se elimino al
+     cerrar el hallazgo H-01 y este banco quedo muerto, fuera de la
+     compuerta, con el README afirmando su resultado. Ahora entra por la
+     puerta de verdad, y por eso `pedir` pasa a ser asincrona. */
+  const pedir = async (ruta: string, opts: RequestInit = {}, persona?: string) =>
     fetch(base + 'api/v1/nuevos/' + ruta, {
       ...opts,
       headers: { 'content-type': 'application/json',
-                 ...(persona ? { 'X-Persona-Id': persona } : {}), ...(opts.headers ?? {}) },
+                 ...(persona ? { Authorization: `Bearer ${await tokenDe(persona)}` } : {}),
+                 ...(opts.headers ?? {}) },
     });
 
   const marca = 'Prueba' + Date.now().toString().slice(-7);

@@ -65,8 +65,8 @@ export class DonacionesService {
         `INSERT INTO aportes.aportes
            (sede_id, persona_id, es_anonimo, fondo_id, tipo, monto, moneda, medio, fecha,
             referencia, registrado_por, fuente)
-         SELECT $1, $2, $3, f.id, $4::aportes.tipo_aporte, $5, COALESCE($6,'COP'),
-                $7::aportes.medio_pago, COALESCE($8::date, CURRENT_DATE), $9, $10, 'manual'
+         SELECT $1, $2, $3, f.id, $4, $5, COALESCE($6,'COP'),
+                $7, COALESCE($8::date, CURRENT_DATE), $9, $10, 'manual'
            FROM aportes.fondos f WHERE f.codigo = $11
          RETURNING id, estado, fecha`,
         [sedeId, d.persona_id ?? null, !d.persona_id, tipo, monto, d.moneda ?? null,
@@ -75,7 +75,12 @@ export class DonacionesService {
       if (!a) throw new BadRequestException(`No existe el fondo «${fondoCodigo}».`);
       return { id: a.id, estado: String(a.estado).toUpperCase(), fecha_aporte: a.fecha, mensaje: 'Donación registrada' };
     } catch (e: any) {
+      /* ⛔ 19 sep 2026 · Estas dos columnas eran `enum` y se convirtieron en
+         catálogo editable (migración 0046): el cast `::aportes.tipo_aporte`
+         quedó apuntando a un tipo BORRADO y TODA donación devolvía un 500.
+         Ahora son texto validado por disparador, que avisa con otros códigos. */
       if (e.code === '22P02') throw new BadRequestException('Tipo de aporte o método de pago no válido.');
+      if (e.code === '23503') throw new BadRequestException('Valor fuera del catálogo: ' + e.message);
       if (e.code === '23514') throw new BadRequestException('La donación no cumple las reglas: ' + e.message);
       throw e;
     }

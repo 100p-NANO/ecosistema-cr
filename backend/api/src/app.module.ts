@@ -11,6 +11,7 @@ import { Modelo100pModule } from './modelo100p/modelo100p';
 import { AuthModule } from './auth/auth.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { SaludModule } from './salud/salud.module';
+import { RocakidsModule } from './rocakids/rocakids.module';
 import { trazaYRegistro, cabecerasDeSeguridad } from './comun/peticion';
 
 /**
@@ -22,7 +23,9 @@ import { trazaYRegistro, cabecerasDeSeguridad } from './comun/peticion';
   imports: [DbModule, AuthModule, SaludModule,
             SesionModule, OrganizacionModule, PersonasModule,
             IdentidadModule, AportesModule, NuevosModule,
-            NotificacionesModule, Modelo100pModule],
+            NotificacionesModule, Modelo100pModule,
+            // 19 sep 2026 · el flujo del domingo, que no tenia API
+            RocakidsModule],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

@@ -118,8 +118,11 @@ export class AuthService {
     return this.emitirPar(cuerpo.cta, ip, agente, cuerpo.jti, false);
   }
 
+  /** Cierra la sesión ENTERA: el acceso y su refresco. */
   async salir(jti: string) {
-    await this.pool.query(`SELECT identidad.cerrar_sesion($1, 'salida del usuario')`, [jti]);
+    const { rows } = await this.pool.query(
+      `SELECT identidad.cerrar_sesion($1, 'salida del usuario') AS cerrada`, [jti]);
+    return { cerrada: rows[0]?.cerrada === true };
   }
 
   async salirDeTodo(cuentaId: string) {
@@ -219,10 +222,11 @@ export class AuthService {
       `SELECT identidad.persona_de_cuenta($1) AS persona_id`, [cuentaId]);
     const personaId: string | null = rows[0]?.persona_id ?? null;
 
-    await this.pool.query(`SELECT identidad.abrir_sesion($1,$2,$3,$4,$5,$6)`,
-      [cuentaId, jtiAcceso, MINUTOS_ACCESO, ip, agente, null]);
-    await this.pool.query(`SELECT identidad.abrir_sesion($1,$2,$3,$4,$5,$6)`,
-      [cuentaId, jtiRefresco, MINUTOS_REFRESCO, ip, agente, refrescoDe]);
+    /* ⛔ El acceso y su refresco se emiten ENLAZADOS. Antes eran dos
+       llamadas sueltas y nada decía que fueran hermanas: cerrar sesión
+       mataba el acceso y dejaba el refresco vivo doce horas. */
+    await this.pool.query(`SELECT identidad.abrir_par_de_sesion($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [cuentaId, jtiAcceso, jtiRefresco, MINUTOS_ACCESO, MINUTOS_REFRESCO, ip, agente, refrescoDe]);
 
     const base = { sub: personaId ?? cuentaId, cta: cuentaId };
     return {

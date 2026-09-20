@@ -9,14 +9,50 @@ CREATE TEMP TABLE res(n int, caso text, esperado text, obtenido text, pasa boole
 CREATE FUNCTION pg_temp.rg(a int, b text, c text, d text, e boolean) RETURNS void
 LANGUAGE sql AS $$ INSERT INTO res VALUES (a,b,c,d,e) $$;
 
+-- ⛔ H1 y H2 buscaban «una sede que no tenga personas» entre las sembradas.
+--    El auditor lo demostró: basta con una persona por sede para que esa
+--    búsqueda devuelva NULL, y entonces `app.sede_ids` queda vacío y la
+--    prueba deja de comparar contra una sede REAL. Seguía imprimiendo PASA,
+--    pero había cambiado sin avisar la garantía que examinaba: de «una sede
+--    sin personas no ve lo ajeno» a «un contexto vacío no ve nada», que es
+--    otra cosa. Con 36 sedes con gente, eso pasa el primer día.
+--
+--    Aquí la sede de laboratorio se CREA, es exclusiva de este banco y
+--    nunca recibe una persona.
+DO $$
+DECLARE v_id uuid;
+BEGIN
+  INSERT INTO org.sedes (codigo, nombre, tipo, pais, ciudad, activa)
+  VALUES ('LAB-VACIA','Sede de laboratorio (nunca recibe personas)','plantacion','CO','Bogota', false)
+  ON CONFLICT (codigo) DO NOTHING;
+  SELECT id INTO v_id FROM org.sedes WHERE codigo='LAB-VACIA';
+  IF v_id IS NULL THEN
+    RAISE EXCEPTION 'No se pudo crear la sede de laboratorio: el banco no puede probar el aislamiento';
+  END IF;
+END $$;
+
+CREATE FUNCTION pg_temp.sede_vacia() RETURNS uuid LANGUAGE plpgsql STABLE AS $$
+DECLARE v uuid;
+BEGIN
+  SELECT id INTO v FROM org.sedes WHERE codigo='LAB-VACIA';
+  -- ⛔ Si el sujeto de la prueba desaparece, la prueba FALLA RUIDOSAMENTE
+  --    en vez de degradarse en silencio.
+  IF v IS NULL THEN
+    RAISE EXCEPTION 'Sujeto de prueba agotado: no existe la sede LAB-VACIA';
+  END IF;
+  IF EXISTS (SELECT 1 FROM nucleo.personas WHERE sede_id = v) THEN
+    RAISE EXCEPTION 'La sede de laboratorio recibio personas: ya no sirve para probar el aislamiento';
+  END IF;
+  RETURN v;
+END $$;
+
 -- H1 · Una sede sin personas no debe ver NADA de otra sede.
 DO $$
 DECLARE vacia uuid; poblada uuid; n_vacia int; n_poblada int;
 BEGIN
   SELECT s.id INTO poblada FROM org.sedes s
     JOIN nucleo.personas p ON p.sede_id=s.id GROUP BY s.id ORDER BY count(*) DESC LIMIT 1;
-  SELECT s.id INTO vacia FROM org.sedes s
-    WHERE NOT EXISTS (SELECT 1 FROM nucleo.personas p WHERE p.sede_id=s.id) LIMIT 1;
+  vacia := pg_temp.sede_vacia();
 
   SET LOCAL ROLE casaroca_app;
   PERFORM set_config('app.sede_ids','{'||vacia::text||'}',true);
@@ -32,8 +68,7 @@ END $$;
 DO $$
 DECLARE vacia uuid; n int;
 BEGIN
-  SELECT s.id INTO vacia FROM org.sedes s
-    WHERE NOT EXISTS (SELECT 1 FROM nucleo.personas p WHERE p.sede_id=s.id) LIMIT 1;
+  vacia := pg_temp.sede_vacia();
   SET LOCAL ROLE casaroca_app;
   PERFORM set_config('app.sede_ids','{'||vacia::text||'}',true);
   PERFORM set_config('app.nivel_max','4',true);

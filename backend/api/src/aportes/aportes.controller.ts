@@ -4,6 +4,7 @@ import { AportesService } from './aportes.service';
 import { DonacionesService } from './donaciones.service';
 import { DbService } from '../db/db.service';
 import { conSesion, ipDe } from '../comun/identidad.helper';
+import { uuid } from '../comun/validar';
 
 @Controller('api/v1/aportes')
 export class AportesController {
@@ -23,7 +24,7 @@ export class AportesController {
 
   @Post('pagos/:id/emparejar')
   emparejar(@Req() req: Request, @Param('id') id: string, @Body() d: any) {
-    return conSesion(this.db, req, (c) => this.aportes.emparejar(c, id, d?.personaId));
+    return conSesion(this.db, req, (c) => this.aportes.emparejar(c, uuid(id, 'id'), d?.personaId));
   }
 
   // ── Módulo de Donaciones (documento del Drive 100p) ──────────────
@@ -43,7 +44,7 @@ export class AportesController {
   /** Aprobación (APROBAR_APORTE = CONFIRMAR_APORTE). */
   @Post(':id/confirmar')
   confirmar(@Req() req: Request, @Param('id') id: string) {
-    return conSesion(this.db, req, (c) => this.donaciones.confirmar(c, id));
+    return conSesion(this.db, req, (c) => this.donaciones.confirmar(c, uuid(id, 'id')));
   }
 
   /** Expedir certificado (GENERAR_CERTIFICADO): { persona_id, anio } o { fecha_inicio, fecha_fin }. */
@@ -54,19 +55,19 @@ export class AportesController {
 
   @Get('certificados/:id')
   certificado(@Req() req: Request, @Param('id') id: string) {
-    return conSesion(this.db, req, (c) => this.donaciones.certificado(c, id));
+    return conSesion(this.db, req, (c) => this.donaciones.certificado(c, uuid(id, 'id')));
   }
 
   /** El certificado imprimible (la `url_pdf` apunta aquí). */
   @Get('certificados/:id/documento')
   @Header('Content-Type', 'text/html; charset=utf-8')
   documento(@Req() req: Request, @Param('id') id: string) {
-    return conSesion(this.db, req, (c) => this.donaciones.documento(c, id));
+    return conSesion(this.db, req, (c) => this.donaciones.documento(c, uuid(id, 'id')));
   }
 
   /** Anulación con motivo escrito (solo Tesorería). */
   @Post('certificados/:id/anular')
   anular(@Req() req: Request, @Param('id') id: string, @Body() d: any) {
-    return conSesion(this.db, req, (c) => this.donaciones.anularCertificado(c, id, d?.motivo));
+    return conSesion(this.db, req, (c) => this.donaciones.anularCertificado(c, uuid(id, 'id'), d?.motivo));
   }
 }

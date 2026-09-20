@@ -9,6 +9,27 @@
 -- Datos sintéticos: los crea la propia prueba.
 -- =====================================================================
 \set ON_ERROR_STOP on
+-- ⛔ AYUDA DE LABORATORIO. Desde la migracion 0053, encolar un aviso EXIGE
+--    consentimiento vigente de esa persona para ese canal y esa finalidad.
+--    Los datos de prueba tienen que ser tan legales como los de verdad: si
+--    el banco pudiera saltarse el consentimiento, estaria probando un
+--    sistema que no existe.
+CREATE OR REPLACE FUNCTION pg_temp.consentir(p_persona uuid) RETURNS void
+LANGUAGE sql AS $$
+  INSERT INTO plataforma.consentimientos
+    (persona_id, sede_id, finalidad, canal, acto, ocurrido_en, evidencia_tipo, evidencia_ref)
+  SELECT p_persona, p.sede_id, f.codigo, c.canal, 'otorgado', now(), 'formulario_web', 'banco de pruebas'
+  FROM nucleo.personas p
+  CROSS JOIN plataforma.finalidades f
+  CROSS JOIN (SELECT unnest(enum_range(NULL::plataforma.canal_contacto)) AS canal) c
+  WHERE p.id = p_persona
+    -- ⛔ Sin ON CONFLICT: `consentimientos` es append-only con REGLAS, y
+    --    PostgreSQL no admite ON CONFLICT sobre una tabla con reglas.
+    AND NOT EXISTS (SELECT 1 FROM plataforma.consentimientos x
+                    WHERE x.persona_id = p_persona AND x.canal = c.canal
+                      AND x.finalidad = f.codigo);
+$$;
+
 CREATE TEMP TABLE _e (n int, nombre text, esperado text, obtenido text, paso boolean);
 CREATE OR REPLACE FUNCTION pg_temp.rg(a int,b text,c text,d text,e boolean) RETURNS void
 LANGUAGE sql AS $$ INSERT INTO _e VALUES (a,b,c,d,e); $$;
@@ -23,6 +44,7 @@ BEGIN
   INSERT INTO aportes.fondos (codigo,nombre,tipo) VALUES ('GENC','General cert','general') RETURNING id INTO v_f;
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
   VALUES (v_sede,'Donante','Anual',DATE '1985-04-04') RETURNING id INTO v_p;
+  PERFORM pg_temp.consentir(v_p);
   INSERT INTO aportes.aportes (sede_id,persona_id,fondo_id,tipo,monto,medio,fecha) VALUES
     (v_sede,v_p,v_f,'diezmo',400000.00,'transferencia',DATE '2026-01-15'),
     (v_sede,v_p,v_f,'diezmo',400000.00,'transferencia',DATE '2026-02-15'),
@@ -69,6 +91,7 @@ BEGIN
   SELECT id INTO v_f FROM aportes.fondos WHERE codigo='GENC';
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,fecha_nacimiento)
   VALUES (v_sede,'Donante','Mixto',DATE '1980-01-01') RETURNING id INTO v_p;
+  PERFORM pg_temp.consentir(v_p);
   INSERT INTO aportes.aportes (sede_id,persona_id,fondo_id,tipo,monto,moneda,medio,fecha) VALUES
     (v_sede,v_p,v_f,'ofrenda',100000,'COP','efectivo',DATE '2026-05-01'),
     (v_sede,v_p,v_f,'ofrenda',   100,'USD','efectivo',DATE '2026-06-01');
@@ -133,7 +156,7 @@ DECLARE v_sede uuid;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-NORTE';
   BEGIN
-    INSERT INTO crm.nuevos_registros (sede_id,nombre) VALUES (v_sede,'Fantasma Sin Contacto');
+    INSERT INTO crm.nuevos_registros (sede_id,nombre,canales_autorizados,autorizado_en) VALUES (v_sede,'Fantasma Sin Contacto',ARRAY['email','whatsapp']::plataforma.canal_contacto[],now());
     PERFORM pg_temp.rg(8,'Nuevo sin ninguna forma de contacto','RECHAZADO','ACEPTADO',false);
   EXCEPTION WHEN check_violation THEN
     PERFORM pg_temp.rg(8,'Nuevo sin ninguna forma de contacto','RECHAZADO','RECHAZADO como debe',true);
@@ -145,8 +168,7 @@ DO $$
 DECLARE v_sede uuid; v_nuevo uuid; v_p uuid; v_entro timestamptz; v_reg timestamptz;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-NORTE';
-  INSERT INTO crm.nuevos_registros (sede_id,nombre,email,como_supo,es_cristiano,registrado_en)
-  VALUES (v_sede,'Marta Llegada','marta.llegada.'||substr(md5(clock_timestamp()::text),1,8)||'@example.org','amigo','duda', now() - interval '20 days')
+  INSERT INTO crm.nuevos_registros (sede_id,nombre,email,como_supo,es_cristiano,registrado_en,canales_autorizados,autorizado_en) VALUES (v_sede,'Marta Llegada','marta.llegada.'||substr(md5(clock_timestamp()::text),1,8)||'@example.org','amigo','duda', now() - interval '20 days',ARRAY['email','whatsapp']::plataforma.canal_contacto[],now())
   RETURNING id, registrado_en INTO v_nuevo, v_reg;
 
   v_p := crm.convertir_en_miembro(v_nuevo, NULL, 'Decidió integrarse');
@@ -181,8 +203,8 @@ BEGIN
   INSERT INTO nucleo.personas (sede_id,primer_nombre,primer_apellido,email_principal,fecha_nacimiento)
   VALUES (v_sede,'Pedro','Existente',v_email,DATE '1990-02-02')
   RETURNING id INTO v_p1;
-  INSERT INTO crm.nuevos_registros (sede_id,nombre,email,como_supo)
-  VALUES (v_sede,'Pedro Existente',v_email,'redes') RETURNING id INTO v_nuevo;
+  PERFORM pg_temp.consentir(v_p1);
+  INSERT INTO crm.nuevos_registros (sede_id,nombre,email,como_supo,canales_autorizados,autorizado_en) VALUES (v_sede,'Pedro Existente',v_email,'redes',ARRAY['email','whatsapp']::plataforma.canal_contacto[],now()) RETURNING id INTO v_nuevo;
 
   v_p2 := crm.convertir_en_miembro(v_nuevo, NULL, NULL);
   SELECT count(*) INTO v_total FROM nucleo.personas
@@ -196,8 +218,7 @@ DO $$
 DECLARE v_sede uuid; v_estado text;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='MED';
-  INSERT INTO crm.nuevos_registros (sede_id,nombre,telefono,registrado_en)
-  VALUES (v_sede,'Olvidado Tres Dias','+57 3000000000', now() - interval '3 days');
+  INSERT INTO crm.nuevos_registros (sede_id,nombre,telefono,registrado_en,canales_autorizados,autorizado_en) VALUES (v_sede,'Olvidado Tres Dias','+57 3000000000', now() - interval '3 days',ARRAY['email','whatsapp']::plataforma.canal_contacto[],now());
   SELECT proxima_accion INTO v_estado FROM crm.v_bandeja_nuevos WHERE nombre='Olvidado Tres Dias';
   PERFORM pg_temp.rg(12,'La bandeja marca los atrasados','ATRASADO', v_estado, v_estado = 'ATRASADO');
 END $$;

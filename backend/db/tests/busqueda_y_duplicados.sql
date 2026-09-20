@@ -84,9 +84,13 @@ DO $$
 DECLARE sin_motivo boolean := false; consigo boolean := false;
 BEGIN
   BEGIN PERFORM nucleo.fusionar((SELECT v FROM blab WHERE k='a'),(SELECT v FROM blab WHERE k='b'),'x');
-  EXCEPTION WHEN others THEN sin_motivo := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN sin_motivo := true; END;
   BEGIN PERFORM nucleo.fusionar((SELECT v FROM blab WHERE k='a'),(SELECT v FROM blab WHERE k='a'),'motivo suficientemente largo');
-  EXCEPTION WHEN others THEN consigo := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN consigo := true; END;
   PERFORM pg_temp.rg(6,'Fusionar sin motivo o consigo misma','los dos RECHAZADOS',
     CASE WHEN sin_motivo AND consigo THEN 'los dos RECHAZADOS' ELSE 'alguno paso (mal)' END,
     sin_motivo AND consigo);
@@ -150,7 +154,9 @@ DECLARE ok boolean := false;
 BEGIN
   BEGIN PERFORM nucleo.fusionar((SELECT v FROM blab WHERE k='a'),(SELECT v FROM blab WHERE k='b'),
     'Intento repetido de fusionar la misma persona');
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(10,'Se puede fusionar dos veces la misma persona','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;

@@ -42,7 +42,9 @@ BEGIN
     INSERT INTO rocakids.servidores_sala (sala_id, persona_id, sede_id)
     VALUES ((SELECT v FROM vlab WHERE k='sala'),(SELECT v FROM vlab WHERE k='persona'),
             (SELECT v FROM vlab WHERE k='sede'));
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(2,'Se puede servir en una sala de ninos sin antecedentes','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;
@@ -85,7 +87,9 @@ BEGIN
     INSERT INTO identidad.asignaciones (persona_id, rol, alcance_tipo, alcance_id, nivel_max)
     VALUES ((SELECT v FROM vlab WHERE k='persona'),'DIRECTOR_ROCAKIDS','ministerio',
             (SELECT id FROM org.ministerios LIMIT 1), 4);
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(5,'Con un antecedente vencido deja asignar otro rol de menores','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;

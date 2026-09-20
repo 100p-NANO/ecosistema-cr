@@ -26,7 +26,9 @@ DO $$
 DECLARE ok boolean := false;
 BEGIN
   BEGIN INSERT INTO org.unidades (codigo,nombre,clase) VALUES ('CENTRAL2','Otra central','central');
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(2,'Se puede crear una segunda central','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;
@@ -38,7 +40,9 @@ BEGIN
   INSERT INTO org.unidades (codigo,nombre,clase) VALUES ('T-A','Prueba A','equipo') RETURNING id INTO a;
   INSERT INTO org.unidades (codigo,nombre,clase,padre_id) VALUES ('T-B','Prueba B','equipo',a) RETURNING id INTO b;
   BEGIN UPDATE org.unidades SET padre_id = b WHERE id = a;
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   DELETE FROM org.unidades WHERE codigo IN ('T-B','T-A');
   PERFORM pg_temp.rg(3,'Un equipo puede depender de si mismo (ciclo)','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
@@ -83,7 +87,9 @@ BEGIN
   BEGIN
     INSERT INTO identidad.asignaciones_unidad (unidad_id, rol, alcance_tipo, nivel_max)
     VALUES ((SELECT id FROM org.unidades WHERE codigo='EQ-COM'), 'GERENCIA_ADMINISTRATIVA','organizacion',4);
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(7,'Un equipo se pasa el techo de su rol','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;
@@ -173,7 +179,9 @@ DECLARE ok boolean := false;
 BEGIN
   BEGIN PERFORM org.sacar_del_equipo(
     (SELECT id FROM org.unidades WHERE codigo='REG-BOG'), (SELECT v FROM olab WHERE k='supervisor'), 'x');
-  EXCEPTION WHEN others THEN ok := true; END;
+  EXCEPTION WHEN check_violation OR foreign_key_violation OR unique_violation
+                 OR insufficient_privilege OR raise_exception OR no_data_found
+                 THEN ok := true; END;
   PERFORM pg_temp.rg(13,'Sacar a alguien de un equipo sin motivo','RECHAZADO como debe',
     CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;

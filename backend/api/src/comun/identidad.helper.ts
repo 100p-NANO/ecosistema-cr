@@ -67,7 +67,28 @@ export function exigirNivel(req: Request, minimo: number, que: string): void {
   }
 }
 
+/**
+ * La dirección de quien llama.
+ *
+ * ⛔ HALLAZGO DE LA AUDITORÍA: esta función tomaba `X-Forwarded-For` sin
+ * comprobar que viniera de un proxy de confianza, y es la clave del único
+ * límite de intentos de la API. Reproducido: 15 intentos de entrar
+ * cambiando esa cabecera en cada uno, ninguno bloqueado. El barrido de
+ * contraseñas contra muchas cuentas quedaba sin freno de red.
+ *
+ * Ahora la verdad es el socket. La cabecera solo se cree cuando hay un
+ * balanceador declarado delante (en Cloud Run lo hay; en el portátil no),
+ * y entonces se toma el salto correcto, no el primero, que es el que
+ * escribe el cliente.
+ */
 export function ipDe(req: Request): string | null {
-  const x = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim();
-  return x || req.socket.remoteAddress || null;
+  const saltos = Number(process.env.APP_PROXIES_CONFIABLES ?? 0);
+  if (saltos > 0) {
+    const cadena = (req.headers['x-forwarded-for'] as string | undefined)?.split(',').map(s => s.trim()) ?? [];
+    /* El cliente controla el PRINCIPIO de la cadena; el proxy añade al
+       final. Se cuenta desde el final tantos saltos como proxies haya. */
+    const i = cadena.length - saltos;
+    if (i >= 0 && cadena[i]) return cadena[i];
+  }
+  return req.socket.remoteAddress || null;
 }
