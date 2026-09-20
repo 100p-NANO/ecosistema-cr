@@ -9,7 +9,6 @@ import { pintarGrupos, pintarGrupo } from './vistas/grupos.js';
 import { pintarConsejeria, pintarCaso } from './vistas/consejeria.js';
 import { pintarFormacion, pintarCohorte } from './vistas/formacion.js';
 import { pintarTalento, pintarAntecedentes } from './vistas/talento.js';
-import { pintarAdministracion } from './vistas/administracion.js';
 import { esc, cargando, error, engancharReintentar, avisar } from './ui.js';
 import { cola } from './offline.js';
 import { demoActivo } from './demo.js';
@@ -43,10 +42,15 @@ const VISTAS = {
      Director General. Una lista escrita a mano que nadie contrasta con la
      base se equivoca en silencio. */
   catalogos:  { titulo: 'Catálogos',  icono: '☰', modulo: 'identidad',   pintar: pintarCatalogos },
-  /* La administración es del comando central: aquí se despliegan iglesias,
-     personas, roles, módulos y los equipos que después administran lo suyo. */
-  admin:      { titulo: 'Administración', icono: '⚙', modulo: 'identidad', pintar: pintarAdministracion },
 };
+
+/* ⛔ 20 sep 2026 · LA ADMINISTRACIÓN NO VIVE AQUÍ, y no es un detalle de
+   organización: es una decisión de Daniel. El Sistema Master (el comando
+   central: desplegar iglesias, crear accesos, otorgar roles, armar los
+   equipos corporativos) es OTRA plataforma, con su propia dirección y su
+   propio visual, porque quien entra ahí administra la red entera y tiene
+   que saber dónde está. Esta aplicación es la de la sede.
+   Vive en `master/` y se entra por el enlace de abajo. */
 
 const alcanza = (modulo) =>
   !modulo || (sesion?.modulos ?? []).some(m => (m.modulo ?? m) === modulo) || sesion?.alcance?.todaLaRed;
@@ -158,6 +162,8 @@ function pintarMarco() {
         <footer class="pie">
           CasaRoca System · versión <code>${esc(window.CASAROCA_VERSION ?? 'dev')}</code>
           · <code>${esc(api.base)}</code>
+          ${sesion?.alcance?.todaLaRed ? `
+            · <a href="master/" style="color:var(--cr-azul-700)">Sistema Master</a>` : ''}
         </footer>
       </div>
     </div>`;
