@@ -73,8 +73,20 @@ export function pintarTalento(c) {
         { nombre: 'ministerioId', etiqueta: 'Ministerio', opciones: ministerios, obligatorio: true },
         { nombre: 'funcion', etiqueta: 'Función', obligatorio: true, minimo: 3 },
         { nombre: 'desde', etiqueta: 'Desde', tipo: 'date' },
+        /* ⛔ 20 sep 2026. Esta casilla NO estaba, y el backend la lee
+           (`b?.trabajaConMenores === true`). Todo voluntariado creado
+           desde aquí nacía con `trabaja_con_menores = false`, así que
+           NUNCA podía aparecer en el aviso rojo de «activos con menores
+           y sin antecedentes vigentes» que esta misma pantalla anuncia
+           en su cabecera. La salvaguarda de menores se perdía en
+           silencio, con respuesta 200. */
+        { nombre: 'trabajaConMenores', etiqueta: '¿Va a estar con menores?', obligatorio: true,
+          opciones: [{ valor: 'no', texto: 'No' }, { valor: 'si', texto: 'Sí, con niños o adolescentes' }],
+          ayuda: 'Si marca que sí, el sistema le exigirá antecedentes vigentes antes de dejarlo servir.' },
+        { nombre: 'compromisoFirmadoEn', etiqueta: 'Compromiso de protección firmado el', tipo: 'date' },
       ],
-      al: (d) => api.enviar('/api/v1/talento/voluntariados', d),
+      al: (d) => api.enviar('/api/v1/talento/voluntariados',
+        { ...d, trabajaConMenores: d.trabajaConMenores === 'si' }),
     });
     recargar().then(() => form.enganchar(c, recargar));
   }).catch(e => avisar('No se pudo preparar el formulario: ' + e.message, 'error'));

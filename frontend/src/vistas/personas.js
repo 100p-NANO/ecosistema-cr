@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { esc, cargando, vacio, error, distintivoNivel } from '../ui.js';
+import { esc, cargando, vacio, error, distintivoNivel, engancharReintentar } from '../ui.js';
 
 /** Buscar personas. Un solo cuadro: nombre mal escrito, documento, teléfono
     o correo. La base tolera los errores de digitación; sin eso, quien busca
@@ -54,7 +54,11 @@ export function pintarPersonas(c) {
         </div>`;
     } catch (e) {
       if (mio !== ultimo) return;
-      salida.innerHTML = error(e.message, e.peticionId, `document.getElementById('buscar').requestSubmit()`);
+      /* ⛔ El tercer argumento no existe en `error()`: se descartaba en
+         silencio y el botón «Reintentar» se pintaba sin escuchador. Un
+         botón visible que no hace nada es peor que no tenerlo. */
+      salida.innerHTML = error(e.message, e.peticionId);
+      engancharReintentar(salida, () => buscar(entrada.value));
     }
   }
 

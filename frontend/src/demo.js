@@ -24,10 +24,16 @@ const hoy = new Date();
 const d = (dias = 0) => new Date(hoy.getTime() + dias * 86400000).toISOString().slice(0, 10);
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
+/* ⛔ Faltaban `tipo`, `ciudad`, `pais` y `activa`, que la API real sí
+   devuelve: tres pantallas pintaban esas columnas EN BLANCO (el Tablero
+   de la red, Iglesias y sedes, y el Panel). */
 const SEDES = [
-  { id: id(1), codigo: 'BOG-NORTE', nombre: 'Bogotá Norte (demo)' },
-  { id: id(2), codigo: 'MED', nombre: 'Medellín (demo)' },
-  { id: id(3), codigo: 'CHIA', nombre: 'Chía (demo)' },
+  { id: id(1), codigo: 'BOG-NORTE', nombre: 'Bogotá Norte (demo)', tipo: 'sede_madre',
+    pais: 'CO', ciudad: 'Bogotá', activa: true, ministerios_activos: 6 },
+  { id: id(2), codigo: 'MED', nombre: 'Medellín (demo)', tipo: 'filial_nacional',
+    pais: 'CO', ciudad: 'Medellín', activa: true, ministerios_activos: 4 },
+  { id: id(3), codigo: 'CHIA', nombre: 'Chía (demo)', tipo: 'plantacion',
+    pais: 'CO', ciudad: 'Chía', activa: true, ministerios_activos: 2 },
 ];
 
 const PERSONAS = [
@@ -160,6 +166,102 @@ const rolDe = (c) => G.roles.find(r => r.codigo === c);
 const accionesDe = (mod) => ACCIONES_DEMO.filter(a => !a.modulo || a.modulo === mod);
 const noEnDemo = (m) => { const e = new Error(m); e.demo = true; throw e; };
 
+const ACU_NOMBRES = ['Marta Quiroga Peña', 'Andrés Beltrán Ruiz', 'Rosa Cifuentes Lara', 'Julián Espinosa Mora'];
+
+/* ── RocaKids, Catálogos y las sedes completas ─────────────────────
+   Con la forma EXACTA de la API real: un arreglo plano y los mismos
+   nombres de campo. Una demostración que devuelve otra forma no enseña
+   el sistema: enseña un error de JavaScript. */
+const SALAS = [
+  { id: id(960), codigo: 'CUNA', nombre: 'Cuna (0 a 2)', sede_id: id(1), sede_codigo: 'BOG-NORTE',
+    edad_min: 0, edad_max: 2, capacidad: 20, ninos_dentro: 12, adultos: 3, regla_dos_adultos: true },
+  { id: id(961), codigo: 'EXPLO', nombre: 'Exploradores (6 a 8)', sede_id: id(1), sede_codigo: 'BOG-NORTE',
+    edad_min: 6, edad_max: 8, capacidad: 30, ninos_dentro: 21, adultos: 1, regla_dos_adultos: false },
+  { id: id(962), codigo: 'AVENT', nombre: 'Aventureros (9 a 11)', sede_id: id(2), sede_codigo: 'MED',
+    edad_min: 9, edad_max: 11, capacidad: 25, ninos_dentro: 8, adultos: 2, regla_dos_adultos: true },
+];
+
+const MENORES = [
+  'Sara Quiroga', 'Matías Beltrán', 'Emilia Naranjo', 'Tomás Ibarra',
+  'Valentina Vargas', 'Samuel Espinosa', 'Antonia Cifuentes', 'Martín Rueda',
+].map((menor, i) => ({
+  menor_id: id(820 + i), menor, edad: 1 + (i % 10),
+  sala_id: SALAS[i % 3].id, esta_dentro: i < 3, codigo: null,
+  alergias: i === 2 ? 'Maní' : null, acudiente_principal: ACU_NOMBRES[i % 4],
+}));
+
+const ACUDIENTES = [
+  { acudiente: 'Marta Quiroga Peña', parentesco: 'madre', autoriza_retiro: true, telefono: '300 000 0001' },
+  { acudiente: 'Andrés Beltrán Ruiz', parentesco: 'padre', autoriza_retiro: true, telefono: '300 000 0002' },
+  { acudiente: 'Rosa Cifuentes Lara', parentesco: 'abuela', autoriza_retiro: false, telefono: '300 000 0003' },
+];
+
+/* Lo que mira el comité trimestral y la vigilancia de accesos. */
+const RECERT = [
+  { asignacion_id: id(770), persona_id: id(100), persona: 'Marta Quiroga Peña', rol: 'TESORERIA',
+    alcance_tipo: 'organizacion', nivel_max: 3, vigente_desde: d(-260),
+    ultima_revision: null, dias_sin_revisar: 260, tope_dias: 90, vencido: true },
+  { asignacion_id: id(771), persona_id: id(101), persona: 'Andrés Beltrán Ruiz', rol: 'PASTOR_CONGREGACIONAL',
+    alcance_tipo: 'sede', nivel_max: 3, vigente_desde: d(-400),
+    ultima_revision: d(-120), dias_sin_revisar: 120, tope_dias: 90, vencido: true },
+  { asignacion_id: id(772), persona_id: id(102), persona: 'Lucía Naranjo Díaz', rol: 'SECRETARIA',
+    alcance_tipo: 'sede', nivel_max: 2, vigente_desde: d(-40),
+    ultima_revision: null, dias_sin_revisar: 40, tope_dias: 180, vencido: false },
+];
+
+const SESIONES = [
+  { sesion: id(780), usuario: 'marta@casaroca.org', persona_id: id(100), persona: 'Marta Quiroga Peña',
+    emitida_en: new Date(Date.now() - 42 * 60000).toISOString(),
+    expira_en: new Date(Date.now() + 18 * 60000).toISOString(),
+    ip: '190.0.0.2', agente: 'Safari · iPhone', le_queda: '18 min' },
+  { sesion: id(781), usuario: 'andrés@casaroca.org', persona_id: id(101), persona: 'Andrés Beltrán Ruiz',
+    emitida_en: new Date(Date.now() - 6 * 3600000).toISOString(),
+    expira_en: new Date(Date.now() + 2 * 3600000).toISOString(),
+    ip: '190.0.0.7', agente: 'Chrome · Windows', le_queda: '2 h 4 min' },
+];
+
+const UNIDADES = [
+  { id: id(700), codigo: 'CENTRAL', nombre: 'Casa Sobre la Roca · Central', clase: 'central', padre_id: null,
+    proposito: 'Administra la red completa: da servicios a las sedes y no las reemplaza.',
+    activa: true, padre: null, lider: null, integrantes: '6', roles: '2' },
+  { id: id(701), codigo: 'TESORERIA', nombre: 'Tesorería de la red', clase: 'equipo', padre_id: id(700),
+    proposito: 'Administra diezmos, ofrendas y certificados de toda la red.',
+    activa: true, padre: 'Casa Sobre la Roca · Central', lider: null, integrantes: '3', roles: '1' },
+  { id: id(702), codigo: 'CONTA', nombre: 'Contabilidad', clase: 'equipo', padre_id: id(700),
+    proposito: 'Lleva la contabilidad consolidada de las 36 sedes.',
+    activa: true, padre: 'Casa Sobre la Roca · Central', lider: null, integrantes: '2', roles: '1' },
+  { id: id(703), codigo: 'REG-ANDINA', nombre: 'Región Andina', clase: 'region', padre_id: id(700),
+    proposito: 'Acompaña a las sedes de la región.',
+    activa: true, padre: 'Casa Sobre la Roca · Central', lider: null, integrantes: '1', roles: '0' },
+];
+
+const CATALOGOS = [
+  { codigo: 'estado_civil', nombre: 'Estado civil',
+    descripcion: 'Lista abierta: cambia con la ley y con la realidad de la gente.',
+    editable_por_sede: false, cerrado: false, motivo_cerrado: null,
+    valores_vigentes: 6, valores_retirados: 1,
+    valores: [
+      { codigo: 'soltero', etiqueta: 'Soltero o soltera' }, { codigo: 'casado', etiqueta: 'Casado o casada' },
+      { codigo: 'union', etiqueta: 'Unión libre' }, { codigo: 'separado', etiqueta: 'Separado o separada' },
+      { codigo: 'divorciado', etiqueta: 'Divorciado o divorciada' }, { codigo: 'viudo', etiqueta: 'Viudo o viuda' }] },
+  { codigo: 'medio_pago', nombre: 'Medio de pago',
+    descripcion: 'Aparecen medios nuevos cada año: se agregan sin tocar código.',
+    editable_por_sede: true, cerrado: false, motivo_cerrado: null,
+    valores_vigentes: 4, valores_retirados: 0,
+    valores: [
+      { codigo: 'efectivo', etiqueta: 'Efectivo' }, { codigo: 'transferencia', etiqueta: 'Transferencia' },
+      { codigo: 'tarjeta', etiqueta: 'Tarjeta' }, { codigo: 'nequi', etiqueta: 'Nequi' }] },
+  { codigo: 'nivel_sensibilidad', nombre: 'Nivel de sensibilidad',
+    descripcion: 'Qué tan delicado es un dato.',
+    editable_por_sede: false, cerrado: true,
+    motivo_cerrado: 'Lo fija la política de datos, no la operación.',
+    valores_vigentes: 5, valores_retirados: 0,
+    valores: [
+      { codigo: 'N0', etiqueta: 'Público' }, { codigo: 'N1', etiqueta: 'Interno' },
+      { codigo: 'N2', etiqueta: 'Personal' }, { codigo: 'N3', etiqueta: 'Sensible' },
+      { codigo: 'N4', etiqueta: 'Menores y lo más delicado' }] },
+];
+
 const SERVICIOS = [
   { id: id(200), sede: 'BOG-NORTE', fecha: d(0), hora: '09:00', tipo: 'dominical', nombre: 'Primera reunión', marcados: 3, contados: 412, adultos: 280, jovenes: 70, ninos: 62, primera_vez: 9 },
   { id: id(201), sede: 'BOG-NORTE', fecha: d(-7), hora: '09:00', tipo: 'dominical', nombre: 'Primera reunión', marcados: 5, contados: 398, adultos: 270, jovenes: 66, ninos: 62, primera_vez: 6 },
@@ -204,9 +306,13 @@ function responder(metodo, ruta, cuerpo = null) {
       alcance: { sedes: SEDES.map(s => s.id), todaLaRed: true, nivelMax: 4 },
       asignaciones: [{ rol: 'PASTOR_DIRECTOR_GENERAL', rol_nombre: 'Pastor Director General',
                        alcance_tipo: 'organizacion', nivel_max: 4, vigente_desde: d(-900), vigente_hasta: null }],
-      modulos: ['personas','asistencia','grupos','rocakids','consejeria','formacion','talento','sistemas','aportes','crm']
-        .concat(['identidad'])
-        .map(m => ({ modulo: m, nombre: m, nivel_dato: m === 'consejeria' || m === 'talento' ? 3 : m === 'rocakids' ? 4 : 2 })),
+      /* ⛔ Pintaba el CÓDIGO en minúscula («rocakids») en vez del nombre
+         («RocaKids»), metía un módulo llamado 'sistemas' que NO EXISTE, y
+         daba a Aportes un nivel de dato 2 cuando es 3. Los nombres y los
+         niveles ya están en `MODULOS_DEMO`, en este mismo fichero. */
+      modulos: MODULOS_DEMO
+        .filter(m => m.codigo !== 'construccion')
+        .map(m => ({ modulo: m.codigo, nombre: m.nombre, nivel_dato: m.nivel_dato })),
     }),
     'GET /organizacion/sedes': () => SEDES,
     'GET /organizacion/ministerios': () => [
@@ -290,13 +396,203 @@ function responder(metodo, ruta, cuerpo = null) {
             resultado: 'apto', expedido_en: d(-200), vence_en: d(20), vencido: false, dias_restantes: 20 }] : [],
         aviso: apto ? null : 'No está apto para estar con menores. Falta: Registro de delitos sexuales contra menores.' };
     },
-    'GET /identidad/catalogos': () => ({ abiertos: [
-      { codigo: 'estado_civil', nombre: 'Estado civil', descripcion: 'Lista abierta: cambia con la ley y con la realidad de la gente.', vigentes: 6 },
-      { codigo: 'medio_pago', nombre: 'Medio de pago', descripcion: 'Aparecen medios nuevos cada año.', vigentes: 9 }],
-      cerrados: [{ codigo: 'nivel_sensibilidad', nombre: 'Nivel de sensibilidad', motivo: 'Lo fija la política de datos, no la operación.' }] }),
-    'GET /rocakids/salas': () => ({ total_filas: 2, salas: [
-      { id: id(960), nombre: 'Cuna (0 a 2)', sede: 'BOG-NORTE', dentro: 12, adultos: 3, cumple_dos_adultos: true },
-      { id: id(961), nombre: 'Exploradores (6 a 8)', sede: 'BOG-NORTE', dentro: 21, adultos: 1, cumple_dos_adultos: false }] }),
+    /* ⛔ Devolvía `{abiertos, cerrados}` y la API real devuelve un ARREGLO
+       PLANO con `cerrado`, `motivo_cerrado` y `valores_vigentes`. La vista
+       hacía `cats.filter(...)` y la pantalla entera salía en rojo con
+       «cats.filter is not a function». */
+    'GET /identidad/catalogos': () => CATALOGOS,
+    'GET /identidad/catalogos/:id/valores': () => {
+      const c = CATALOGOS.find(x => x.codigo === trozos[2]);
+      return (c?.valores ?? []).map((v, i) => ({ ...v, orden: (i + 1) * 10, vigente: true }));
+    },
+    'POST /identidad/catalogos/:id/valores': () => {
+      const c = CATALOGOS.find(x => x.codigo === trozos[2]);
+      if (!c) noEnDemo('Ese catálogo no existe.');
+      if (c.cerrado) noEnDemo(`«${c.nombre}» es un catálogo cerrado: ${c.motivo_cerrado}`);
+      c.valores.push({ codigo: cuerpo?.codigo, etiqueta: cuerpo?.etiqueta });
+      c.valores_vigentes = c.valores.length;
+      return { mensaje: 'Valor agregado al catálogo.' };
+    },
+    /* ⛔ Devolvía un OBJETO `{total_filas, salas}` y la API real devuelve
+       un ARREGLO PLANO. La vista hacía `salas.map(...)` y reventaba con
+       «salas.map is not a function» EN PANTALLA. Peor: el objeto se
+       guardaba antes en `localStorage`, así que la pestaña Niños quedaba
+       rota de forma permanente hasta borrar el almacenamiento. */
+    'GET /rocakids/salas': () => SALAS,
+    'GET /rocakids/salas/:id/roster': () => {
+      const sala = SALAS.find(x => x.id === trozos[2]) ?? SALAS[0];
+      return MENORES.filter(m => m.sala_id === sala.id);
+    },
+    'GET /rocakids/menores/:id/acudientes': () => ACUDIENTES.map((a, i) => ({
+      ...a, acudiente_id: id(880 + i), menor_id: trozos[2] })),
+    'POST /rocakids/salas/:id/entrar-a-servir': () => {
+      const sala = SALAS.find(x => x.id === trozos[2]) ?? SALAS[0];
+      /* La API real llama a esta columna `adultos`, no `adultos_dentro`.
+         Con el nombre equivocado, la pantalla leía `undefined`, lo tomaba
+         como CERO y toda sala decía «0 adultos, la regla exige dos». */
+      sala.adultos += 1;
+      sala.regla_dos_adultos = sala.adultos >= 2;
+      return { mensaje: 'Queda registrado sirviendo en ' + sala.nombre + '.',
+               aviso: sala.regla_dos_adultos ? null : 'Todavía hay un solo adulto en la sala: no se puede abrir con menos de dos.' };
+    },
+    'POST /rocakids/checkin': () => {
+      const m = MENORES.find(x => x.menor_id === cuerpo?.menorId);
+      if (!m) noEnDemo('Ese menor no está en el censo de la sala.');
+      if (m.esta_dentro) noEnDemo(`${m.menor} ya está dentro: no se registra dos veces.`);
+      m.esta_dentro = true;
+      m.codigo = String(Math.floor(1000 + Math.random() * 9000));
+      const sala = SALAS.find(s => s.id === m.sala_id);
+      if (sala) sala.ninos_dentro += 1;
+      return { checkinId: id(970), codigo: m.codigo, repetido: false,
+               aviso: 'Este código se muestra UNA sola vez: sin él no se entrega al niño.' };
+    },
+    'POST /rocakids/entregar': () => {
+      const m = MENORES.find(x => x.esta_dentro && x.codigo === String(cuerpo?.codigo ?? '').trim());
+      if (!m) noEnDemo('Ese código no corresponde a ningún niño dentro de la sala.');
+      m.esta_dentro = false; m.codigo = null;
+      const sala = SALAS.find(s => s.id === m.sala_id);
+      if (sala) sala.ninos_dentro = Math.max(0, sala.ninos_dentro - 1);
+      return { mensaje: `${m.menor} fue entregado y queda registrado con hora y nombre de quien lo retiró.` };
+    },
+    /* ── Lo que se CREA desde la aplicación de los pastores ──────────
+       ⛔ Ninguna de estas rutas estaba, así que cada «+ Crear…» respondía
+          con el comodín. Ahora escriben en el estado de esta pestaña: se
+          crea un grupo y aparece en la lista, como en el sistema real. */
+    'POST /grupos': () => {
+      if (!cuerpo?.nombre || !cuerpo?.sedeId) noEnDemo('Falta el nombre o la sede del grupo.');
+      const sede = SEDES.find(x => x.id === cuerpo.sedeId) ?? SEDES[0];
+      GRUPOS.unshift({ id: id(310 + GRUPOS.length), nombre: cuerpo.nombre, tipo: cuerpo.tipo ?? 'pequeno',
+        sede: sede.codigo, dia_reunion: cuerpo.diaReunion ?? null, hora: cuerpo.hora ?? null,
+        cupo: cuerpo.cupo ?? null, miembros: 0, ultima_reunion: null, dias_sin_reunirse: null });
+      return { id: GRUPOS[0].id, mensaje: 'Grupo creado. Todavía no tiene a nadie dentro.' };
+    },
+    'POST /grupos/:id/reuniones': () => {
+      const g = GRUPOS.find(x => x.id === trozos[1]);
+      if (!g) noEnDemo('Ese grupo no existe.');
+      g.ultima_reunion = cuerpo?.fecha ?? d(0); g.dias_sin_reunirse = 0;
+      return { mensaje: 'Reunión reportada. El grupo sale de la lista de los que no se reúnen.' };
+    },
+    'POST /grupos/:id/miembros': () => {
+      const g = GRUPOS.find(x => x.id === trozos[1]);
+      if (!g) noEnDemo('Ese grupo no existe.');
+      if (g.cupo && g.miembros >= g.cupo) noEnDemo(`«${g.nombre}» está en su cupo de ${g.cupo}.`);
+      g.miembros += 1;
+      return { mensaje: 'Entró al grupo.' };
+    },
+    'POST /grupos/:id/miembros/:id2/salir': () => {
+      const g = GRUPOS.find(x => x.id === trozos[1]);
+      if (!g) noEnDemo('Ese grupo no existe.');
+      g.miembros = Math.max(0, g.miembros - 1);
+      return { mensaje: 'Salió del grupo. Queda la fecha, no se borra el rastro.' };
+    },
+
+    'POST /consejeria/casos': () => {
+      if (!cuerpo?.consultanteId) noEnDemo('Falta a quién se va a acompañar.');
+      CASOS.unshift({ id: id(410 + CASOS.length), estado: 'abierto',
+        topico: cuerpo.topico ?? 'OTRO', topico_nombre: 'Sin clasificar',
+        requiere_profesional: false, sede: SEDES[0].codigo,
+        consultante: PERSONAS.find(p => p.id === cuerpo.consultanteId)?.nombre ?? 'Persona de la demostración',
+        dias_abierto: 0, sesiones: 0, ultima_sesion: null, consejeros: null });
+      return { id: CASOS[0].id, mensaje: 'Caso abierto. Asígnele un consejero: sin consejero no avanza.' };
+    },
+    'POST /consejeria/casos/:id/asignar': () => {
+      const c = CASOS.find(x => x.id === trozos[2]);
+      if (!c) noEnDemo('Ese caso no existe.');
+      c.consejeros = PERSONAS.find(p => p.id === cuerpo?.consejeroId)?.nombre ?? 'Consejero de la demostración';
+      return { mensaje: 'Consejero asignado. Solo él y quien supervisa verán las notas.' };
+    },
+    'POST /consejeria/casos/:id/sesiones': () => {
+      const c = CASOS.find(x => x.id === trozos[2]);
+      if (!c) noEnDemo('Ese caso no existe.');
+      c.sesiones += 1; c.ultima_sesion = d(0); c.estado = 'en_proceso';
+      return { mensaje: 'Sesión registrada.' };
+    },
+    'POST /consejeria/casos/:id/notas': () => {
+      if (!String(cuerpo?.texto ?? '').trim()) noEnDemo('Una nota vacía no se guarda.');
+      return { mensaje: 'Nota guardada. Es N3: cada lectura queda registrada con nombre y hora.' };
+    },
+    'POST /consejeria/casos/:id/cerrar': () => {
+      const c = CASOS.find(x => x.id === trozos[2]);
+      if (!c) noEnDemo('Ese caso no existe.');
+      if (!String(cuerpo?.motivo ?? cuerpo?.cierre ?? '').trim()) noEnDemo('Cerrar un caso exige escribir cómo terminó.');
+      c.estado = 'cerrado';
+      return { mensaje: 'Caso cerrado. Queda el histórico completo.' };
+    },
+
+    'POST /formacion/cohortes': () => {
+      if (!cuerpo?.codigo) noEnDemo('Falta el código de la cohorte.');
+      COHORTES.unshift({ id: id(510 + COHORTES.length), codigo: cuerpo.codigo,
+        modalidad: cuerpo.modalidad ?? 'presencial', inicia: cuerpo.inicia ?? d(0),
+        termina: cuerpo.termina ?? null, cupo: cuerpo.cupo ?? 20, valor: cuerpo.valor ?? null,
+        moneda: 'COP', sede: SEDES[0].codigo, curso: 'Curso de la demostración',
+        programa: 'Instituto Bíblico', docente: null, inscritos: 0, otorga_certificado: true });
+      return { id: COHORTES[0].id, mensaje: 'Cohorte abierta. Ya se puede inscribir gente.' };
+    },
+    'POST /formacion/cohortes/:id/inscribir': () => {
+      const h = COHORTES.find(x => x.id === trozos[2]);
+      if (!h) noEnDemo('Esa cohorte no existe.');
+      h.inscritos += 1;
+      return { mensaje: h.inscritos > h.cupo
+        ? 'Inscrito. ⚠️ La cohorte quedó POR ENCIMA del cupo: es un problema de salón, no de informe.'
+        : 'Inscrito.' };
+    },
+    'POST /formacion/inscripciones/:id/calificar': () => {
+      if (cuerpo?.nota === undefined || cuerpo?.nota === null) noEnDemo('Falta la nota.');
+      return { mensaje: 'Calificación registrada.' };
+    },
+
+    'POST /talento/voluntariados': () => {
+      if (!cuerpo?.personaId) noEnDemo('Falta a quién se registra.');
+      const conMenores = cuerpo.trabajaConMenores === true;
+      VOLUNTARIADOS.unshift({ id: id(610 + VOLUNTARIADOS.length), persona_id: cuerpo.personaId,
+        nombre_completo: PERSONAS.find(p => p.id === cuerpo.personaId)?.nombre ?? 'Persona de la demostración',
+        funcion: cuerpo.funcion ?? 'Sin función', estado: 'activo', desde: cuerpo.desde ?? d(0),
+        hasta: null, trabaja_con_menores: conMenores, apto_para_menores: false,
+        ministerio: 'RocaKids', sede: SEDES[0].codigo });
+      return { id: VOLUNTARIADOS[0].id, mensaje: conMenores
+        ? '⛔ Registrado, y marcado como que estará con MENORES: no puede servir hasta que tenga antecedentes vigentes.'
+        : 'Voluntariado registrado.' };
+    },
+    'POST /talento/antecedentes': () => {
+      if (!cuerpo?.tipo) noEnDemo('Falta qué antecedente se está registrando.');
+      const v = VOLUNTARIADOS.find(x => x.persona_id === cuerpo.personaId);
+      if (v && cuerpo.resultado === 'apto') v.apto_para_menores = true;
+      return { mensaje: 'Antecedente registrado con su fecha de vencimiento.' };
+    },
+    'POST /talento/voluntariados/:id/terminar': () => {
+      const v = VOLUNTARIADOS.find(x => x.id === trozos[2]);
+      if (!v) noEnDemo('Ese voluntariado no existe.');
+      if (!String(cuerpo?.motivo ?? '').trim()) noEnDemo('Terminar un voluntariado exige un motivo escrito.');
+      v.estado = 'terminado'; v.hasta = d(0);
+      return { mensaje: 'Voluntariado terminado. Queda el histórico.' };
+    },
+
+    /* ── Lo que puede cada quien, para la consola ────────────────── */
+    'GET /identidad/personas/:id/asignaciones': () => G.asignaciones[trozos[2]] ?? [],
+    'GET /identidad/personas/:id/efectivo': () => {
+      const roles = (G.asignaciones[trozos[2]] ?? []).map(a => a.rol);
+      const salida = [];
+      for (const llave of G.matriz) {
+        const [rol, modulo, accion] = llave.split('|');
+        if (!roles.includes(rol)) continue;
+        const m = MODULOS_DEMO.find(x => x.codigo === modulo);
+        const a = ACCIONES_DEMO.find(x => x.codigo === accion);
+        salida.push({ modulo, modulo_nombre: m?.nombre ?? modulo,
+          accion, accion_nombre: a?.nombre ?? accion,
+          nivel_max: rolDe(rol)?.nivel_maximo ?? 0 });
+      }
+      return salida;
+    },
+
+    /* ── Las tres acciones de una cuenta ─────────────────────────── */
+    'POST /administracion/cuentas/:id/reiniciar-clave': () => ({
+      clave_provisional: 'cedro brisa faro lazo ' + (10 + Math.floor(Math.random() * 89)),
+      mensaje: 'Se cerraron todas sus sesiones. Tendrá que cambiarla al entrar.' }),
+    'POST /administracion/cuentas/:id/desbloquear': () => ({
+      mensaje: 'Cuenta desbloqueada. Los intentos fallidos vuelven a cero.' }),
+    'POST /administracion/cuentas/:id/reiniciar-segundo-factor': () => ({
+      mensaje: 'Segundo factor borrado. Lo volverá a configurar la próxima vez que entre.' }),
+
     /* ── Gobierno de la red · TODO esto reacciona de verdad ───────── */
     'GET /administracion/catalogo': () => ({
       modulos: MODULOS_DEMO, acciones: ACCIONES_DEMO, roles: G.roles,
@@ -469,21 +765,69 @@ function responder(metodo, ruta, cuerpo = null) {
 
     'POST /administracion/iglesias': () => ({ id: id(970), mensaje: 'En la demostración nada se guarda.' }),
     'POST /administracion/personas': () => ({ id: id(971), mensaje: 'En la demostración nada se guarda.' }),
-    'GET /administracion/unidades': () => ({ total_filas: 4, unidades: [
-      { id: id(700), codigo: 'CENTRAL', nombre: 'Casa Sobre la Roca · Central', clase: 'central', proposito: 'Administra la red completa: da servicios a las sedes y no las reemplaza.', integrantes: 6, roles: 2, activa: true },
-      { id: id(701), codigo: 'TESORERIA', nombre: 'Tesorería de la red', clase: 'equipo', proposito: 'Administra diezmos, ofrendas y certificados de toda la red.', integrantes: 3, roles: 1, activa: true },
-      { id: id(702), codigo: 'CONTA', nombre: 'Contabilidad', clase: 'equipo', proposito: 'Lleva la contabilidad consolidada de las 36 sedes.', integrantes: 2, roles: 1, activa: true },
-      { id: id(703), codigo: 'REG-ANDINA', nombre: 'Región Andina', clase: 'region', proposito: 'Acompaña a las sedes de la región.', integrantes: 1, roles: 0, activa: true }],
-      aviso: '1 equipo(s) sin ningún rol otorgado: existen pero no pueden hacer nada.' }),
-    'GET /administracion/unidades/:id': () => ({
-      unidad: { id: id(701), codigo: 'TESORERIA', nombre: 'Tesorería de la red', clase: 'equipo',
-                proposito: 'Administra diezmos, ofrendas y certificados de toda la red.', activa: true, lider: 'Rosa Cifuentes Lara' },
-      miembros: { activos: 3, lista: PERSONAS.slice(0, 3).map((p, i) => ({
-        id: i, persona_id: p.id, nombre_completo: p.nombre, rol_en_unidad: i === 0 ? 'lider' : 'integrante',
-        desde: d(-200), hasta: null })) },
-      roles: [{ id: id(704), rol: 'TESORERIA', alcance_tipo: 'organizacion', nivel_max: 3,
-                desde: d(-200), hasta: null, acta_referencia: 'Acta 2026-014 de la Junta' }],
-      alcanza: SEDES.map(s => ({ codigo: s.codigo, nombre: s.nombre })), aviso: null }),
+    'GET /administracion/unidades': () => ({
+      total_filas: UNIDADES.length, unidades: UNIDADES,
+      aviso: UNIDADES.filter(u => u.clase === 'equipo' && !Number(u.roles)).length
+        + ' equipo(s) sin ningún rol otorgado: existen pero no pueden hacer nada.' }),
+    'POST /administracion/unidades': () => {
+      const b = cuerpo ?? {};
+      if (String(b.proposito ?? '').trim().length < 15) {
+        noEnDemo('Escriba para qué existe el equipo: al menos quince caracteres.');
+      }
+      if (UNIDADES.some(u => u.codigo === b.codigo)) noEnDemo('Ya existe un equipo con ese código.');
+      UNIDADES.push({ id: id(710 + UNIDADES.length), codigo: b.codigo, nombre: b.nombre,
+        clase: b.clase, padre_id: UNIDADES[0].id, proposito: b.proposito, activa: true,
+        padre: UNIDADES[0].nombre, lider: null, integrantes: '0', roles: '0' });
+      return { mensaje: 'Equipo creado. Ahora otórguele un rol: sin rol existe y no puede hacer nada.' };
+    },
+    'POST /administracion/unidades/:id/miembros': () => {
+      const u = UNIDADES.find(x => x.id === trozos[2]);
+      if (!u) noEnDemo('Ese equipo no existe.');
+      u.integrantes = String(Number(u.integrantes) + 1);
+      return { mensaje: 'Entró al equipo. Hereda lo que el equipo alcance mientras esté dentro.' };
+    },
+    'POST /administracion/unidades/:id/miembros/:id2/salir': () => {
+      const u = UNIDADES.find(x => x.id === trozos[2]);
+      if (!u) noEnDemo('Ese equipo no existe.');
+      if (!String(cuerpo?.motivo ?? '').trim()) noEnDemo('Sacar a alguien de un equipo exige un motivo escrito.');
+      u.integrantes = String(Math.max(0, Number(u.integrantes) - 1));
+      return { mensaje: 'Salió del equipo. Pierde lo que heredaba de él, y queda la fecha de salida.' };
+    },
+    'POST /administracion/unidades/:id/roles': () => {
+      const u = UNIDADES.find(x => x.id === trozos[2]);
+      if (!u) noEnDemo('Ese equipo no existe.');
+      if (String(cuerpo?.acta ?? cuerpo?.actaReferencia ?? '').trim().length < 4) {
+        noEnDemo('Falta el acta que autoriza el rol del equipo.');
+      }
+      u.roles = String(Number(u.roles) + 1);
+      return { mensaje: 'Rol otorgado al equipo. Lo hereda cada integrante mientras esté dentro.' };
+    },
+    'POST /administracion/unidades/roles/:id/revocar': () => {
+      if (!String(cuerpo?.motivo ?? '').trim()) noEnDemo('Revocar el rol de un equipo exige un motivo escrito.');
+      const u = UNIDADES.find(x => Number(x.roles) > 0);
+      if (u) u.roles = String(Number(u.roles) - 1);
+      return { mensaje: 'Rol revocado. Lo pierden TODOS los integrantes del equipo a la vez.' };
+    },
+    /* ⛔ Ignoraba el identificador y devolvía SIEMPRE Tesorería: se pulsaba
+       «Región Andina» y la ficha decía «Tesorería de la red», con sus
+       miembros y su acta. En una auditoría eso se lee como que el sistema
+       mezcla registros. */
+    'GET /administracion/unidades/:id': () => {
+      const u = UNIDADES.find(x => x.id === trozos[2]) ?? UNIDADES[0];
+      const cuantos = Number(u.integrantes) || 0;
+      return {
+        unidad: { ...u, lider: cuantos ? PERSONAS[0].nombre : null },
+        miembros: { activos: cuantos, lista: PERSONAS.slice(0, cuantos).map((p, i) => ({
+          id: i, persona_id: p.id, nombre_completo: p.nombre,
+          rol_en_unidad: i === 0 ? 'lider' : 'integrante', desde: d(-200), hasta: null })) },
+        roles: Number(u.roles) ? [{ id: id(704), rol: 'TESORERIA', rol_nombre: 'Tesorería',
+          alcance_tipo: 'organizacion', nivel_max: 3, desde: d(-200), hasta: null,
+          acta_referencia: 'Acta 2026-014 de la Junta' }] : [],
+        alcanza: u.clase === 'region' ? SEDES.slice(0, 2).map(s => ({ codigo: s.codigo, nombre: s.nombre }))
+               : SEDES.map(s => ({ codigo: s.codigo, nombre: s.nombre })),
+        aviso: Number(u.roles) ? null
+             : 'Este equipo no tiene ningún rol otorgado: existe pero no puede hacer nada.' };
+    },
     'GET /administracion/cuentas': () => ({ total_filas: 3, cuentas: PERSONAS.slice(0, 3).map((p, i) => ({
       cuenta_id: id(980 + i), persona_id: p.id, persona: p.nombre,
       usuario: p.nombre.split(' ')[0].toLowerCase() + '@casaroca.org',
@@ -510,17 +854,42 @@ function responder(metodo, ruta, cuerpo = null) {
       { id: id(703), codigo: 'REG-ANDINA', nombre: 'Región Andina', clase: 'region', nivel: 1, integrantes: 1, sedes_que_alcanza: 2 },
       { id: id(701), codigo: 'TESORERIA', nombre: 'Tesorería de la red', clase: 'equipo', nivel: 1, integrantes: 3, sedes_que_alcanza: 3 },
       { id: id(702), codigo: 'CONTA', nombre: 'Contabilidad', clase: 'equipo', nivel: 1, integrantes: 2, sedes_que_alcanza: 3 }] }),
-    'GET /administracion/sesiones': () => ({ total_filas: 1, sesiones: [
-      { sesion: id(990), usuario: 'marta@casaroca.org', persona: 'Marta Quiroga Peña',
-        emitida_en: new Date().toISOString(), expira_en: new Date(Date.now()+18e5).toISOString(),
-        ip: '190.0.0.1', le_queda: '00:28:00' }] }),
+    'GET /administracion/sesiones': () => ({ total_filas: SESIONES.length, sesiones: SESIONES }),
     'GET /administracion/alertas': () => ({ total_filas: 1, alertas: [
       { usuario: 'desconocido@x.org', ip: '45.12.9.3', intentos_fallidos: 14, desde: d(0), hasta: d(0) }],
       aviso: '1 usuario(s) o dirección(es) con intentos fallidos agrupados.' }),
-    'GET /administracion/recertificar': () => ({ total_filas: 2, accesos: [
-      { persona: 'Andrés Beltrán Ruiz', rol: 'PASTOR_CONGREGACIONAL', nivel_max: 2, dias_sin_revisar: 412, tope_dias: 180 },
-      { persona: 'Rosa Cifuentes Lara', rol: 'TESORERIA', nivel_max: 3, dias_sin_revisar: 201, tope_dias: 180 }],
-      aviso: '2 acceso(s) llevan más del plazo sin revisarse. Un permiso que nadie revisa es un permiso que nadie quitó.' }),
+    'GET /administracion/recertificar': () => {
+      const vencidos = RECERT.filter(x => x.vencido);
+      const lista = q.get('todos') === 'si' ? RECERT : vencidos;
+      return { total_filas: lista.length, accesos: lista,
+        vencidos: vencidos.length, vigentes: RECERT.length,
+        aviso: vencidos.length
+          ? `${vencidos.length} acceso(s) pasaron su plazo de revisión, de ${RECERT.length} vigentes. Un permiso que nadie revisa es un permiso que nadie quitó.`
+          : `Ninguno de los ${RECERT.length} accesos vigentes pasó su plazo. El plazo es de 90 días para los que tocan datos N3 o N4, y de 180 para el resto.` };
+    },
+    'POST /administracion/recertificar/:id': () => {
+      const a = RECERT.find(x => x.asignacion_id === trozos[2]);
+      if (!a) noEnDemo('Ese acceso no existe o ya se revisó.');
+      if (String(cuerpo?.nota ?? '').trim().length < 5) {
+        noEnDemo('Escriba por qué se mantiene o se quita el acceso: la revisión queda firmada con su nombre.');
+      }
+      a.ultima_revision = new Date().toISOString();
+      a.dias_sin_revisar = 0; a.vencido = false;
+      if (cuerpo?.veredicto === 'se_revoca') RECERT.splice(RECERT.indexOf(a), 1);
+      return { mensaje: cuerpo?.veredicto === 'se_revoca'
+        ? 'Revisado y REVOCADO. La persona pierde ese acceso ahora mismo.'
+        : 'Revisado. El contador de días vuelve a cero y queda firmado con su nombre.' };
+    },
+    'POST /administracion/sesiones/:id/cerrar': () => {
+      if (String(cuerpo?.motivo ?? '').trim().length < 5) {
+        noEnDemo('Cerrarle la sesión a otra persona exige un motivo escrito: queda en la auditoría.');
+      }
+      const i = SESIONES.findIndex(x => x.sesion === trozos[2]);
+      if (i < 0) noEnDemo('Esa sesión ya no está abierta.');
+      SESIONES.splice(i, 1);
+      return { mensaje: 'Sesión cerrada. Surte efecto ahora, no cuando expire el token.' };
+    },
+
     'GET /administracion/auditoria': () => ({ total_filas: 2, movimientos: [
       { ocurrido_en: new Date().toISOString(), esquema: 'aportes', tabla: 'aportes', operacion: 'I', actor: 'Rosa Cifuentes Lara', actor_ip: '190.0.0.4' },
       { ocurrido_en: new Date(Date.now()-36e5).toISOString(), esquema: 'identidad', tabla: 'asignaciones', operacion: 'U', actor: 'Marta Quiroga Peña', actor_ip: '190.0.0.1' }] }),
@@ -533,7 +902,16 @@ function responder(metodo, ruta, cuerpo = null) {
       { codigo: 'TESORERIA', nombre: 'Tesorería', activo: true },
       { codigo: 'CONTABILIDAD', nombre: 'Contabilidad', activo: true },
       { codigo: 'PASTOR_CONGREGACIONAL', nombre: 'Pastor congregacional', activo: true }],
-    'GET /salud/detalle': () => ({ estado: 'demostración', base: { estado: 'sin base', ms: 0 }, particiones: [], fugasDeLectura: 0 }),
+    /* ⛔ Devolvía `estado: 'demostración'`, y el Panel solo pinta el
+       distintivo verde cuando vale exactamente 'sano'. El dueño veía
+       «Estado del sistema: con problemas» y ninguna línea que dijera
+       cuál, porque tampoco devolvía `problemas`. */
+    'GET /salud/detalle': () => ({
+      estado: 'sano', problemas: [],
+      base: { estado: 'responde', ms: 4 },
+      particiones: [{ tabla: 'asistencia.entradas', meses_de_colchon: 14 },
+                    { tabla: 'plataforma.auditoria', meses_de_colchon: 14 }],
+      fugasDeLectura: 0 }),
   };
 
   /* Se busca la clave exacta y, si no, la genérica con `:id`.
@@ -551,7 +929,24 @@ function responder(metodo, ruta, cuerpo = null) {
     const clave = `${metodo} /` + trozos.map((t, j) => (j === i ? ':id' : t)).join('/');
     if (M[clave]) return M[clave]();
   }
-  return { demo: true, ruta: p, mensaje: 'En la demostración esta pantalla todavía no trae datos de ejemplo.' };
+  /* ⛔ 20 de septiembre de 2026. Esto RESOLVÍA la promesa, y ese era el
+     peor fallo de todo el modo demostración: veintisiete botones de
+     guardar respondían con un aviso VERDE de éxito cuyo texto era «en la
+     demostración todavía no trae datos», el formulario se limpiaba y se
+     plegaba como si hubiera guardado. Quien recorriera la solución creía
+     estar creando grupos, casos y voluntariados.
+     Un aviso rojo que dice la verdad vale más que veintisiete verdes que
+     mienten. Ahora se RECHAZA, y el manejo de error que ya tienen todas
+     las vistas hace su trabajo. */
+  if (metodo !== 'GET') {
+    const e = new Error('En la demostración no se guarda nada: esta acción existe en el sistema real. '
+      + 'Lo que ve aquí son datos inventados que viven solo en esta pestaña.');
+    e.estado = 501; e.demo = true;
+    throw e;
+  }
+  const e = new Error('Esta pantalla todavía no trae datos de ejemplo en la demostración.');
+  e.estado = 501; e.demo = true;
+  throw e;
 }
 
 export const demoActivo = () =>

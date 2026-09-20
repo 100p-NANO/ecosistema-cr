@@ -264,20 +264,29 @@ export async function pintarCheckin(c, sesion) {
       throw e;
     }
 
-    if (navigator.onLine) await vaciar();
-
     /* El código de verdad lo devuelve el servidor y solo una vez. Si el
-       envío no salió todavía, se dice claro en vez de inventar un número. */
+       envío no salió todavía, se dice claro en vez de inventar un número.
+       ⛔ 20 sep 2026: se leía `op.codigo`, que NUNCA existe (la operación
+          encolada no lo lleva; lo trae la RESPUESTA del servidor). El
+          comprobante no se pintaba jamás y el niño no se podía retirar. */
+    const r = navigator.onLine ? await vaciar() : null;
+    const codigo = r?.respuestas?.[op.id]?.codigo ?? null;
     const enviado = !cola.pendientes() || !leerPendiente(op.id);
-    forma.innerHTML = enviado && op.codigo
-      ? comprobante(menorElegido.menor, op.codigo, salaActual.nombre)
+    forma.innerHTML = enviado && codigo
+      ? comprobante(menorElegido.menor, codigo, salaActual.nombre)
       : `<div class="aviso aviso--info" role="status">
            <strong>${esc(menorElegido.menor)} quedó registrado en este equipo.</strong>
            El código de entrega se genera en el servidor: aparecerá aquí en cuanto vuelva la conexión.
            Mientras tanto, anote al niño en la planilla de la sala.
          </div>`;
+    /* ⛔ El comprobante se guarda ANTES de repintar la sala: `cargarSala`
+       reescribe el panel entero y se llevaba por delante el nodo donde
+       acababa de pintarse el código. */
+    const comprobanteHtml = forma.innerHTML;
     menorElegido = null;
     await cargarSala(salaActual.id);
+    const forma2 = panel.querySelector('#forma-recibir');
+    if (comprobanteHtml && forma2) forma2.innerHTML = comprobanteHtml;
   }
 
   function leerPendiente(id) { return cola.pendientes() && JSON.parse(localStorage.getItem('cr.cola') ?? '[]').some(x => x.id === id); }
@@ -316,6 +325,9 @@ export async function pintarCheckin(c, sesion) {
     const r = await cola.vaciar(op => api.enviar(op.ruta, { ...op.datos, idempotencia: op.id }), quien);
     if (r.enviados) avisar(`${r.enviados} registro(s) enviados.`, 'ok');
     pintarCola(navigator.onLine);
+    /* ⛔ Sin este `return`, quien llama no ve las respuestas del servidor
+       y el CÓDIGO DE ENTREGA del niño se pierde igual que antes. */
+    return r;
   }
 
   function pintarCola(enLinea) {

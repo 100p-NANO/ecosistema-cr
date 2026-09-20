@@ -51,6 +51,19 @@ export function pantalla(c, { titulo, intro, barra = '', cargar, pintar }) {
   const cuerpo = c.querySelector('#cuerpo');
   const zonaAviso = c.querySelector('#avisos-vista');
 
+  /* ⛔ Red de seguridad. Un `<form>` con un solo campo de texto y sin
+     botón de envío dispara la submisión IMPLÍCITA al pulsar Intro (o el
+     botón «buscar» del teclado del teléfono). Como ninguno lleva
+     `action`, el navegador navegaba a la misma dirección por GET: la
+     aplicación se recargaba entera, se perdía lo escrito y, dentro de la
+     ficha de un grupo o de una cohorte, se salía de la ficha. Los
+     buscadores ya filtran al teclear, así que Intro no tiene que hacer
+     nada más. Esto va DESPUÉS de los manejadores propios, que llaman a
+     `preventDefault` por su cuenta y siguen funcionando igual. */
+  c.addEventListener('submit', (ev) => {
+    if (!ev.defaultPrevented) ev.preventDefault();
+  });
+
   async function recargar() {
     cuerpo.innerHTML = cargando(3);
     try {
@@ -124,10 +137,25 @@ export function formulario({ titulo, campos, boton = 'Guardar', al }) {
     </details>`;
   return {
     html,
+    /**
+     * ⛔ 20 de septiembre de 2026. Esto colgaba el escuchador DEL PROPIO
+     * `<form>`, y el formulario se pinta DENTRO de `#cuerpo`, que
+     * `recargar()` reemplaza entero al guardar. Resultado: el formulario
+     * funcionaba UNA vez. Al segundo intento, el `<form>` nuevo no tenía
+     * escuchador y, como no lleva `action`, el navegador hacía la
+     * submisión nativa: la aplicación se recargaba y no se guardaba nada.
+     * Para el pastor era exactamente «pulsé y no pasó nada».
+     *
+     * Ahora se delega en el CONTENEDOR de la vista, que sobrevive a los
+     * repintados, y se marca para no colgarlo dos veces si se vuelve a
+     * entrar a la misma pantalla.
+     */
     enganchar(raiz, recargar) {
-      const f = raiz.querySelector('#' + id);
-      if (!f) return;
-      f.addEventListener('submit', ev => {
+      if (raiz.dataset['forma_' + id]) return;
+      raiz.dataset['forma_' + id] = '1';
+      raiz.addEventListener('submit', ev => {
+        const f = ev.target;
+        if (f?.id !== id) return;
         ev.preventDefault();
         const b = f.querySelector('button[type=submit]');
         unaVez(b, async () => {

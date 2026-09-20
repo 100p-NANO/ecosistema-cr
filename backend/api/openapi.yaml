@@ -202,6 +202,15 @@ paths:
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "429": { description: "demasiadas peticiones" }
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/recertificar/:asignacionId:
+    post:
+      summary: "Recertificar un acceso"
+      description: "La puerta que NO existia: `identidad.recertificaciones` llevaba desde la migracion 0045 sin que nadie escribiera en ella, asi que la pantalla del comite trimestral era una lista que no se podia tachar y los dias sin revisar solo podian crecer. Exige veredicto (se_mantiene, se_reduce, se_revoca) y una nota firmada. Un veredicto de «se_revoca» NO se queda en una nota: revoca de verdad."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /api/v1/administracion/recertificar:
     get:
       summary: "Accesos por recertificar"
@@ -241,6 +250,15 @@ paths:
     get:
       summary: "Ficha completa de una iglesia"
       description: "Cuanta gente tiene, cuantos grupos, cuantos modulos encendidos, quien la pastorea y que unidades la alcanzan. Avisa en rojo si no tiene pastor: una sede sin pastor no se opera sola."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/sesiones/:id/cerrar:
+    post:
+      summary: "Cerrarle la sesion a alguien"
+      description: "«Sesiones y alertas» era de SOLO LECTURA: se veia quien estaba dentro y no habia forma de echarlo. Exige motivo escrito y surte efecto en el instante, no cuando expire el token. Va por una funcion aparte con guardia, porque la que usa `/auth/salir` no comprueba quien llama (existe para cerrar la propia)."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }

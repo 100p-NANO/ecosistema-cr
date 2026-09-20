@@ -211,18 +211,78 @@ export class AdministracionController {
   }
 
   /** Accesos que llevan demasiado sin revisarse. */
+  /**
+   * La lista de trabajo del comité trimestral.
+   *
+   * ⛔ 20 de septiembre de 2026. Esto devolvía TODOS los accesos vigentes
+   * de la red y la consola los pintaba bajo la etiqueta «Por
+   * recertificar», mientras este mismo aviso afirmaba que «llevan más del
+   * plazo sin revisarse». Un acceso otorgado esta mañana ya contaba. En
+   * la base había 17; los vencidos de verdad eran 0. Es exactamente la
+   * cifra que un auditor contrasta en treinta segundos.
+   */
   @Get('recertificar')
-  recertificar(@Req() req: Request) {
+  recertificar(@Req() req: Request, @Query('todos') todos?: string) {
     exigirNivel(req, 4, 'ver los accesos por recertificar');
     return conSesion(this.db, req, async (c) => {
+      const { rows: [n] } = await c.query(
+        `SELECT count(*) FILTER (WHERE vencido) AS vencidos, count(*) AS vigentes
+           FROM identidad.v_accesos_por_recertificar`);
       const { rows } = await c.query(
-        `SELECT * FROM identidad.v_accesos_por_recertificar ORDER BY dias_sin_revisar DESC LIMIT 200`);
+        `SELECT * FROM identidad.v_accesos_por_recertificar
+          ${todos === 'si' ? '' : 'WHERE vencido'}
+          ORDER BY vencido DESC, dias_sin_revisar DESC LIMIT 200`);
       return {
         total_filas: rows.length, accesos: rows,
-        aviso: rows.length
-          ? `${rows.length} acceso(s) llevan más del plazo sin revisarse. Un permiso que nadie revisa es un permiso que nadie quitó.`
-          : null,
+        vencidos: Number(n.vencidos), vigentes: Number(n.vigentes),
+        aviso: Number(n.vencidos)
+          ? `${n.vencidos} acceso(s) pasaron su plazo de revisión, de ${n.vigentes} vigentes. Un permiso que nadie revisa es un permiso que nadie quitó.`
+          : `Ninguno de los ${n.vigentes} accesos vigentes pasó su plazo. El plazo es de 90 días para los que tocan datos N3 o N4, y de 180 para el resto.`,
       };
+    });
+  }
+
+  /**
+   * Recertificar un acceso: la puerta que NO EXISTÍA.
+   *
+   * ⛔ `identidad.recertificaciones` estaba creada desde la migración 0045
+   * y nadie escribía en ella. La pantalla del comité era una lista que no
+   * se podía tachar: `dias_sin_revisar` solo podía crecer.
+   */
+  @Post('recertificar/:asignacionId')
+  recertificarUno(@Req() req: Request, @Param('asignacionId') id: string, @Body() b: any) {
+    exigirNivel(req, 4, 'recertificar un acceso');
+    return conSesion(this.db, req, async (c) => {
+      try {
+        const { rows: [r] } = await c.query(
+          `SELECT identidad.recertificar($1, $2, $3) AS hecho`,
+          [uuid(id, 'asignacionId'),
+           texto(b?.veredicto, 'veredicto', { min: 8, max: 12 }),
+           texto(b?.nota, 'nota', { min: 5, max: 400 })]);
+        return { ...r.hecho, mensaje: b?.veredicto === 'se_revoca'
+          ? 'Revisado y REVOCADO. La persona pierde ese acceso ahora mismo.'
+          : 'Revisado. El contador de días vuelve a cero y queda firmado con su nombre.' };
+      } catch (e: any) { traducir(e); }
+    });
+  }
+
+  /**
+   * Cerrarle la sesión a alguien.
+   *
+   * ⛔ «Sesiones y alertas» era de SOLO LECTURA: se veía quién estaba
+   * dentro y no había forma de echarlo. Si alguien pierde el teléfono un
+   * domingo, esto es lo que hay que poder hacer sin entrar a la base.
+   */
+  @Post('sesiones/:id/cerrar')
+  cerrarSesion(@Req() req: Request, @Param('id') id: string, @Body() b: any) {
+    exigirNivel(req, 4, 'cerrar la sesión de otra persona');
+    return conSesion(this.db, req, async (c) => {
+      try {
+        const { rows: [r] } = await c.query(
+          `SELECT identidad.cerrar_sesion_de_otro($1, $2) AS hecho`,
+          [uuid(id, 'id'), texto(b?.motivo, 'motivo', { min: 5, max: 300 })]);
+        return { ...r.hecho, mensaje: 'Sesión cerrada. Surte efecto ahora, no cuando expire el token.' };
+      } catch (e: any) { traducir(e); }
     });
   }
 
@@ -761,8 +821,14 @@ export class AdministracionController {
                 (SELECT count(*) FROM sistema.modulos_sede ms WHERE ms.sede_id = $1 AND ms.activo) AS modulos_encendidos`,
         [s]);
       const { rows: equipo } = await c.query(
-        `SELECT a.persona_id, p.nombre_completo, a.rol, a.nivel_max
-           FROM identidad.asignaciones a JOIN nucleo.v_personas p ON p.id = a.persona_id
+        /* ⛔ Faltaban `desde` y `rol_nombre`: la columna «Desde» de
+           «Quién la pastorea» salía en guion en TODAS las filas. */
+        `SELECT a.persona_id, p.nombre_completo AS persona, p.nombre_completo,
+                a.rol, r.nombre AS rol_nombre, a.nivel_max,
+                to_char(a.vigente_desde, 'YYYY-MM-DD') AS desde
+           FROM identidad.asignaciones a
+           JOIN nucleo.v_personas p ON p.id = a.persona_id
+           LEFT JOIN identidad.roles r ON r.codigo = a.rol
           WHERE a.alcance_tipo = 'sede' AND a.alcance_id = $1 AND a.revocada_en IS NULL
             AND (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE)
           ORDER BY a.nivel_max DESC, p.nombre_completo`, [s]);

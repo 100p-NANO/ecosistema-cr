@@ -314,7 +314,10 @@ kbd{
 .ms-porque{display:block; font-style:normal; font-size:10px; color:var(--pel); font-weight:500; margin-top:2px}
 
 /* ---------------- botones · geometría de Linear, nunca píldora ---------------- */
-.ms-acciones{display:flex; gap:var(--e2); padding-top:var(--e1)}
+.ms-acciones{display:flex; flex-wrap:wrap; gap:var(--e2); padding-top:var(--e1)}
+/* ⛔ Sin `flex-wrap`, tres botones en un teléfono se aplastan unos contra
+   otros y el texto se parte: «Abrir lo que ve esta» quedaba cortado. */
+.ms-acciones .ms-btn{flex:0 1 auto; white-space:nowrap}
 .ms-btn{
   display:inline-flex; align-items:center; gap:var(--e2);
   height:32px; padding:0 var(--e4); border-radius:var(--r); cursor:pointer;
@@ -436,6 +439,15 @@ kbd{
   .ms-marca b{display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px}
   .ms-marca small{display:none}
   .ms-yo small{display:none}
+
+  /* ⛔ La cabecera de una ficha es «nombre a la izquierda, acciones a la
+     derecha». En un teléfono no cabe en una línea y el botón de la
+     derecha («Editar», «Renombrar», «Borrar») se salía por el borde: el
+     mismo fallo de fondo que el «Abrir ficha» de las tablas. */
+  .ms-persona__cab{flex-wrap:wrap; gap:var(--e2)}
+  .ms-persona__cab>div:last-child{flex-wrap:wrap; width:100%; justify-content:flex-start}
+  .ms-barra{flex-wrap:wrap}
+  .ms-barra__sp{display:none}
 }
 @media (prefers-reduced-motion:reduce){ *{transition:none !important} }
 
@@ -621,13 +633,18 @@ kbd{
    derecha. Es lo que un pastor necesita ver antes de nombrar a
    alguien o de cerrarle el acceso.
    ============================================================ */
-.ms-ficha__top{display:flex; align-items:center; gap:var(--e2); margin-bottom:var(--e4)}
-.ms-ficha{display:grid; grid-template-columns:300px minmax(0,1fr); gap:var(--e5); align-items:start}
-.ms-ficha__id{
+/* ⛔ 20 sep 2026. Esta `.ms-ficha` del prototipo (rejilla de dos columnas)
+   chocaba con la `.ms-ficha` de verdad, el cajón lateral de la línea 909.
+   Hoy funcionaba solo porque la segunda va después y gana por orden:
+   cualquier reordenación o concatenación de hojas rompía TODAS las fichas
+   de golpe. Se renombra a `.ms-fichap`, que es lo que era: la maqueta. */
+.ms-fichap__top{display:flex; align-items:center; gap:var(--e2); margin-bottom:var(--e4)}
+.ms-fichap{display:grid; grid-template-columns:300px minmax(0,1fr); gap:var(--e5); align-items:start}
+.ms-fichap__id{
   background:var(--sup); border:1px solid var(--fil); border-radius:var(--r-lg);
   padding:var(--e5); position:sticky; top:calc(52px + var(--e5));
 }
-.ms-ficha__id h1{font-size:18px; line-height:24px; font-weight:600; margin:var(--e3) 0 2px; letter-spacing:-.01em}
+.ms-fichap__id h1{font-size:18px; line-height:24px; font-weight:600; margin:var(--e3) 0 2px; letter-spacing:-.01em}
 .ms-foto{
   width:76px; height:76px; border-radius:var(--r-lg); overflow:hidden;
   background:var(--pa-alt); border:1px solid var(--fil);
@@ -642,16 +659,10 @@ kbd{
 .ms-dato .ms-lbl{margin-bottom:1px}
 .ms-dato .ms-val{font-size:13px; line-height:18px}
 .ms-dato .ms-val small{color:var(--tin-dim)}
-.ms-enlace{
-  border:0; background:none; padding:0; font:inherit; font-size:13px; color:var(--ac);
-  cursor:pointer; text-align:left; text-decoration:underline; text-underline-offset:2px;
-  text-decoration-color:var(--fil-duro);
-}
-.ms-enlace:hover{text-decoration-color:var(--ac)}
-.ms-enlace.ms-nom{font-weight:500; color:var(--tin); font-size:13px}
-.ms-enlace.ms-nom:hover{color:var(--ac)}
+/* `.ms-enlace` vive una sola vez, al final de la hoja. Aquí estaba
+   duplicada con otros valores: ganaba la de abajo y esta solo confundía. */
 
-.ms-ficha__acc{min-width:0}
+.ms-fichap__acc{min-width:0}
 .ms-rolcard{
   display:grid; grid-template-columns:minmax(0,1fr) 48px 150px 130px auto;
   gap:var(--e3); align-items:center;
@@ -933,4 +944,30 @@ kbd{
   .ms-ficha__caja{width:100vw; border-left:0}
   .ms-rejilla{grid-template-columns:1fr}
   .ms-rejilla--apretada{min-width:0}
+}
+
+
+/* ---------------- la fila que abre ----------------
+   ⛔ 20 sep 2026. Una acción sola en la ÚLTIMA columna no existe en un
+      teléfono: la columna empieza más allá del borde de la pantalla.
+      Ahora la fila entera abre, y se nota que se puede pulsar. */
+.ms-fila-abre{cursor:pointer}
+.ms-fila-abre:hover td{background:var(--ac-suave)}
+/* El foco vive en el enlace de la primera celda, no en la fila: así el
+   lector de pantalla sigue anunciando la tabla como tabla. */
+.ms-fila-abre:focus-within td{background:var(--ac-suave)}
+.ms-fila-abre td:first-child{position:relative}
+/* La flecha avisa de que lleva a algún sitio, sin ocupar una columna. */
+.ms-fila-abre td:last-child::after{
+  content:"›"; float:right; color:var(--tin-dim); font-size:15px; line-height:1;
+  padding-left:var(--e2);
+}
+@media (max-width:768px){
+  /* En el teléfono, una tabla que se desplaza de lado esconde columnas.
+     La primera celda se queda fija para que el enlace SIEMPRE se vea. */
+  .ms-tabla td:first-child,.ms-tabla th:first-child{
+    position:sticky; left:0; background:var(--sup); z-index:1;
+  }
+  .ms-fila-abre:hover td:first-child{background:var(--ac-suave)}
+  .ms-tabla thead th:first-child{background:var(--sup-alt)}
 }

@@ -150,6 +150,37 @@ del "/identidad/asignaciones/$DGA" '{"motivo":"Probar que el sistema no se deja 
 comprobar "revocar el ÚLTIMO rol que administra la red · se niega" "1" \
   "$(sql "SELECT count(*) FROM identidad.asignaciones WHERE id='$DGA' AND revocada_en IS NULL")"
 
+# ── 3b. Recertificar y cerrar sesiones ───────────────────────────────
+echo "· Recertificacion y vigilancia"
+post "/identidad/personas/$PID/otorgar" \
+  "{\"roles\":[{\"rol\":\"CONSEJERO\",\"alcanceTipo\":\"sede\",\"alcanceId\":\"$SEDE\",\"acta\":\"ACTA-REC-$SX\"}]}"
+REC=$(sql "SELECT id FROM identidad.asignaciones
+           WHERE persona_id='$PID' AND rol='CONSEJERO' AND revocada_en IS NULL LIMIT 1")
+comprobar "el numero de «por recertificar» cuenta solo los VENCIDOS" "si" \
+  "$(if [ "$(sql "SELECT count(*) FROM identidad.v_accesos_por_recertificar WHERE vencido")" \
+        -le "$(sql "SELECT count(*) FROM identidad.v_accesos_por_recertificar")" ]; then echo si; else echo no; fi)"
+comprobar "un acceso otorgado HOY no cuenta como vencido" "f" \
+  "$(sql "SELECT vencido FROM identidad.v_accesos_por_recertificar WHERE asignacion_id='$REC'")"
+post "/administracion/recertificar/$REC" '{"veredicto":"se_mantiene"}'
+comprobar "recertificar SIN nota · se rechaza" "0" \
+  "$(sql "SELECT count(*) FROM identidad.recertificaciones WHERE asignacion_id='$REC'")"
+post "/administracion/recertificar/$REC" '{"veredicto":"se_mantiene","nota":"Sigue acompanando dos casos abiertos"}'
+comprobar "recertificar · la NOTA llega a la base" "Sigue acompanando dos casos abiertos" \
+  "$(sql "SELECT nota FROM identidad.recertificaciones WHERE asignacion_id='$REC'")"
+comprobar "recertificar · queda firmado con quien reviso" "$DG" \
+  "$(sql "SELECT revisada_por FROM identidad.recertificaciones WHERE asignacion_id='$REC'")"
+post "/administracion/recertificar/$REC" '{"veredicto":"se_revoca","nota":"Ya no acompana ningun caso"}'
+comprobar "recertificar con veredicto REVOCAR · revoca de verdad, no solo anota" "1" \
+  "$(sql "SELECT count(*) FROM identidad.asignaciones WHERE id='$REC' AND revocada_en IS NOT NULL")"
+
+SES=$(sql "SELECT id FROM identidad.sesiones WHERE revocada_en IS NULL ORDER BY emitida_en DESC LIMIT 1")
+post "/administracion/sesiones/$SES/cerrar" '{}'
+comprobar "cerrar sesion SIN motivo · se rechaza" "1" \
+  "$(sql "SELECT count(*) FROM identidad.sesiones WHERE id='$SES' AND revocada_en IS NULL")"
+comprobar "el tiempo restante de una sesion es TEXTO, no un objeto" "si" \
+  "$(sql "SELECT CASE WHEN pg_get_function_result(oid) LIKE '%le_queda text%' THEN 'si' ELSE 'no' END
+          FROM pg_proc WHERE proname='ver_sesiones_activas'")"
+
 # ── 4. La matriz de permisos ─────────────────────────────────────────
 echo "· Matriz de permisos"
 post /administracion/matriz '{"rol":"CONSEJERO","modulo":"grupos","accion":"exportar","marcado":true}'

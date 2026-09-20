@@ -77,7 +77,12 @@ async function opcPersonas() {
   const l = Array.isArray(r) ? r : (r?.personas ?? r?.resultados ?? []);
   return l.map(p => ({
     valor: p.id,
-    texto: `${p.nombre_completo ?? p.nombre ?? p.persona ?? p.id}${p.sede ? ' · ' + p.sede : ''}`,
+    /* ⛔ Se leía `p.sede` y la API devuelve `sede_codigo`: la iglesia no
+       salía NUNCA junto al nombre, y con dos personas que se llaman igual
+       no había forma de distinguirlas. Mismo fallo que `actaReferencia`
+       contra `acta`: 200, campo distinto, dato perdido sin avisar. */
+    texto: `${p.nombre_completo ?? p.nombre ?? p.persona ?? p.id}`
+         + `${p.sede_codigo ?? p.sede ? ' · ' + (p.sede_codigo ?? p.sede) : ''}`,
   }));
 }
 
@@ -116,12 +121,15 @@ function fichaAbrir(titulo, sub, cuerpo) {
       <div class="ms-ficha__cuerpo">${cuerpo}</div>
     </div>`;
   document.body.appendChild(d);
-  const cerrar = () => d.remove();
+  /* ⛔ El escuchador de Escape se colgaba de `document` y SOLO se quitaba
+     a sí mismo al pulsar Escape: cerrar con el botón o con el fondo lo
+     dejaba vivo apuntando a un nodo ya borrado, y se acumulaba uno por
+     cada ficha abierta. Ahora `cerrar()` limpia siempre. */
+  const porEscape = (ev) => { if (ev.key === 'Escape') cerrar(); };
+  const cerrar = () => { document.removeEventListener('keydown', porEscape); d.remove(); };
   d.querySelector('#ms-ficha-x').addEventListener('click', cerrar);
   d.addEventListener('click', ev => { if (ev.target === d) cerrar(); });
-  document.addEventListener('keydown', function esc_(ev) {
-    if (ev.key === 'Escape') { cerrar(); document.removeEventListener('keydown', esc_); }
-  });
+  document.addEventListener('keydown', porEscape);
   d.querySelector('#ms-ficha-x').focus();
   return d;
 }
@@ -284,10 +292,18 @@ async function salir() {
 }
 
 window.addEventListener('hashchange', () => { if (sesion) { vista = ruta(); marco(); } });
+const tramos = () => location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
 const ruta = () => {
-  const r = location.hash.replace(/^#\/?/, '').split('/')[0];
+  const r = tramos()[0];
   return NAV.some(n => n.id === r) ? r : 'arranque';
 };
+/* El segundo tramo de la dirección: `#/roles/TESORERIA` → 'TESORERIA'.
+   ⛔ Antes cada vista hacía `location.hash.split('/')[1]`, que sobre
+      `#/roles/TESORERIA` devuelve 'roles', no 'TESORERIA': la almohadilla
+      cuenta como primer trozo. Resultado: abrir el enlace de un rol o de
+      una iglesia concreta siempre caía en la primera de la lista, y
+      parecía que el enlace no llevaba a ningún sitio. */
+const subruta = () => tramos()[1] ?? null;
 
 /* ── Pintado ──────────────────────────────────────────────────────── */
 const cargando = `<div class="ms-main" style="padding:0"><p style="color:var(--tin-dim)">Cargando…</p></div>`;
@@ -305,6 +321,9 @@ async function pintar() {
   viejo.replaceWith(m);
   document.getElementById('ms-ficha')?.remove();
   m.innerHTML = cargando;
+  /* ⛔ Una fila que se pulsa con el dedo tiene que abrirse también con el
+     teclado, o queda fuera de alcance para quien no usa ratón. */
+
   document.title = `${NAV.find(n => n.id === vista)?.titulo ?? 'Sistema Master'} · Casa Roca`;
   try {
     await VISTAS[vista](m);
@@ -323,11 +342,39 @@ function cabecera(titulo, texto) {
 function alerta(texto, clase = 'ambar') {
   return texto ? `<div class="ms-alerta ms-alerta--${clase}">${esc(texto)}</div>` : '';
 }
-function tablaMs(filas, cols, vacio = 'Nada todavía.') {
+/**
+ * Tabla de la consola.
+ *
+ * ⛔ 20 de septiembre de 2026, por la tarde. Daniel pulsó una iglesia en
+ * el teléfono y «no me abrió nada». No era un fallo del código: el botón
+ * «Abrir ficha» vivía en la ÚLTIMA columna, y en una pantalla de 375
+ * píxeles esa columna empieza en el 360 y termina en el 405. El botón
+ * existía, respondía y estaba FUERA DE LA PANTALLA. Lo único visible era
+ * el nombre de la iglesia, que no hacía nada.
+ *
+ * Una acción escondida detrás de un desplazamiento lateral no existe.
+ * Desde aquí, cuando una tabla lleva a algún sitio:
+ *   · la FILA ENTERA abre, con el dedo o con Intro,
+ *   · y la PRIMERA celda es un enlace de verdad, que siempre se ve y al
+ *     que se llega con el tabulador.
+ * Nunca más una acción sola en la última columna.
+ *
+ * `abre` = { attr: 'sede', id: f => f.id, que: f => f.nombre }
+ */
+function tablaMs(filas, cols, vacio = 'Nada todavía.', abre = null) {
   if (!filas?.length) return `<p class="ms-vacio">${esc(vacio)}</p>`;
+  const fila = (f) => {
+    /* ⛔ Nada de `role="button"` sobre un `<tr>`: sustituye el rol nativo
+       `row` y un lector de pantalla deja de anunciar la tabla como tabla,
+       perdiendo fila, columna y encabezados. El foco y la acción viven en
+       el enlace de la primera celda, que ya existe y ya se alcanza con el
+       tabulador; la fila es solo un blanco más grande para el dedo. */
+    const at = abre ? ` class="ms-fila-abre" data-${abre.attr}="${esc(abre.id(f))}"` : '';
+    return `<tr${at}>${cols.map(c => `<td>${c.p ? c.p(f) : esc(f[c.k] ?? '—')}</td>`).join('')}</tr>`;
+  };
   return `<div class="ms-scroll"><table class="ms-tabla">
     <thead><tr>${cols.map(c => `<th>${esc(c.t)}</th>`).join('')}</tr></thead>
-    <tbody>${filas.map(f => `<tr>${cols.map(c => `<td>${c.p ? c.p(f) : esc(f[c.k] ?? '—')}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tbody>${filas.map(fila).join('')}</tbody>
   </table></div>`;
 }
 
@@ -504,13 +551,20 @@ const VISTAS = {
       ${alerta(rec.aviso)}
       <h2 class="ms-h2">Iglesias</h2>
       ${tablaMs(sedes, [
-        { t: 'Código', p: s => `<code>${esc(s.codigo)}</code>` },
-        { t: 'Nombre', p: s => `<b>${esc(s.nombre)}</b>` },
+        { t: 'Iglesia', p: s => `<button class="ms-enlace" data-modulos="${esc(s.id)}">
+            <b>${esc(s.nombre)}</b><span class="ms-doc">${esc(s.codigo)}</span></button>` },
         { t: 'Ciudad', k: 'ciudad' },
-        { t: '', p: s => `<button class="ms-btn" data-modulos="${esc(s.id)}">Qué ve</button>` },
-      ], 'Ninguna iglesia todavía.')}`;
-    m.querySelectorAll('[data-modulos]').forEach(b =>
-      b.addEventListener('click', () => { location.hash = '#/modulos'; }));
+        { t: 'Tipo', p: s => `<span class="ms-chip">${esc(s.tipo ?? '')}</span>` },
+      ], 'Ninguna iglesia todavía.',
+         { attr: 'modulos', id: s => s.id, que: s => 'lo que ve ' + s.nombre })}`;
+    /* ⛔ Delegado sobre el contenedor: antes se colgaba de cada botón, y
+       el botón vivía en la última columna, fuera de la pantalla en un
+       teléfono. Ahora abre la fila entera y lleva a ESA sede, no a la
+       primera de la lista. */
+    m.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-modulos]');
+      if (b) location.hash = '#/modulos/' + b.dataset.modulos;
+    });
   },
 
   /* ── Personas con acceso ───────────────────────────────────────── */
@@ -531,7 +585,8 @@ const VISTAS = {
         <span class="ms-barra__sp"></span>
         <span style="color:var(--tin-dim);font-size:12px" id="cuantas">${d.cuentas.length} cuentas</span>
       </div>
-      <div id="tabla">${tablaMs(d.cuentas, COLS_CUENTA, 'Ninguna cuenta a su alcance.')}</div>`;
+      <div id="tabla">${tablaMs(d.cuentas, COLS_CUENTA, 'Ninguna cuenta a su alcance.',
+        { attr: 'persona', id: x => x.persona_id, que: x => 'la ficha de ' + x.persona })}</div>`;
     m.querySelector('#b-nuevo').addEventListener('click', () => { location.hash = '#/crear'; });
     let t;
     m.querySelector('#q').addEventListener('input', ev => {
@@ -539,7 +594,8 @@ const VISTAS = {
       const q = ev.target.value.trim();
       t = setTimeout(async () => {
         const r = await api.obtener('/api/v1/administracion/cuentas?limite=300&q=' + encodeURIComponent(q));
-        m.querySelector('#tabla').innerHTML = tablaMs(r.cuentas, COLS_CUENTA, 'Nadie coincide.');
+        m.querySelector('#tabla').innerHTML = tablaMs(r.cuentas, COLS_CUENTA, 'Nadie coincide.',
+          { attr: 'persona', id: x => x.persona_id, que: x => 'la ficha de ' + x.persona });
         m.querySelector('#cuantas').textContent = r.cuentas.length + ' cuentas';
       }, 300);
     });
@@ -631,10 +687,15 @@ const VISTAS = {
         m.querySelector('#f-cuenta').elements.personaId.value = r.id;
         m.querySelector('#f-cuenta').dataset.nombre = `${d.primerNombre} ${d.primerApellido}`;
         if (d.email) m.querySelector('#f-cuenta').elements.usuario.value = d.email;
+        /* ⛔ Antes solo se insertaba la opción en el DOM. Bastaba teclear
+           una letra en el filtro para que el `select` se reconstruyera
+           desde el array `personas` —que no la tenía— y la persona recién
+           registrada desapareciera, dejando el paso 2 bloqueado sin
+           explicar por qué. Ahora entra en el ARRAY, que es la fuente. */
         const s2 = m.querySelector('#sel-persona');
-        const etiqueta = `${d.primerNombre} ${d.primerApellido}`;
-        s2.insertAdjacentHTML('afterbegin',
-          `<option value="${esc(r.id)}" selected>${esc(etiqueta)} · recién registrada</option>`);
+        const etiqueta = `${d.primerNombre} ${d.primerApellido} · recién registrada`;
+        personas.unshift({ valor: r.id, texto: etiqueta });
+        s2.insertAdjacentHTML('afterbegin', `<option value="${esc(r.id)}" selected>${esc(etiqueta)}</option>`);
         s2.value = r.id;
         z.innerHTML = `<div class="ms-alerta ms-alerta--verde" style="margin-top:12px">${esc(r.mensaje)}
             Ya queda elegida abajo, en el paso 2.</div>`;
@@ -648,12 +709,18 @@ const VISTAS = {
     /* Quien ya está registrado no se vuelve a registrar: se busca.
        ⛔ Antes había que pegar su identificador a mano. */
     const sel = m.querySelector('#sel-persona');
+    /* ⛔ Las recién registradas van DELANTE y se conservan cuando llega la
+       lista del servidor: si no, quien registraba a alguien mientras la
+       lista cargaba lo perdía sin enterarse. */
     let personas = [];
     opcPersonas().then(l => {
-      personas = l;
+      const nuevas = personas.filter(p => !l.some(x => x.valor === p.valor));
+      personas = [...nuevas, ...l];
+      const elegido = sel.value;
       sel.innerHTML = '<option value="">— elija a quien va a tener cuenta —</option>' +
-        l.map(p => `<option value="${esc(p.valor)}">${esc(p.texto)}</option>`).join('');
-      m.querySelector('#q-persona').placeholder = `Escriba para buscar entre ${l.length} personas`;
+        personas.map(p => `<option value="${esc(p.valor)}">${esc(p.texto)}</option>`).join('');
+      if (elegido) sel.value = elegido;
+      m.querySelector('#q-persona').placeholder = `Escriba para buscar entre ${personas.length} personas`;
     });
     m.querySelector('#q-persona').addEventListener('input', ev => {
       const q = ev.target.value.trim().toLowerCase();
@@ -709,9 +776,16 @@ Object.assign(VISTAS, {
     const sel = m.querySelector('#sel');
     m.querySelector('#q').addEventListener('input', ev => {
       const q = ev.target.value.trim().toLowerCase();
+      const coinciden = personas.filter(p => !q || p.texto.toLowerCase().includes(q));
       sel.innerHTML = '<option value="">— elija una persona —</option>' +
-        personas.filter(p => !q || p.texto.toLowerCase().includes(q))
-          .map(p => `<option value="${esc(p.valor)}">${esc(p.texto)}</option>`).join('');
+        coinciden.map(p => `<option value="${esc(p.valor)}">${esc(p.texto)}</option>`).join('');
+      /* Si el filtro deja UNA sola, se elige sola: el navegador no dispara
+         `change` cuando solo queda una opción, y había que pulsarla aunque
+         ya estuviera a la vista. Y si no, se limpia el detalle: antes se
+         quedaban abajo los roles de la persona ANTERIOR mientras arriba
+         decía «elija una persona». */
+      if (coinciden.length === 1) sel.value = coinciden[0].valor;
+      ver();
     });
 
     const ver = async () => {
@@ -733,12 +807,12 @@ Object.assign(VISTAS, {
           </div>
           <h2 class="ms-h2">Roles vigentes</h2>
           ${tablaMs(filas, [
-            { t: 'Rol', p: a => `<b>${esc(a.rol_nombre ?? a.rol)}</b><span class="ms-doc">${esc(a.rol)}</span>` },
+            { t: 'Rol', p: a => `<b>${esc(a.rol_nombre ?? a.rol)}</b><span class="ms-doc">${esc(a.rol)}</span>
+                <button class="ms-btn ms-btn--peq" data-rev="${esc(a.id)}" style="margin-top:4px">Revocar</button>` },
             { t: 'Alcance', p: a => esc(a.alcance_tipo) },
             { t: 'Techo', p: a => niv(a.nivel_max) },
             { t: 'Desde', p: a => esc(a.vigente_desde ?? a.desde ?? '—') },
             { t: 'Acta', p: a => a.acta_referencia ? `<code>${esc(a.acta_referencia)}</code>` : '<span class="ms-falta">sin acta</span>' },
-            { t: '', p: a => `<button class="ms-btn ms-btn--peq" data-rev="${esc(a.id)}">Revocar</button>` },
           ], 'Sin roles vigentes: esta persona no puede hacer nada.')}
           <h2 class="ms-h2">Lo que alcanza de verdad <span class="num">${permisos.length}</span></h2>
           ${tablaMs(permisos.slice(0, 300), [
@@ -791,7 +865,7 @@ Object.assign(VISTAS, {
      busca y que nadie ve hasta que alguien reclama que «no le aparece». */
   async roles(m) {
     const cat = await catalogo();
-    const pedidas = location.hash.split('/')[1];
+    const pedidas = subruta();
     let actual = cat.roles.some(r => r.codigo === pedidas) ? pedidas : cat.roles[0]?.codigo;
 
     m.innerHTML = `
@@ -962,18 +1036,65 @@ Object.assign(VISTAS, {
     listar(); detalle();
   },
 
+  /* ── Recertificación ───────────────────────────────────────────────
+     ⛔ 20 sep 2026. Esta vista era de SOLO LECTURA: una lista de trabajo
+        del comité trimestral que no se podía tachar, así que los días sin
+        revisar solo podían crecer. Y el número era falso: contaba TODOS
+        los accesos vigentes, no los vencidos. Ahora se revisa de verdad,
+        con veredicto y nota firmada. */
   async recert(m) {
-    const d = await api.obtener('/api/v1/administracion/recertificar');
-    m.innerHTML = `
-      ${cabecera('Recertificación de accesos',
-        'Un permiso que nadie revisa es un permiso que nadie quitó.')}
-      ${alerta(d.aviso, 'ambar')}
-      ${tablaMs(d.accesos, [
-        { t: 'Persona', p: x => `<b>${esc(x.persona)}</b>` },
-        { t: 'Rol', p: x => `${esc(x.rol)} ${niv(x.nivel_max)}` },
-        { t: 'Sin revisar', p: x => `<span class="num">${esc(x.dias_sin_revisar)}</span> día(s)` },
-        { t: 'Tope', p: x => `<span class="num">${esc(x.tope_dias ?? '—')}</span>` },
-      ], 'Nada pendiente de revisar.')}`;
+    let todos = false;
+    const pintarTodo = async () => {
+      const d = await api.obtener('/api/v1/administracion/recertificar' + (todos ? '?todos=si' : ''));
+      m.innerHTML = `
+        ${cabecera('Recertificación de accesos',
+          'Un permiso que nadie revisa es un permiso que nadie quitó. El plazo es de 90 días para lo que toca datos N3 o N4, y de 180 para el resto.')}
+        <div class="ms-kpis">
+          <div class="ms-kpi ${d.vencidos ? 'ms-kpi--ojo' : ''}"><b>${esc(d.vencidos ?? 0)}</b><span>pasaron su plazo</span></div>
+          <div class="ms-kpi"><b>${esc(d.vigentes ?? 0)}</b><span>accesos vigentes</span></div>
+        </div>
+        ${alerta(d.aviso, d.vencidos ? 'ambar' : 'verde')}
+        <div class="ms-barra">
+          <label class="ms-opt" style="max-width:340px">
+            <input type="checkbox" id="c-todos" ${todos ? 'checked' : ''}>
+            <div><b>Ver también los que están en plazo</b>
+              <small>La lista del comité son solo los vencidos.</small></div>
+          </label>
+        </div>
+        ${tablaMs(d.accesos, [
+          { t: 'Persona', p: x => `<b>${esc(x.persona)}</b>
+              <span class="ms-doc">${esc(x.rol)}</span>
+              <button class="ms-btn ms-btn--peq" data-recert="${esc(x.asignacion_id)}"
+                      style="margin-top:4px">Revisar</button>` },
+          { t: 'Techo', p: x => niv(x.nivel_max) },
+          { t: 'Alcance', k: 'alcance_tipo' },
+          { t: 'Sin revisar', p: x => `<span class="num">${esc(x.dias_sin_revisar)}</span> de ${esc(x.tope_dias)} día(s)
+              ${x.vencido ? '<span class="ms-falta">VENCIDO</span>' : ''}` },
+          { t: 'Última revisión', p: x => x.ultima_revision
+              ? esc(new Date(x.ultima_revision).toLocaleDateString('es-CO'))
+              : '<span class="ms-vacio">nunca</span>' },
+        ], todos ? 'Ningún acceso vigente.' : 'Nada vencido: el comité está al día.')}`;
+      m.querySelector('#c-todos').addEventListener('change', ev => { todos = ev.target.checked; pintarTodo(); });
+    };
+    await pintarTodo();
+
+    m.addEventListener('click', async ev => {
+      const b = ev.target.closest('[data-recert]');
+      if (!b) return;
+      const r = await pedir([
+        { nombre: 'veredicto', etiqueta: '¿Qué decide el comité?', obligatorio: true, valor: 'mantener',
+          opciones: [
+            { valor: 'se_mantiene', texto: 'Se mantiene: sigue necesitando ese acceso' },
+            { valor: 'se_reduce', texto: 'Se reduce: necesita menos del que tiene' },
+            { valor: 'se_revoca', texto: 'Se revoca: ya no lo necesita' }] },
+        { nombre: 'nota', etiqueta: 'Por qué · queda firmado con su nombre', obligatorio: true },
+      ], 'Revisar este acceso');
+      if (!r) return;
+      try {
+        const x = await api.enviar('/api/v1/administracion/recertificar/' + b.dataset.recert, r);
+        avisar(x.mensaje); pintarTodo();
+      } catch (e) { avisar(e.message, 'roja'); }
+    });
   },
 
   /* ── Iglesias y sedes ──────────────────────────────────────────────
@@ -997,18 +1118,20 @@ Object.assign(VISTAS, {
       <div id="tabla"></div>`;
 
     const cols = [
-      { t: 'Código', p: x => `<code>${esc(x.codigo)}</code>` },
-      { t: 'Iglesia', p: x => `<b>${esc(x.nombre)}</b>` },
+      /* La primera celda es el enlace: se ve siempre, aunque la tabla se
+         desplace de lado, y se alcanza con el tabulador. */
+      { t: 'Iglesia', p: x => `<button class="ms-enlace" data-sede="${esc(x.id)}">
+          <b>${esc(x.nombre)}</b><span class="ms-doc">${esc(x.codigo)}</span></button>` },
       { t: 'Ciudad', p: x => esc([x.ciudad, x.pais].filter(Boolean).join(', ')) },
       { t: 'Tipo', p: x => `<span class="ms-chip">${esc(x.tipo ?? '')}</span>` },
       { t: 'Estado', p: x => x.activa === false
           ? '<span class="ms-vig ms-vig--fin">inactiva</span>'
           : '<span class="ms-vig ms-vig--ok">activa</span>' },
-      { t: '', p: x => `<button class="ms-btn ms-btn--peq" data-sede="${esc(x.id)}">Abrir ficha</button>` },
     ];
     const pintarTabla = (q = '') => {
       const l = sedes.filter(x => !q || (x.codigo + x.nombre + (x.ciudad ?? '')).toLowerCase().includes(q.toLowerCase()));
-      m.querySelector('#tabla').innerHTML = tablaMs(l, cols, 'Ninguna iglesia coincide.');
+      m.querySelector('#tabla').innerHTML = tablaMs(l, cols, 'Ninguna iglesia coincide.',
+        { attr: 'sede', id: x => x.id, que: x => 'la ficha de ' + x.nombre });
     };
     pintarTabla();
     m.querySelector('#q').addEventListener('input', ev => pintarTabla(ev.target.value));
@@ -1033,13 +1156,14 @@ Object.assign(VISTAS, {
             <div class="ms-kpi"><b>${esc(f.conteo.modulos_encendidos)}</b><span>módulos encendidos</span></div>
           </div>
           <div class="ms-acciones" style="margin:16px 0">
-            <button class="ms-btn ms-btn--primario" id="f-ver">Abrir lo que ve esta iglesia</button>
+            <button class="ms-btn ms-btn--primario" id="f-ver">Abrir la aplicación de los pastores</button>
             <button class="ms-btn" id="f-mod">Cambiar sus módulos</button>
             <button class="ms-btn" id="f-pas">Asignar pastor</button>
           </div>
-          <p class="ms-nota">«Abrir lo que ve» entra a la aplicación de los pastores, la misma que usa esta
-            iglesia. Entra con SU usuario, no con el del pastor: esta consola no suplanta a nadie, porque
-            cada cosa hecha en el sistema tiene que quedar a nombre de quien la hizo.</p>
+          <p class="ms-nota">Entra a la aplicación de los pastores con SU usuario, no con el del pastor:
+            esta consola no suplanta a nadie, porque cada cosa hecha en el sistema tiene que quedar a
+            nombre de quien la hizo. ⚠️ Todavía NO entra situada en esta iglesia: lo que esta iglesia ve
+            es la lista de módulos de aquí abajo.</p>
 
           <h2 class="ms-h2">Quién la pastorea</h2>
           ${tablaMs(f.equipo ?? [], [
@@ -1106,7 +1230,7 @@ Object.assign(VISTAS, {
       if (!d) return;
       try {
         const r = await api.enviar('/api/v1/administracion/iglesias', d);
-        SEDES = null; avisar(r.mensaje); pintar();
+        SEDES = null; pintar().then(() => avisar(r.mensaje));
       } catch (e) { avisar(e.message, 'roja'); }
     });
   },
@@ -1185,7 +1309,7 @@ Object.assign(VISTAS, {
         if (!confirm('Se borra la plantilla «' + p.nombre + '». Las iglesias ya desplegadas con ella NO cambian. ¿Seguir?')) return;
         try {
           const r = await api.enviar('/api/v1/administracion/plantillas/' + p.codigo + '/borrar', {});
-          avisar(r.mensaje); pintar();
+          pintar().then(() => avisar(r.mensaje));
         } catch (e) { avisar(e.message, 'roja'); }
       });
     };
@@ -1231,7 +1355,7 @@ Object.assign(VISTAS, {
         { nombre: 'descripcion', etiqueta: 'Para qué sirve', obligatorio: true },
       ], 'Crear una plantilla');
       if (!r) return;
-      try { const x = await api.enviar('/api/v1/administracion/plantillas', r); avisar(x.mensaje); pintar(); }
+      try { const x = await api.enviar('/api/v1/administracion/plantillas', r); pintar().then(() => avisar(x.mensaje)); }
       catch (e) { avisar(e.message, 'roja'); }
     });
 
@@ -1248,7 +1372,7 @@ Object.assign(VISTAS, {
      referencia del instrumento ANTES de encenderse. */
   async modulos(m) {
     const [cat, sedes] = await Promise.all([catalogo(), sedesDe()]);
-    const pedida = location.hash.split('/')[1];
+    const pedida = subruta();
     m.innerHTML = `
       ${cabecera('Qué ve cada iglesia',
         'Los módulos encendidos en una sede. El núcleo no se apaga, y lo que toca datos protegidos no se enciende sin evidencia jurídica.')}
@@ -1258,12 +1382,20 @@ Object.assign(VISTAS, {
             ${x.id === pedida ? 'selected' : ''}>${esc(x.codigo)} · ${esc(x.nombre)}</option>`).join('')}</select>
         </label>
         <span class="ms-barra__sp"></span>
-        <button class="ms-btn" id="b-ver">Abrir la aplicación de esta iglesia</button>
+        <button class="ms-btn" id="b-ver">Abrir la aplicación de los pastores</button>
       </div>
       <div id="lista">${cargando}</div>`;
 
     const sel = m.querySelector('#sel');
+    /* ⛔ 20 sep 2026. Decía «de esta iglesia» y abría SIEMPRE la misma
+       dirección, sin la sede: daba lo mismo para las 36. La aplicación de
+       los pastores todavía no toma la sede de la dirección, así que el
+       botón dice la verdad y, de paso, deja el código de la iglesia a la
+       vista para que se sepa cuál se estaba mirando. */
     m.querySelector('#b-ver').addEventListener('click', () => {
+      const s = sedes.find(x => x.id === sel.value);
+      avisar('Se abre la aplicación de los pastores con SU usuario. Todavía no entra situada en '
+        + (s ? s.codigo : 'esa iglesia') + ': eso exige que la aplicación acepte la sede en la dirección.', 'ambar');
       window.open('../index.html#/panel', '_blank', 'noopener');
     });
 
@@ -1336,13 +1468,13 @@ Object.assign(VISTAS, {
       ${alerta(d.aviso)}
       <p style="margin-bottom:16px"><button class="ms-btn ms-btn--primario" id="b-eq">+ Crear un equipo</button></p>
       ${tablaMs(d.unidades, [
-        { t: 'Unidad', p: u => `<b>${esc(u.nombre)}</b><span class="ms-doc">${esc(u.codigo)}</span>` },
+        { t: 'Unidad', p: u => `<button class="ms-enlace" data-eq="${esc(u.id)}">
+            <b>${esc(u.nombre)}</b><span class="ms-doc">${esc(u.codigo)}</span></button>` },
         { t: 'Clase', p: u => `<span class="ms-chip">${esc(u.clase)}</span>` },
         { t: 'Integrantes', p: u => num(u.integrantes) },
         { t: 'Roles', p: u => Number(u.roles) === 0 && u.clase === 'equipo'
             ? '<span class="ms-falta">sin rol</span>' : num(u.roles) },
-        { t: '', p: u => `<button class="ms-btn" data-eq="${esc(u.id)}">Abrir</button>` },
-      ])}
+      ], 'Ningún equipo todavía.', { attr: 'eq', id: u => u.id, que: u => 'el equipo ' + u.nombre })}
       <div id="ficha" style="margin-top:24px"></div>`;
 
     m.querySelector('#b-eq').addEventListener('click', async () => {
@@ -1355,7 +1487,7 @@ Object.assign(VISTAS, {
         { nombre: 'proposito', etiqueta: 'Propósito (mínimo 15 caracteres)', obligatorio: true },
       ], 'Crear un equipo');
       if (!r) return;
-      try { const x = await api.enviar('/api/v1/administracion/unidades', r); avisar(x.mensaje); pintar(); }
+      try { const x = await api.enviar('/api/v1/administracion/unidades', r); pintar().then(() => avisar(x.mensaje)); }
       catch (e) { avisar(e.message, 'roja'); }
     });
 
@@ -1380,22 +1512,22 @@ Object.assign(VISTAS, {
               ${alerta(u.aviso, 'roja')}
               <h2 class="ms-h2" style="margin-top:0">Roles del equipo</h2>
               ${tablaMs(u.roles, [
-                { t: 'Rol', p: r => `<b>${esc(r.rol)}</b>` },
+                { t: 'Rol', p: r => `<b>${esc(r.rol_nombre ?? r.rol)}</b>
+                    <button class="ms-btn ms-btn--peq" data-revr="${esc(r.id)}" style="margin-top:4px">Revocar</button>` },
                 { t: 'Alcance', k: 'alcance_tipo' },
                 { t: 'Techo', p: r => niv(r.nivel_max) },
                 { t: 'Acta', p: r => r.acta_referencia ? `<code>${esc(r.acta_referencia)}</code>` : '—' },
-                { t: '', p: r => `<button class="ms-btn" data-revr="${esc(r.id)}">Revocar</button>` },
               ], 'Ninguno: el equipo existe pero no puede hacer nada.')}
               <h2 class="ms-h2">Integrantes</h2>
               ${tablaMs(u.miembros.lista, [
-                { t: 'Persona', p: x => `<b>${esc(x.nombre_completo)}</b>` },
+                { t: 'Persona', p: x => `<b>${esc(x.nombre_completo)}</b>${x.hasta ? '' :
+                    `<button class="ms-btn ms-btn--peq" data-sac="${esc(u.unidad.id)}|${esc(x.persona_id)}"
+                       style="margin-top:4px;display:block">Sacar</button>`}` },
                 { t: 'Rol en el equipo', p: x => `<span class="ms-chip">${esc(x.rol_en_unidad)}</span>` },
                 { t: 'Desde', k: 'desde' },
                 { t: 'Estado', p: x => x.hasta
                     ? `<span class="ms-vig ms-vig--fin">salió ${esc(x.hasta)}</span>`
                     : '<span class="ms-vig ms-vig--ok">activo</span>' },
-                { t: '', p: x => x.hasta ? ''
-                    : `<button class="ms-btn" data-sac="${esc(u.unidad.id)}|${esc(x.persona_id)}">Sacar</button>` },
               ], 'Nadie todavía.')}
               <h2 class="ms-h2">Sedes que alcanza</h2>
               <div class="ms-chips">${u.alcanza.length
@@ -1410,6 +1542,7 @@ Object.assign(VISTAS, {
     m.addEventListener('click', async ev => {
       const rol = ev.target.closest('[data-rol]'), mie = ev.target.closest('[data-mie]');
       const rev = ev.target.closest('[data-revr]'), sac = ev.target.closest('[data-sac]');
+      let dicho = null;
       try {
         if (rol) {
           const r = await pedir([
@@ -1425,7 +1558,7 @@ Object.assign(VISTAS, {
           ], 'Otorgar un rol al equipo');
           if (!r) return;
           const x = await api.enviar('/api/v1/administracion/unidades/' + rol.dataset.rol + '/roles', r);
-          avisar(x.mensaje);
+          dicho = x.mensaje;
         } else if (mie) {
           const r = await pedir([
             { nombre: 'personaId', etiqueta: 'Persona', obligatorio: true, opciones: await opcPersonas() },
@@ -1435,22 +1568,24 @@ Object.assign(VISTAS, {
           ], 'Meter a alguien en el equipo');
           if (!r) return;
           const x = await api.enviar('/api/v1/administracion/unidades/' + mie.dataset.mie + '/miembros', r);
-          avisar(x.mensaje);
+          dicho = x.mensaje;
         } else if (rev) {
           const r = await pedir([{ nombre: 'motivo', etiqueta: 'Motivo (lo pierden todos los integrantes)', obligatorio: true }],
                                 'Revocar el rol del equipo');
           if (!r) return;
           const x = await api.enviar('/api/v1/administracion/unidades/roles/' + rev.dataset.revr + '/revocar', r);
-          avisar(x.mensaje);
+          dicho = x.mensaje;
         } else if (sac) {
           const partes = sac.dataset.sac.split('|');
           const r = await pedir([{ nombre: 'motivo', etiqueta: 'Motivo de la salida', obligatorio: true }],
                                 'Sacar del equipo');
           if (!r) return;
           const x = await api.enviar('/api/v1/administracion/unidades/' + partes[0] + '/miembros/' + partes[1] + '/salir', r);
-          avisar(x.mensaje);
+          dicho = x.mensaje;
         } else return;
-        pintar();
+        /* ⛔ El aviso va DESPUÉS del repintado: `pintar()` reemplaza el
+           contenedor y se llevaba el mensaje consigo. */
+        pintar().then(() => dicho && avisar(dicho));
       } catch (e) { avisar(e.message, 'roja'); }
     });
   },
@@ -1478,9 +1613,15 @@ Object.assign(VISTAS, {
       ${alerta(ale.aviso, 'ambar')}
       <h2 class="ms-h2">Sesiones abiertas</h2>
       ${tablaMs(ses.sesiones, [
-        { t: 'Persona', p: x => `<b>${esc(x.persona)}</b><span class="ms-doc">${esc(x.usuario)}</span>` },
+        /* ⛔ La acción va en la PRIMERA celda: en un teléfono, la última
+           columna de una tabla que se desplaza de lado no existe. */
+        { t: 'Persona', p: x => `<b>${esc(x.persona)}</b><span class="ms-doc">${esc(x.usuario)}</span>
+            <button class="ms-btn ms-btn--peq" data-cerrar="${esc(x.sesion)}"
+                    style="margin-top:4px">Cerrar esta sesión</button>` },
         { t: 'Desde', p: x => esc(new Date(x.emitida_en).toLocaleString('es-CO')) },
-        { t: 'Le queda', p: x => `<code>${esc(String(x.le_queda ?? '').split('.')[0])}</code>` },
+        /* ⛔ `le_queda` llegaba como objeto y se veía «[object Object]» en
+           TODAS las filas. Ahora la base lo manda ya formateado. */
+        { t: 'Le queda', p: x => `<code>${esc(x.le_queda ?? '—')}</code>` },
         { t: 'Dirección', p: x => `<code>${esc(x.ip ?? '—')}</code>` },
       ], 'Nadie dentro.')}
       <h2 class="ms-h2">Intentos fallidos</h2>
@@ -1489,6 +1630,18 @@ Object.assign(VISTAS, {
         { t: 'Dirección', p: x => `<code>${esc(x.ip ?? '—')}</code>` },
         { t: 'Intentos', p: x => `<span class="ms-niv ms-niv--4">${esc(x.intentos_fallidos)}</span>` },
       ], 'Ninguno.')}`;
+
+    m.addEventListener('click', async ev => {
+      const b = ev.target.closest('[data-cerrar]');
+      if (!b) return;
+      const r = await pedir([{ nombre: 'motivo', obligatorio: true,
+        etiqueta: 'Motivo · queda en la auditoría' }], 'Cerrarle la sesión a esta persona');
+      if (!r) return;
+      try {
+        const x = await api.enviar('/api/v1/administracion/sesiones/' + b.dataset.cerrar + '/cerrar', r);
+        pintar().then(() => avisar(x.mensaje));
+      } catch (e) { avisar(e.message, 'roja'); }
+    });
   },
 
   async bitacora(m) {
@@ -1581,13 +1734,13 @@ async function abrirPersona(id) {
 
       <h2 class="ms-h2">Roles vigentes</h2>
       ${tablaMs(f.roles, [
-        { t: 'Rol', p: r => `<b>${esc(r.rol_nombre ?? r.rol)}</b><span class="ms-doc">${esc(r.rol)}</span>` },
+        { t: 'Rol', p: r => `<b>${esc(r.rol_nombre ?? r.rol)}</b><span class="ms-doc">${esc(r.rol)}</span>
+            <button class="ms-btn ms-btn--peq" data-revp="${esc(r.id)}" style="margin-top:4px">Revocar</button>` },
         { t: 'Alcance', p: r => esc(r.alcance_tipo) },
         { t: 'Techo', p: r => niv(r.nivel_max) },
         { t: 'Desde', k: 'desde' },
         { t: 'Acta', p: r => r.acta_referencia ? `<code>${esc(r.acta_referencia)}</code>`
             : '<span class="ms-falta">sin acta</span>' },
-        { t: '', p: r => `<button class="ms-btn ms-btn--peq" data-revp="${esc(r.id)}">Revocar</button>` },
       ], 'Ninguno: entra al sistema y no ve nada.')}
       <button class="ms-btn ms-btn--primario" id="f-otorgar" style="margin-top:8px">+ Otorgar un rol</button>
 

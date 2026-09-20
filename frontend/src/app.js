@@ -81,7 +81,11 @@ async function arrancar() {
     pintarMarco();
   } catch (e) {
     if (e.estado === 401) { borrarTokens(); return pintarEntrar(RAIZ, entrarYa); }
-    RAIZ.innerHTML = error(e.message, e.peticionId, 'location.reload()');
+    /* ⛔ `error()` solo toma dos argumentos: el tercero se descartaba y el
+       botón «Reintentar» del arranque se pintaba muerto. Si la sesión
+       falla al abrir, ese botón es la ÚNICA salida que tiene la persona. */
+    RAIZ.innerHTML = error(e.message, e.peticionId);
+    engancharReintentar(RAIZ, arrancar);
   }
 }
 

@@ -61,7 +61,7 @@ async function conCandado(fn) {
      para no quedarse bloqueado si una pestaña se cierra a media faena. */
   const ahora = Date.now();
   const tomado = Number(localStorage.getItem('cr.cola.candado') ?? 0);
-  if (tomado && ahora - tomado < 30_000) return { enviados: 0, rechazados: [], ocupado: true };
+  if (tomado && ahora - tomado < 30_000) return { enviados: 0, rechazados: [], ocupado: true, respuestas: {} };
   localStorage.setItem('cr.cola.candado', String(ahora));
   try { return await fn(); }
   finally { localStorage.removeItem('cr.cola.candado'); }
@@ -127,10 +127,18 @@ export const cola = {
   async vaciar(enviar, quien) {
     return conCandado(async () => {
       const inicial = leer();
-      if (!inicial.length) return { enviados: 0, rechazados: [], ocupado: false };
+      if (!inicial.length) return { enviados: 0, rechazados: [], ocupado: false, respuestas: {} };
 
       let enviados = 0;
       const rechazados = [];
+      /* ⛔ 20 sep 2026. Aquí se hacía `await enviar(op)` y se TIRABA lo que
+         contestaba el servidor. En RocaKids esa respuesta trae el CÓDIGO DE
+         ENTREGA del niño, que el servidor genera una sola vez: sin él, el
+         acudiente no puede retirar a su hijo y el domingo no se cierra
+         desde la aplicación. La pantalla leía `op.codigo`, que no existe en
+         la operación encolada, así que SIEMPRE caía al mensaje de «aparecerá
+         cuando vuelva la conexión» y no aparecía nunca. */
+      const respuestas = {};
 
       for (const op of inicial) {
         /* ⛔ No se envía con la identidad de otro. Si la cola la dejó otro
@@ -138,7 +146,7 @@ export const cola = {
         if (op.persona_id && quien?.personaId && op.persona_id !== quien.personaId) continue;
 
         try {
-          await enviar(op);
+          respuestas[op.id] = await enviar(op);
           enviados++;
           escribir(leer().filter(x => x.id !== op.id));
         } catch (e) {
@@ -175,7 +183,7 @@ export const cola = {
       }
 
       avisarCambio();
-      return { enviados, rechazados, ocupado: false };
+      return { enviados, rechazados, ocupado: false, respuestas };
     });
   },
 };
