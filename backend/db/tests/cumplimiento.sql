@@ -72,7 +72,7 @@ END $$;
 
 -- C4 · ⭐ Revocar UNA VEZ apaga TODOS los canales y finalidades.
 DO $$
-DECLARE n_antes int; n_despues int; revocados int;
+DECLARE n_antes int; n_despues int; revocados int; otras int;
 BEGIN
   INSERT INTO plataforma.consentimientos
     (persona_id, sede_id, finalidad, canal, acto, ocurrido_en, evidencia_tipo, evidencia_ref)
@@ -83,17 +83,37 @@ BEGIN
 
   SELECT count(*) INTO n_antes FROM plataforma.finalidades f
   CROSS JOIN (SELECT unnest(enum_range(NULL::plataforma.canal_contacto)) AS canal) c
-  WHERE plataforma.puede_contactar((SELECT v FROM hlab WHERE k='persona'), c.canal, f.codigo);
+  WHERE f.base_legal = 'consentimiento'
+    AND plataforma.puede_contactar((SELECT v FROM hlab WHERE k='persona'), c.canal, f.codigo);
+
+  -- ⛔ Desde la migracion 0058 `revocar_consentimiento` comprueba por dentro
+  --    el alcance de la sesion (se hizo SECURITY DEFINER para poder cancelar
+  --    lo encolado, y eso deja de aplicar la politica). Hay que decirle a la
+  --    prueba desde donde mira, igual que hace la aplicacion.
+  PERFORM set_config('app.sede_ids','{'||(SELECT v FROM hlab WHERE k='sede')::text||'}',true);
+  PERFORM set_config('app.nivel_max','4',true);
 
   revocados := plataforma.revocar_consentimiento((SELECT v FROM hlab WHERE k='persona'));
 
   SELECT count(*) INTO n_despues FROM plataforma.finalidades f
   CROSS JOIN (SELECT unnest(enum_range(NULL::plataforma.canal_contacto)) AS canal) c
-  WHERE plataforma.puede_contactar((SELECT v FROM hlab WHERE k='persona'), c.canal, f.codigo);
+  WHERE f.base_legal = 'consentimiento'
+    AND plataforma.puede_contactar((SELECT v FROM hlab WHERE k='persona'), c.canal, f.codigo);
 
-  PERFORM pg_temp.rg(4,'Revocar deja canales o finalidades vivos',
-    n_antes||' antes, 0 despues', n_antes||' antes, '||n_despues||' despues',
-    n_antes > 1 AND n_despues = 0);
+  -- ⭐ Y lo que NO se apoya en el consentimiento sigue vivo: revocar el
+  --    permiso de convocatoria no puede impedir que se avise de una
+  --    emergencia con un menor. La version anterior de esta prueba exigia
+  --    «0 despues» CONTANDO TODO, es decir, exigia algo que la ley no
+  --    permite: renunciar a una base legal que no es el consentimiento.
+  SELECT count(*) INTO otras FROM plataforma.finalidades f
+  CROSS JOIN (SELECT unnest(enum_range(NULL::plataforma.canal_contacto)) AS canal) c
+  WHERE f.base_legal <> 'consentimiento'
+    AND plataforma.puede_contactar((SELECT v FROM hlab WHERE k='persona'), c.canal, f.codigo);
+
+  PERFORM pg_temp.rg(4,'Revocar deja vivo lo que SI se revoca, o tumba lo que no se puede revocar',
+    n_antes||' revocables antes, 0 despues, y las demas bases legales intactas',
+    n_antes||' antes, '||n_despues||' despues, otras bases '||otras,
+    n_antes > 1 AND n_despues = 0 AND otras > 0);
 END $$;
 
 -- C5 · ⭐ Y lo YA ENCOLADO se descarta. Entre encolar y enviar pasan dias.
@@ -309,6 +329,10 @@ DECLARE v_id uuid; v_p uuid; v_s uuid;
 BEGIN
   SELECT v INTO v_p FROM hlab WHERE k='persona0055';
   SELECT v INTO v_s FROM hlab WHERE k='sede';
+  -- Desde 0058 la revocacion comprueba el alcance por dentro: hay que decir
+  -- desde donde se mira, igual que hace la aplicacion en cada peticion.
+  PERFORM set_config('app.sede_ids','{'||v_s::text||'}',true);
+  PERFORM set_config('app.nivel_max','4',true);
   PERFORM plataforma.revocar_consentimiento(v_p, 'email', 'convocatoria', 'prueba 0055');
   v_id := plataforma.encolar_notificacion(v_s, v_p,
             'destino.'||substr(md5(clock_timestamp()::text),1,6)||'@example.org',
@@ -385,6 +409,48 @@ BEGIN
     'ninguna y no admite',
     sin_base||' sin base; admite nulo: '||admite_nulo::text,
     sin_base = 0 AND NOT admite_nulo);
+END $$;
+
+-- H23 · Revocar por alguien que la sesion NO alcanza.
+--
+-- ⛔ `revocar_consentimiento` se hizo SECURITY DEFINER en la migracion 0058
+--    para poder cancelar lo ya encolado (la aplicacion solo tiene SELECT
+--    sobre la cola). Al hacerlo dejo de aplicarse la politica de la sesion:
+--    sin la comprobacion que se le metio dentro, conocer un identificador
+--    bastaria para revocarle los consentimientos a alguien de otra sede.
+--    Es un sabotaje silencioso: la persona deja de recibir convocatorias y
+--    nadie sabe por que.
+DO $$
+DECLARE bloqueo boolean := false; v_p uuid; v_otra uuid; err text;
+BEGIN
+  SELECT v INTO v_p FROM hlab WHERE k='persona0055';
+  SELECT id INTO v_otra FROM org.sedes WHERE codigo='MED';
+  BEGIN
+    SET LOCAL ROLE casaroca_app;
+    PERFORM set_config('app.sede_ids','{'||v_otra::text||'}',true);
+    PERFORM set_config('app.nivel_max','4',true);
+    PERFORM plataforma.revocar_consentimiento(v_p, NULL, NULL, 'prueba de alcance');
+    RESET ROLE;
+  EXCEPTION WHEN insufficient_privilege THEN bloqueo := true; RESET ROLE;
+            WHEN others THEN err := SQLERRM; RESET ROLE;
+  END;
+  PERFORM pg_temp.rg(23,'Se revoca por alguien de OTRA sede conociendo su id',
+    'RECHAZADO',
+    CASE WHEN bloqueo THEN 'RECHAZADO como debe'
+         ELSE COALESCE('ACEPTADO ('||err||')','ACEPTADO (fuga)') END, bloqueo);
+END $$;
+
+-- H24 · Y lo que se apoya en contrato NO se revoca, aunque se pida todo.
+DO $$
+DECLARE n int; v_p uuid;
+BEGIN
+  SELECT v INTO v_p FROM hlab WHERE k='persona0055';
+  SELECT count(*) INTO n FROM plataforma.consentimientos c
+   JOIN plataforma.finalidades f ON f.codigo = c.finalidad
+   WHERE c.persona_id = v_p AND c.acto = 'revocado'
+     AND f.base_legal <> 'consentimiento';
+  PERFORM pg_temp.rg(24,'Se revoca lo que la ley NO deja revocar (contrato, obligacion legal)',
+    '0 revocaciones', n||' revocaciones', n = 0);
 END $$;
 
 -- Limpieza.

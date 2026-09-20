@@ -93,6 +93,17 @@ const DESCRIPCIONES = {
   'GET /api/v1/rocakids/menores/:id/acudientes': ['Quien puede entregar y retirar a este menor', 'La pantalla ofrece esta lista, no un campo de texto libre: un texto libre convierte la salvaguarda en una formalidad.'],
   'POST /api/v1/rocakids/checkin': ['Registrar la entrada de un menor', 'Devuelve el codigo UNA vez; despues solo existe cifrado. IDEMPOTENTE por menor, sala y dia: la cola sin conexion puede reintentar sin duplicar el ingreso.'],
   'POST /api/v1/rocakids/entregar': ['Entregar al menor', 'La base verifica acudiente autorizado Y codigo. Un intento fallido queda registrado con hora y nombre.'],
+  // ⛔ 20 sep 2026 · Los derechos del titular (Ley 1581) estaban en la base
+  //    desde la migracion 0053 y NO TENIAN NI UNA RUTA. Un derecho que solo
+  //    puede ejercer quien sabe SQL no es un derecho.
+  'POST /api/v1/cumplimiento/peticiones': ['Radicar una peticion del titular', 'Consulta, reclamo, supresion, revocacion o actualizacion. La base calcula el vencimiento en DIAS HABILES con los festivos de Colombia y devuelve el radicado. Exige N3: una peticion trae nombre, documento y contacto de una persona.'],
+  'GET /api/v1/cumplimiento/peticiones': ['La bandeja de peticiones', 'Lo abierto primero y lo vencido arriba. Si hay vencidas lo dice en un aviso: una peticion vencida es un incumplimiento en curso, no un dato de una columna.'],
+  'POST /api/v1/cumplimiento/peticiones/:id/responder': ['Responder y cerrar', 'Deja la respuesta escrita y avisa si se respondio DESPUES del vencimiento. Una respuesta tardia sigue siendo un incumplimiento y el registro tiene que poder demostrarlo.'],
+  'POST /api/v1/cumplimiento/peticiones/:id/prorrogar': ['Prorrogar el plazo', 'La base exige un motivo de verdad y recalcula el vencimiento. Avisa si la prorroga todavia NO se le ha informado al titular, que es lo que obliga la ley.'],
+  'POST /api/v1/cumplimiento/peticiones/:id/suprimir': ['Ejecutar la supresion', 'Irreversible. Exige confirmacion explicita ("SUPRIMIR") y nivel N4, porque puede tocar datos de menores y de consejeria.'],
+  'GET /api/v1/cumplimiento/consentimientos/:personaId': ['Que consentimientos tiene hoy una persona', 'Canal por canal y finalidad por finalidad, con su base legal, mas la historia completa de actos.'],
+  'POST /api/v1/cumplimiento/consentimientos/revocar': ['Revocar un consentimiento', 'Sin canal ni finalidad revoca todo lo REVOCABLE. Lo que se apoya en contrato u obligacion legal no se revoca: decir que si seria mentirle al titular sobre su propio derecho. Ademas descarta lo que ya estaba encolado.'],
+  'GET /api/v1/cumplimiento/no-atendido': ['Lo que el sistema decidio NO enviar', 'Con su motivo. Es la prueba de que no se contacto a quien no autorizo, y la bandeja de lo que quedo sin atender.'],
   'GET /api/v1/identidad/catalogos': ['Catalogos de la red', 'Los que se pueden ampliar y los cerrados a proposito, estos ultimos con su motivo escrito.'],
   'GET /api/v1/identidad/catalogos/:catalogo/valores': ['Valores de un catalogo', 'Incluye los retirados, que siguen siendo legibles para la historia.'],
   'POST /api/v1/identidad/catalogos/:catalogo/valores': ['Agregar un valor', 'Sin migracion y sin despliegue. Exige alcance de organizacion. Una maquina de estados lo rechaza y dice por que.'],

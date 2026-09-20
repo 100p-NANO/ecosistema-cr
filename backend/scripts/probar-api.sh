@@ -23,6 +23,7 @@ levantar_api "${PORT:-3211}"
 tok() { PGUSER="$ADMIN" node "$(dirname "$0")/token-para.js" "$1"; }
 
 
+H='Content-Type: application/json'
 ok=0; fallo=0
 comprobar() { # nombre, esperado, obtenido
   if [ "$2" = "$3" ]; then printf '  ✅ %-52s %s\n' "$1" "$3"; ok=$((ok+1));
@@ -96,6 +97,27 @@ comprobar "Firma inválida NO mueve dinero" "firma_invalida" \
   "$(curl -s -X POST -H 'Content-Type: application/json' -d "$CUERPO" $A/aportes/pasarela/webhook | python3 -c 'import json,sys;print(json.load(sys.stdin).get("motivo",""))')"
 comprobar "…pero el aviso queda guardado como prueba" "1" \
   "$(psql_admin -d "$PGDATABASE" -qAt -c "SELECT count(*) FROM aportes.pasarela_eventos WHERE referencia='$REF'")"
+
+echo "── derechos del titular (Ley 1581), que no tenian ni una ruta"
+# ⛔ 20 sep 2026 · Toda esta maquinaria existia en la base desde la
+#    migracion 0053 y era inalcanzable salvo con psql. Un derecho que solo
+#    puede ejercer quien sabe SQL no es un derecho.
+PET=$(curl -s -X POST -H "$H" -H "Authorization: Bearer $TOK_DG" \
+  -d '{"tipo":"consulta","canal":"correo","titularNombre":"Banco Prueba Titular","titularContacto":"banco@example.org","detalle":"Quiero saber que datos mios tiene la iglesia y con que finalidad."}' \
+  $A/cumplimiento/peticiones)
+PET_ID=$(echo "$PET" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("id",""))')
+comprobar "Radicar deja radicado y fecha de vencimiento" "si" \
+  "$(echo "$PET" | python3 -c 'import json,sys;d=json.load(sys.stdin);print("si" if d.get("radicado","").startswith("HD-") and len(d.get("vence_en",""))==10 else "no")')"
+comprobar "La bandeja avisa de las vencidas" "si" \
+  "$(curl -s -H "Authorization: Bearer $TOK_DG" "$A/cumplimiento/peticiones?limite=5" | python3 -c 'import json,sys;d=json.load(sys.stdin);print("si" if "vencidas" in d and "aviso" in d else "no")')"
+comprobar "Prorrogar sin motivo de verdad se rechaza" "400" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$H" -H "Authorization: Bearer $TOK_DG" -d '{"motivo":"porque si"}' $A/cumplimiento/peticiones/$PET_ID/prorrogar)"
+comprobar "Suprimir sin confirmacion explicita se rechaza" "400" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$H" -H "Authorization: Bearer $TOK_DG" -d '{"confirmacion":"si"}' $A/cumplimiento/peticiones/$PET_ID/suprimir)"
+comprobar "Responder cierra y dice si fue dentro del plazo" "atendida" \
+  "$(curl -s -X POST -H "$H" -H "Authorization: Bearer $TOK_DG" -d '{"respuesta":"Se le envia el listado de sus datos y las finalidades declaradas."}' $A/cumplimiento/peticiones/$PET_ID/responder | python3 -c 'import json,sys;print(json.load(sys.stdin).get("estado",""))')"
+comprobar "Un lider (N2) lee las peticiones de Habeas Data" "403" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOK_LID" $A/cumplimiento/peticiones)"
 
 echo
 printf '  %s pasan · %s fallan\n' "$ok" "$fallo"
