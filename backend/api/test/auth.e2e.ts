@@ -87,6 +87,7 @@ async function main() {
   // A6 · ⭐ Un rol que alcanza datos N3/N4 NO entra sin segundo factor:
   //      recibe un token LIMITADO, que sirve para configurarlo y para nada más.
   let acceso = '', refresco = '', limitado = '';
+  let secretoMfa = '';   // se rellena al activar el segundo factor (A6c)
   {
     const r = await pedir('/api/v1/auth/entrar', {
       method: 'POST', body: JSON.stringify({ usuario: USUARIO, clave: CLAVE }),
@@ -108,6 +109,7 @@ async function main() {
     const ini = await pedir('/api/v1/auth/segundo-factor/iniciar',
       { method: 'POST', headers: { Authorization: `Bearer ${limitado}` }, body: '{}' });
     const secreto = ini.cuerpo?.secreto ?? '';
+    secretoMfa = secreto;
     const act = await pedir('/api/v1/auth/segundo-factor/activar', {
       method: 'POST', headers: { Authorization: `Bearer ${limitado}` },
       body: JSON.stringify({ codigo: codigoTotp(secreto) }),
@@ -206,6 +208,53 @@ async function main() {
     const despues = await pedir('/api/v1/auth/quien-soy', { headers: { Authorization: `Bearer ${vivo}` } });
     rg(13, 'Cerrar sesion no surte efecto hasta que expire el token', 'antes 200, despues 401',
        `${antes.estado} y ${despues.estado}`, antes.estado === 200 && despues.estado === 401);
+  }
+
+  /* A20 y A21 · LA CONTRASEÑA PROVISIONAL.
+     ⛔ 20 sep 2026 · La API devolvia `debeCambiarClave` desde el primer dia
+        y la pantalla de entrada lo IGNORABA: quien recibia una contraseña
+        provisional entraba con ella y se quedaba con ella. Es decir, la
+        contraseña de esa cuenta la seguia sabiendo quien la creo. En un
+        sistema con consejeria y con menores, eso es una cuenta compartida
+        sin que nadie lo haya decidido. Estas dos pruebas vigilan las dos
+        mitades: que la API lo DIGA y que deje de decirlo al cambiarla. */
+  {
+    const { Client } = require('pg');
+    const bd = new Client({
+      host: process.env.PGHOST ?? '/tmp', port: Number(process.env.PGPORT ?? 5433),
+      database: process.env.PGDATABASE ?? 'casaroca_dev', user: 'postgres',
+    });
+    await bd.connect();
+    await bd.query(`UPDATE identidad.cuentas SET debe_cambiar_clave = true WHERE usuario = $1`, [USUARIO]);
+
+    const conCodigo = () => ({ usuario: USUARIO, clave: CLAVE, codigo: codigoTotp(secretoMfa) });
+    const r = await pedir('/api/v1/auth/entrar', { method: 'POST', body: JSON.stringify(conCodigo()) });
+    rg(20, 'La contrasena provisional entra sin avisar de que lo es',
+       'debeCambiarClave true',
+       `${r.estado} · debeCambiarClave ${r.cuerpo?.debeCambiarClave}`,
+       r.estado === 200 && r.cuerpo?.debeCambiarClave === true);
+
+    const NUEVA = 'otra frase larga distinta de la anterior 2026';
+    const cam = await pedir('/api/v1/auth/cambiar-clave', {
+      method: 'POST', headers: { Authorization: `Bearer ${r.cuerpo?.acceso}` },
+      body: JSON.stringify({ actual: CLAVE, nueva: NUEVA }),
+    });
+    const r2 = await pedir('/api/v1/auth/entrar', {
+      method: 'POST',
+      body: JSON.stringify({ usuario: USUARIO, clave: NUEVA, codigo: codigoTotp(secretoMfa) }),
+    });
+    rg(21, 'Cambiar la contrasena no quita el aviso de provisional',
+       'cambio 200 y debeCambiarClave false',
+       `cambiar ${cam.estado} · entrar ${r2.estado} · debeCambiarClave ${r2.cuerpo?.debeCambiarClave}`,
+       cam.estado === 200 && r2.estado === 200 && r2.cuerpo?.debeCambiarClave === false);
+
+    // Se devuelve la cuenta a como estaba: el banco no deja el laboratorio peor.
+    const vol = await pedir('/api/v1/auth/cambiar-clave', {
+      method: 'POST', headers: { Authorization: `Bearer ${r2.cuerpo?.acceso}` },
+      body: JSON.stringify({ actual: NUEVA, nueva: CLAVE }),
+    });
+    if (vol.estado !== 200) console.error('⚠️  no se pudo devolver la contrasena de laboratorio');
+    await bd.end();
   }
 
   // A14 · Entrada con datos mal formados: 400, no 500.

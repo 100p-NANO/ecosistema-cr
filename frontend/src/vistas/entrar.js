@@ -2,12 +2,21 @@ import { api, guardarTokens } from '../api.js';
 import { esc, unaVez } from '../ui.js';
 
 /**
- * Entrar. Tres pasos posibles, y el segundo casi nadie lo cuenta:
+ * Entrar. Cuatro pasos posibles, y dos casi nadie los cuenta:
  *   1 · usuario y contraseña
  *   2 · si el rol alcanza datos N3 o N4 y el segundo factor no está activo,
  *       se configura AQUÍ. No se deja a la persona fuera de su cuenta, pero
  *       tampoco entra a los datos.
  *   3 · código de seis dígitos en cada entrada.
+ *   4 · si la contraseña es provisional (la puso otra persona al crear la
+ *       cuenta), se cambia ANTES de entrar.
+ *
+ * ⛔ 20 sep 2026 · El paso 4 no existía. La API devolvía `debeCambiarClave`
+ *    desde el primer día y esta pantalla lo IGNORABA: quien recibía una
+ *    contraseña provisional entraba con ella y se quedaba con ella para
+ *    siempre. Es decir, la contraseña de esa cuenta la seguía sabiendo
+ *    quien la creó, y en un sistema con consejería y con menores eso es
+ *    una cuenta compartida sin que nadie lo haya decidido.
  */
 export function pintarEntrar(contenedor, alEntrar, mensajeInicial = '') {
   let paso = 'clave';
@@ -25,6 +34,7 @@ export function pintarEntrar(contenedor, alEntrar, mensajeInicial = '') {
             ${mensaje ? `<div class="aviso aviso--${tipo}" role="alert">${esc(mensaje)}</div>` : ''}
             ${paso === 'clave' ? formularioClave()
             : paso === 'configurar' ? formularioConfigurar()
+            : paso === 'cambiar' ? formularioCambiar()
             : formularioCodigo()}
           </div>
           <p class="pie">Versión <code>${esc(window.CASAROCA_VERSION ?? 'dev')}</code></p>
@@ -60,6 +70,24 @@ export function pintarEntrar(contenedor, alEntrar, mensajeInicial = '') {
       <button class="boton boton--ancho" type="submit">Continuar</button>
     </form>`;
 
+  const formularioCambiar = () => `
+    <form novalidate>
+      <h2>Cambie su contraseña</h2>
+      <p>La contraseña con la que entró es provisional: la puso otra persona al crear
+         su cuenta. Elija una suya antes de continuar.</p>
+      <div class="campo">
+        <label for="nueva">Contraseña nueva</label>
+        <input id="nueva" name="nueva" type="password" autocomplete="new-password"
+               required minlength="12">
+        <span class="ayuda">Una frase larga que usted recuerde protege más que un jeroglífico.</span>
+      </div>
+      <div class="campo">
+        <label for="repetir">Repítala</label>
+        <input id="repetir" name="repetir" type="password" autocomplete="new-password" required>
+      </div>
+      <button class="boton boton--ancho" type="submit">Cambiar y entrar</button>
+    </form>`;
+
   const formularioConfigurar = () => `
     <form novalidate>
       <h2>Active su segundo factor</h2>
@@ -81,7 +109,7 @@ export function pintarEntrar(contenedor, alEntrar, mensajeInicial = '') {
       <button class="boton boton--ancho" type="submit">Activar y entrar</button>
     </form>`;
 
-  let usuario = '', clave = '';
+  let usuario = '', clave = '', codigoUsado = '';
 
   async function enviar(ev) {
     ev.preventDefault();
@@ -99,17 +127,40 @@ export function pintarEntrar(contenedor, alEntrar, mensajeInicial = '') {
             secreto = ini.secreto; uri = ini.uri; paso = 'configurar';
             return pintar('', 'info');
           }
+          guardarTokens(r);
+          if (r.debeCambiarClave) { paso = 'cambiar'; return pintar('', 'info'); }
+          return alEntrar(r);
+        }
+
+        if (paso === 'cambiar') {
+          const nueva = ev.target.nueva.value;
+          if (nueva !== ev.target.repetir.value) return pintar('Las dos contraseñas no coinciden.');
+          if (nueva === clave) return pintar('La contraseña nueva no puede ser la provisional.');
+          await api.enviar('/api/v1/auth/cambiar-clave', { actual: clave, nueva });
+          /* Cambiar la contraseña CIERRA las demás sesiones, así que se
+             vuelve a entrar con la nueva en vez de seguir con el token
+             anterior: si no, la sesión quedaría viva sobre una credencial
+             que ya no existe y el siguiente refresco fallaría sin motivo
+             visible. */
+          clave = nueva;
+          const r = await api.enviar('/api/v1/auth/entrar', { usuario, clave, codigo: codigoUsado || undefined });
           guardarTokens(r); return alEntrar(r);
         }
 
         if (paso === 'configurar') {
-          await api.enviar('/api/v1/auth/segundo-factor/activar', { codigo: ev.target.codigo.value });
-          const r = await api.enviar('/api/v1/auth/entrar', { usuario, clave, codigo: ev.target.codigo.value });
-          guardarTokens(r); return alEntrar(r);
+          codigoUsado = ev.target.codigo.value;
+          await api.enviar('/api/v1/auth/segundo-factor/activar', { codigo: codigoUsado });
+          const r = await api.enviar('/api/v1/auth/entrar', { usuario, clave, codigo: codigoUsado });
+          guardarTokens(r);
+          if (r.debeCambiarClave) { paso = 'cambiar'; return pintar('', 'info'); }
+          return alEntrar(r);
         }
 
-        const r = await api.enviar('/api/v1/auth/entrar', { usuario, clave, codigo: ev.target.codigo.value });
-        guardarTokens(r); return alEntrar(r);
+        codigoUsado = ev.target.codigo.value;
+        const r = await api.enviar('/api/v1/auth/entrar', { usuario, clave, codigo: codigoUsado });
+        guardarTokens(r);
+        if (r.debeCambiarClave) { paso = 'cambiar'; return pintar('', 'info'); }
+        return alEntrar(r);
       } catch (e) {
         if (e.datos?.faltaSegundoFactor) { paso = 'codigo'; return pintar('', 'info'); }
         pintar(e.message);
