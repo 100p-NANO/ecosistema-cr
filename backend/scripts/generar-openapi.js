@@ -93,6 +93,43 @@ const DESCRIPCIONES = {
   'GET /api/v1/rocakids/menores/:id/acudientes': ['Quien puede entregar y retirar a este menor', 'La pantalla ofrece esta lista, no un campo de texto libre: un texto libre convierte la salvaguarda en una formalidad.'],
   'POST /api/v1/rocakids/checkin': ['Registrar la entrada de un menor', 'Devuelve el codigo UNA vez; despues solo existe cifrado. IDEMPOTENTE por menor, sala y dia: la cola sin conexion puede reintentar sin duplicar el ingreso.'],
   'POST /api/v1/rocakids/entregar': ['Entregar al menor', 'La base verifica acudiente autorizado Y codigo. Un intento fallido queda registrado con hora y nombre.'],
+  // ⛔ 20 sep 2026 · Cinco modulos que tenian TABLAS y ninguna ruta: el
+  //    modulo existia en `sistema.modulos`, la sede lo tenia encendido y no
+  //    se podia usar desde ninguna parte.
+  'GET /api/v1/asistencia/servicios': ['Los servicios y su asistencia', 'Trae los DOS numeros: «contados» es el de la puerta y «marcados» es la lista. Una sede que cuenta 600 y marca 12 no esta fallando: esta contando como se puede.'],
+  'POST /api/v1/asistencia/servicios': ['Abrir un servicio', 'Sin servicio abierto no se marca a nadie. Uno por sede, fecha, hora y tipo.'],
+  'POST /api/v1/asistencia/servicios/:id/marcar': ['Marcar asistencia', 'IDEMPOTENTE: marcar dos veces a la misma persona no la cuenta dos veces.'],
+  'GET /api/v1/asistencia/servicios/:id/marcados': ['Quien esta marcado', 'La lista, para el seguimiento pastoral.'],
+  'POST /api/v1/asistencia/servicios/:id/conteo': ['Reportar el conteo de la puerta', 'Se puede corregir: el primer numero de un domingo siempre es el que alguien grito desde la puerta. Devuelve la diferencia con la lista y la explica.'],
+  'GET /api/v1/grupos': ['Los grupos', 'Ordenados por el que lleva mas tiempo sin reportar reunion: lo que hay que mirar primero no es el grupo grande, es el callado.'],
+  'POST /api/v1/grupos': ['Crear un grupo', 'Tipo, dia, hora y cupo. El ministerio y el segmento son opcionales.'],
+  'GET /api/v1/grupos/:id': ['La ficha del grupo', 'Quien esta, quien se fue y con que motivo, y las ultimas veinticuatro reuniones.'],
+  'POST /api/v1/grupos/:id/miembros': ['Agregar a alguien', 'Idempotente: si ya esta activo, lo dice y no duplica.'],
+  'POST /api/v1/grupos/:id/miembros/:personaId/salir': ['Sacar a alguien', 'EXIGE motivo: «se fue» no le dice nada al que viene detras.'],
+  'POST /api/v1/grupos/:id/reuniones': ['Reportar una reunion', 'Es lo que convierte una lista en un grupo vivo. Una por grupo y dia.'],
+  'GET /api/v1/consejeria/topicos': ['Los topicos', 'Para que nadie escriba «problema familiar» de doce formas distintas. Marca los que exigen profesional.'],
+  'GET /api/v1/consejeria/casos': ['La bandeja de casos', '⛔ SIN notas y SIN el detalle: solo lo que permite priorizar. Una lista que trae las notas de paso las reparte por accidente.'],
+  'POST /api/v1/consejeria/casos': ['Abrir un caso', 'Consultante, sede y topico.'],
+  'GET /api/v1/consejeria/casos/:id': ['La ficha del caso', 'Aqui SI van las notas, y entrar deja rastro en la bitacora de lectura, con nombre y hora. Saberlo es la mitad de la proteccion.'],
+  'POST /api/v1/consejeria/casos/:id/asignar': ['Asignar un consejero', 'El caso pasa a «en proceso». Un caso sin nadie detras es una persona esperando.'],
+  'POST /api/v1/consejeria/casos/:id/sesiones': ['Registrar una sesion', 'Fecha, duracion, modalidad y si la persona asistio.'],
+  'POST /api/v1/consejeria/casos/:id/notas': ['Escribir una nota', 'Va aparte a proposito: no viaja en ninguna lista, solo se ve dentro de la ficha.'],
+  'POST /api/v1/consejeria/casos/:id/cerrar': ['Cerrar o derivar', 'Derivar EXIGE decir a donde. Cerrar el caso cierra tambien las asignaciones vivas.'],
+  'GET /api/v1/formacion/programas': ['Los programas de la red', 'El catalogo lo define la central una vez y lo usan las 36 sedes.'],
+  'GET /api/v1/formacion/cursos': ['Los cursos', 'Con su programa, su semestre y su prerequisito.'],
+  'GET /api/v1/formacion/cohortes': ['Las cohortes', 'Son de cada sede: cada una abre su grupo cuando puede y con el docente que tiene. Avisa de las que pasaron el cupo.'],
+  'POST /api/v1/formacion/cohortes': ['Abrir una cohorte', 'Curso, sede, codigo, modalidad y fechas.'],
+  'GET /api/v1/formacion/cohortes/:id': ['La ficha de la cohorte', 'Quien esta inscrito, como va y quien pago.'],
+  'POST /api/v1/formacion/cohortes/:id/inscribir': ['Inscribir a alguien', 'Si pasa el cupo se inscribe IGUAL y se avisa: negarlo dejaria a la persona en la puerta por un numero, y quien decide si caben es el docente.'],
+  'POST /api/v1/formacion/inscripciones/:id/calificar': ['Calificar', 'Nota final y estado (aprobado, reprobado, retirado…).'],
+  'GET /api/v1/talento/cargos': ['Los cargos', 'Con su area y el nivel de dato que manejan.'],
+  'GET /api/v1/talento/contratos': ['Los contratos', 'Avisa de los que vencen en menos de treinta dias.'],
+  'GET /api/v1/talento/voluntariados': ['Los voluntariados', '⛔ Lo primero que se ve son los voluntarios ACTIVOS con menores y SIN antecedentes vigentes. No es una metrica: es una lista de salas que hay que cubrir antes del domingo.'],
+  'POST /api/v1/talento/voluntariados': ['Registrar un voluntariado', 'Persona, sede, ministerio y funcion.'],
+  'POST /api/v1/talento/voluntariados/:id/terminar': ['Terminar un voluntariado', 'Exige motivo.'],
+  'GET /api/v1/talento/antecedentes/:personaId': ['Los antecedentes de alguien', 'Dice si esta apto para estar con menores y QUE le falta exactamente.'],
+  'POST /api/v1/talento/antecedentes': ['Registrar un antecedente', 'Es lo que abre (o cierra) la puerta de RocaKids: la base rechaza el rol sin antecedentes vigentes.'],
+
   // ⛔ 20 sep 2026 · Los derechos del titular (Ley 1581) estaban en la base
   //    desde la migracion 0053 y NO TENIAN NI UNA RUTA. Un derecho que solo
   //    puede ejercer quien sabe SQL no es un derecho.

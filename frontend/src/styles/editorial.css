@@ -119,10 +119,22 @@ h3 { font-size: var(--cr-tx-md); }
   border-top: 1px solid var(--cr-borde); position: sticky; bottom: 0; z-index: 20;
   padding: var(--cr-sp-1); padding-bottom: max(var(--cr-sp-1), env(safe-area-inset-bottom));
   overflow-x: auto;
+  /* ⛔ 20 sep 2026 · Con nueve secciones, en un telefono de 375 px caben
+     cinco y las otras cuatro quedaban fuera SIN NINGUNA SEÑAL de que la
+     barra se desplaza. Una funcion que no se ve es una funcion que no
+     existe, y «Consejeria» y «Talento» quedaban invisibles.
+     El arreglo son tres cosas a la vez: los botones se estrechan para que
+     el siguiente ASOME (esa mitad de boton es la que dice «hay mas»), el
+     desplazamiento se engancha por boton, y se desvanece el borde derecho. */
+  overflow-x: hidden;
 }
+/* Móvil: cuatro fijas y «Más». Escritorio: la columna completa. */
+.nav__pocas { display: flex; gap: 2px; flex: 1; }
+.nav__todas { display: none; }
 .columna { order: 1; }
 .nav__item {
-  flex: 1 0 auto; min-width: 72px; min-height: var(--cr-tactil-min);
+  flex: 1 0 auto; min-width: 68px; min-height: var(--cr-tactil-min);
+  scroll-snap-align: start;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   border: 0; background: transparent; color: var(--cr-texto-suave); cursor: pointer;
   font: inherit; font-size: 0.6875rem; border-radius: var(--cr-radio-md); padding: var(--cr-sp-2);
@@ -134,12 +146,16 @@ h3 { font-size: var(--cr-tx-md); }
   .marco { flex-direction: row; }
   .nav {
     order: 0;
+    /* En escritorio la barra es una columna completa: ni mascara ni enganche. */
+    -webkit-mask-image: none; mask-image: none; scroll-snap-type: none;
     flex-direction: column; border-top: 0; border-right: 1px solid var(--cr-borde);
     width: 210px; position: sticky; top: 0; height: 100dvh; padding: var(--cr-sp-3) var(--cr-sp-2);
   }
   /* ⛔ `flex: 1` en columna hace que cada botón CREZCA hasta llenar la
      altura: con dos secciones, la segunda queda al fondo de la pantalla.
      En la barra de abajo del móvil sí se quiere que crezcan; aquí no. */
+  .nav__pocas { display: none; }
+  .nav__todas { display: flex; flex-direction: column; gap: 2px; width: 100%; }
   .nav__item { flex: 0 0 auto; flex-direction: row; justify-content: flex-start;
                gap: var(--cr-sp-3); font-size: var(--cr-tx-sm); text-align: left; }
   .nav__item span:last-child { flex: 1; }
@@ -228,6 +244,26 @@ input[aria-invalid="true"] { border-color: var(--cr-peligro); }
 .aviso--error { background: var(--cr-peligro-bg); color: var(--cr-peligro); }
 .aviso--ok { background: var(--cr-exito-bg); color: var(--cr-exito); }
 .aviso--info { background: var(--cr-info-bg); color: var(--cr-info); }
+/* ⛔ 20 sep 2026 · `avisar()` llamaba a estas tres y NO EXISTIAN: el aviso
+   salia sin fondo, del color del texto normal, y un error de guardado se
+   veia igual que una confirmacion. Los nombres que usa el codigo son los
+   que tiene que haber aqui. */
+.aviso--exito { background: var(--cr-exito-bg); color: var(--cr-exito); }
+.aviso--aviso { background: var(--cr-aviso-bg, var(--cr-info-bg)); color: var(--cr-aviso, var(--cr-info)); }
+
+/* Fila de tabla que abre una ficha. Se marca como pulsable de verdad:
+   cursor, foco visible y realce, porque una fila que responde al clic sin
+   parecerlo es una funcion que nadie encuentra. */
+.fila--pulsable { cursor: pointer; }
+.fila--pulsable:hover { background: var(--cr-superficie-2); }
+.fila--pulsable:focus-visible { outline: 2px solid var(--cr-azul-700); outline-offset: -2px; }
+
+/* Los formularios plegables de cada modulo. */
+details.tarjeta > summary { list-style: none; }
+details.tarjeta > summary::-webkit-details-marker { display: none; }
+details.tarjeta > summary::before { content: '＋ '; color: var(--cr-azul-700); }
+details.tarjeta[open] > summary::before { content: '－ '; }
+details.tarjeta > summary:focus-visible { outline: 2px solid var(--cr-azul-700); outline-offset: 3px; border-radius: 4px; }
 
 .pie { padding: var(--cr-sp-3) var(--cr-sp-4); color: var(--cr-texto-tenue); font-size: var(--cr-tx-xs); text-align: center; }
 .pie code { font-family: var(--cr-fuente-mono); }
@@ -238,3 +274,51 @@ input[aria-invalid="true"] { border-color: var(--cr-peligro); }
 .entrar__marca { text-align: center; margin-bottom: var(--cr-sp-5); }
 .entrar__marca h1 { margin-bottom: var(--cr-sp-1); }
 .entrar__marca p { color: var(--cr-texto-suave); margin: 0; font-size: var(--cr-tx-sm); }
+
+
+/* ── Banda de MODO DEMOSTRACIÓN ──────────────────────────────────────
+   ⛔ Deliberadamente fea y deliberadamente fija. Un sistema que guarda
+   datos de menores no puede parecerse a su demostración sin que se note:
+   la peor confusión posible es creer que se está mirando la realidad. */
+.banda-demo {
+  position: sticky; top: 0; z-index: 50;
+  background: #7A1F12; color: #FFF6F2;
+  padding: .55rem var(--cr-sp-4); font-size: var(--cr-tx-xs);
+  letter-spacing: .02em; text-align: center; line-height: 1.35;
+  border-bottom: 2px solid #4E130B;
+}
+.banda-demo strong { color: #FFD9CF; }
+
+
+/* ── La hoja de «Más»: todas las secciones, en el móvil ──────────────
+   ⛔ Existe porque la barra de abajo no puede crecer: con veintidós
+   módulos, una barra que se desplaza esconde funciones enteras sin que
+   nadie sepa que están ahí. Cuatro a la mano y el resto en una lista que
+   se abre: lo que se usa un domingo de pie no es lo mismo que lo que se
+   usa un martes sentado. */
+.hoja[hidden] { display: none; }
+.hoja { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; }
+.hoja__fondo { position: absolute; inset: 0; background: rgba(28,26,23,.45); }
+.hoja__panel {
+  position: relative; width: 100%; max-height: 78dvh; overflow-y: auto;
+  background: var(--cr-superficie); border-top-left-radius: var(--cr-radio-lg);
+  border-top-right-radius: var(--cr-radio-lg); box-shadow: var(--cr-sombra-md);
+  padding: var(--cr-sp-3); padding-bottom: max(var(--cr-sp-4), env(safe-area-inset-bottom));
+}
+.hoja__cabecera {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--cr-sp-3); padding-bottom: var(--cr-sp-2);
+  border-bottom: 1px solid var(--cr-borde);
+}
+.hoja__lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--cr-sp-2); }
+.hoja__item {
+  display: flex; align-items: center; gap: var(--cr-sp-3);
+  min-height: var(--cr-tactil-min); padding: var(--cr-sp-3);
+  border: 1px solid var(--cr-borde); border-radius: var(--cr-radio-md);
+  background: var(--cr-superficie); color: var(--cr-texto);
+  font: inherit; font-size: var(--cr-tx-sm); text-align: left; cursor: pointer;
+}
+.hoja__item:hover { background: var(--cr-superficie-2); }
+.hoja__item[aria-current="page"] { background: var(--cr-azul-50); color: var(--cr-azul-700); font-weight: 600; }
+.hoja__item:focus-visible { outline: 2px solid var(--cr-azul-700); outline-offset: 2px; }
+@media (min-width: 860px) { .hoja { display: none; } }

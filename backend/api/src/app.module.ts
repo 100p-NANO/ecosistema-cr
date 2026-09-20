@@ -13,6 +13,11 @@ import { AuthMiddleware } from './auth/auth.middleware';
 import { SaludModule } from './salud/salud.module';
 import { RocakidsModule } from './rocakids/rocakids.module';
 import { CumplimientoModule } from './cumplimiento/cumplimiento.module';
+import { AsistenciaModule } from './asistencia/asistencia';
+import { GruposModule } from './grupos/grupos';
+import { ConsejeriaModule } from './consejeria/consejeria';
+import { FormacionModule } from './formacion/formacion';
+import { TalentoModule } from './talento/talento';
 import { trazaYRegistro, cabecerasDeSeguridad } from './comun/peticion';
 
 /**
@@ -32,7 +37,12 @@ import { trazaYRegistro, cabecerasDeSeguridad } from './comun/peticion';
                NI UNA RUTA: un derecho que solo puede ejercer quien sabe SQL
                no es un derecho, y ante la Superintendencia «esta en la base
                de datos» no es una respuesta. */
-            CumplimientoModule],
+            CumplimientoModule,
+            /* ⛔ 20 sep 2026 · Estos cinco tenian TABLAS y ninguna ruta: el
+               modulo existia en `sistema.modulos`, la sede lo tenia
+               encendido y no se podia usar desde ninguna parte. */
+            AsistenciaModule, GruposModule, ConsejeriaModule,
+            FormacionModule, TalentoModule],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

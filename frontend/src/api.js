@@ -7,6 +7,8 @@
  * firmado, se renueva solo, y si la base dice que la sesión murió, se cae la
  * sesión aquí también: la verdad está en el servidor.
  */
+import { demoActivo, responderDemo } from './demo.js';
+
 const BASE = window.CASAROCA_API ?? 'http://127.0.0.1:3000';
 const LLAVE_ACCESO = 'cr.acceso';
 const LLAVE_REFRESCO = 'cr.refresco';
@@ -35,6 +37,11 @@ export class ErrorApi extends Error {
 }
 
 async function crudo(ruta, opciones = {}, reintentar = true) {
+  /* ⛔ MODO DEMOSTRACIÓN. No se enciende solo: hace falta `?demo=1` o
+     `window.CASAROCA_DEMO`. Cuando está encendido NADA sale de esta
+     pestaña, y la aplicación lo avisa arriba en todas las pantallas. */
+  if (demoActivo()) return responderDemo(ruta, opciones);
+
   const cabeceras = { 'Content-Type': 'application/json', ...(opciones.headers ?? {}) };
   if (acceso) cabeceras.Authorization = `Bearer ${acceso}`;
 

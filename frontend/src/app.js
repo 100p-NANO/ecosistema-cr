@@ -1,11 +1,17 @@
-import { api, hayTokens, borrarTokens } from './api.js';
+import { api, hayTokens, borrarTokens, guardarTokens } from './api.js';
 import { pintarEntrar } from './vistas/entrar.js';
 import { pintarPanel } from './vistas/panel.js';
 import { pintarPersonas } from './vistas/personas.js';
 import { pintarCheckin } from './vistas/checkin.js';
 import { pintarCatalogos } from './vistas/catalogos.js';
+import { pintarAsistencia, pintarServicio } from './vistas/asistencia.js';
+import { pintarGrupos, pintarGrupo } from './vistas/grupos.js';
+import { pintarConsejeria, pintarCaso } from './vistas/consejeria.js';
+import { pintarFormacion, pintarCohorte } from './vistas/formacion.js';
+import { pintarTalento, pintarAntecedentes } from './vistas/talento.js';
 import { esc, cargando, error, engancharReintentar, avisar } from './ui.js';
 import { cola } from './offline.js';
+import { demoActivo } from './demo.js';
 
 /**
  * El armazón.
@@ -21,21 +27,39 @@ let sesion = null;
 /* Cada vista declara QUÉ MÓDULO necesita. Si la sesión no lo alcanza, ni
    siquiera aparece en el menú, y entrar por la URL tampoco la abre. */
 const VISTAS = {
-  panel:     { titulo: 'Panel',     icono: '◈', modulo: null,        pintar: pintarPanel },
-  personas:  { titulo: 'Personas',  icono: '☺', modulo: 'personas',  pintar: pintarPersonas },
-  checkin:   { titulo: 'Niños',     icono: '✦', modulo: 'rocakids',  pintar: pintarCheckin },
-  catalogos: { titulo: 'Catálogos', icono: '☰', modulo: 'sistemas',  pintar: pintarCatalogos },
+  panel:      { titulo: 'Panel',      icono: '◈', modulo: null,          pintar: pintarPanel },
+  personas:   { titulo: 'Personas',   icono: '☺', modulo: 'personas',    pintar: pintarPersonas, ficha: null },
+  asistencia: { titulo: 'Asistencia', icono: '✓', modulo: 'asistencia',  pintar: pintarAsistencia, ficha: pintarServicio },
+  grupos:     { titulo: 'Grupos',     icono: '⬡', modulo: 'grupos',      pintar: pintarGrupos,   ficha: pintarGrupo },
+  checkin:    { titulo: 'Niños',      icono: '✦', modulo: 'rocakids',    pintar: pintarCheckin },
+  consejeria: { titulo: 'Consejería', icono: '🕊', modulo: 'consejeria', pintar: pintarConsejeria, ficha: pintarCaso },
+  formacion:  { titulo: 'Formación',  icono: '✎', modulo: 'formacion',   pintar: pintarFormacion, ficha: pintarCohorte },
+  talento:    { titulo: 'Talento',    icono: '⚑', modulo: 'talento',     pintar: pintarTalento,  ficha: pintarAntecedentes },
+  catalogos:  { titulo: 'Catálogos',  icono: '☰', modulo: 'sistemas',    pintar: pintarCatalogos },
 };
 
 const alcanza = (modulo) =>
   !modulo || (sesion?.modulos ?? []).some(m => (m.modulo ?? m) === modulo) || sesion?.alcance?.todaLaRed;
 
+/* ⛔ Dos segmentos: `#/grupos` y `#/grupos/<id>`. La ficha tiene su propia
+   direccion a proposito: es lo que permite mandar «mira este caso» por un
+   mensaje, y lo que hace que el boton de atras del telefono funcione. */
 function rutaActual() {
-  const r = location.hash.replace('#/', '') || 'panel';
-  return VISTAS[r] && alcanza(VISTAS[r].modulo) ? r : 'panel';
+  const partes = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+  const r = partes[0] || 'panel';
+  if (!VISTAS[r] || !alcanza(VISTAS[r].modulo)) return { vista: 'panel', id: null };
+  return { vista: r, id: partes[1] ?? null };
 }
 
 async function arrancar() {
+  /* En demostración se entra directo: pedir una contraseña que no existe
+     solo sería un obstáculo para quien abre esto en el teléfono. */
+  /* ⛔ Escribir en sessionStorage NO basta: `hayTokens()` lee la variable
+     del módulo, que solo se rellena al cargarlo. Hay que pasar por
+     `guardarTokens`, que actualiza las dos cosas. Con la primera versión
+     la demostración se quedaba en la pantalla de entrada pidiendo una
+     contraseña que no existe. */
+  if (demoActivo() && !hayTokens()) guardarTokens({ acceso: 'demo', refresco: null });
   if (!hayTokens()) return pintarEntrar(RAIZ, entrarYa);
   RAIZ.innerHTML = cargando(3);
   try {
@@ -53,21 +77,59 @@ async function entrarYa() {
   pintarMarco();
 }
 
+/* ⛔ 20 sep 2026 · LA BARRA DE ABAJO NO CRECE INDEFINIDAMENTE.
+   Con nueve secciones, en un telefono de 375 px caben cinco y las otras
+   cuatro quedaban fuera de la pantalla sin ninguna senal. «Consejeria» y
+   «Talento» simplemente no existian para quien entrara desde el movil.
+   Y van a ser mas de veinte.
+   La barra lleva CUATRO fijas -- las que se usan de pie, un domingo, con
+   una mano -- y un boton «Mas» que abre la lista completa. En escritorio
+   la columna las muestra todas y el boton sobra. */
+const FIJAS_EN_MOVIL = 4;
+
 function pintarMarco() {
   const disponibles = Object.entries(VISTAS).filter(([, v]) => alcanza(v.modulo));
-  const actual = rutaActual();
+  const actual = rutaActual().vista;
+  const enMovil = () => !window.matchMedia('(min-width: 860px)').matches;
+  const indiceActual = disponibles.findIndex(([k]) => k === actual);
+  /* Si la seccion abierta esta fuera de las cuatro fijas, entra en la
+     barra: quien esta DENTRO de Consejeria tiene que verse ahi. */
+  const enBarra = disponibles.slice(0, FIJAS_EN_MOVIL);
+  if (indiceActual >= FIJAS_EN_MOVIL) enBarra[FIJAS_EN_MOVIL - 1] = disponibles[indiceActual];
+
+  const boton = ([k, v], clase = 'nav__item') => `
+    <button class="${clase}" data-ruta="${k}" ${k === actual ? 'aria-current="page"' : ''}>
+      <span class="nav__icono" aria-hidden="true">${v.icono}</span>
+      <span>${esc(v.titulo)}</span>
+    </button>`;
 
   RAIZ.innerHTML = `
     <a class="salto-al-contenido" href="#contenido" id="salto">Ir al contenido</a>
     <div class="marco">
       <nav class="nav" aria-label="Secciones">
-        ${disponibles.map(([k, v]) => `
-          <button class="nav__item" data-ruta="${k}" ${k === actual ? 'aria-current="page"' : ''}>
-            <span class="nav__icono" aria-hidden="true">${v.icono}</span>
-            <span>${esc(v.titulo)}</span>
-          </button>`).join('')}
+        <span class="nav__todas">${disponibles.map(v => boton(v)).join('')}</span>
+        <span class="nav__pocas">${enBarra.map(v => boton(v)).join('')}
+          ${disponibles.length > FIJAS_EN_MOVIL ? `
+          <button class="nav__item" id="b-mas" aria-haspopup="dialog" aria-expanded="false">
+            <span class="nav__icono" aria-hidden="true">⋯</span><span>Más</span>
+          </button>` : ''}</span>
       </nav>
+      <div class="hoja" id="hoja" hidden>
+        <div class="hoja__fondo" data-cerrar-hoja></div>
+        <div class="hoja__panel" role="dialog" aria-modal="true" aria-label="Todas las secciones">
+          <div class="hoja__cabecera">
+            <strong>Secciones</strong>
+            <button class="boton boton--suave" data-cerrar-hoja>Cerrar</button>
+          </div>
+          <div class="hoja__lista">${disponibles.map(v => boton(v, 'hoja__item')).join('')}</div>
+        </div>
+      </div>
       <div class="columna">
+        ${demoActivo() ? `
+        <div class="banda-demo" role="alert">
+          ⛔ MODO DEMOSTRACIÓN · todos los nombres y las cifras de esta pantalla son
+          <strong>inventados</strong>. Nada se guarda y nada viene del sistema real.
+        </div>` : ''}
         <header class="cabecera">
           <span class="cabecera__marca">Casa Sobre la Roca</span>
           <span class="cabecera__sede">${esc(sesion?.alcance?.todaLaRed ? 'toda la red'
@@ -91,7 +153,9 @@ function pintarMarco() {
     </div>`;
 
   RAIZ.querySelectorAll('[data-ruta]').forEach(b =>
-    b.addEventListener('click', () => { location.hash = '#/' + b.dataset.ruta; }));
+    b.addEventListener('click', () => { cerrarHoja(); location.hash = '#/' + b.dataset.ruta; }));
+  RAIZ.querySelector('#b-mas')?.addEventListener('click', abrirHoja);
+  RAIZ.querySelectorAll('[data-cerrar-hoja]').forEach(b => b.addEventListener('click', cerrarHoja));
   RAIZ.querySelector('#b-salir').addEventListener('click', salir);
 
   /* ⛔ El enlace de salto ponia location.hash='#contenido', el enrutador no
@@ -105,6 +169,25 @@ function pintarMarco() {
   pintarPendientes();
   pintarVista();
 }
+
+function abrirHoja() {
+  const h = document.getElementById('hoja');
+  if (!h) return;
+  h.hidden = false;
+  document.getElementById('b-mas')?.setAttribute('aria-expanded', 'true');
+  /* El foco entra en la hoja: si se queda detras, quien usa teclado abre
+     un panel y sigue navegando por lo que hay debajo sin verlo. */
+  h.querySelector('.hoja__item')?.focus();
+}
+function cerrarHoja() {
+  const h = document.getElementById('hoja');
+  if (!h || h.hidden) return;
+  h.hidden = true;
+  const b = document.getElementById('b-mas');
+  b?.setAttribute('aria-expanded', 'false');
+  b?.focus();
+}
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') cerrarHoja(); });
 
 /* ⛔ El contador solo existia dentro de Ninos y la banda solo aparecia al
    perder la conexion: alguien podia cerrar la tableta con ninos sin enviar
@@ -121,7 +204,7 @@ function pintarPendientes() {
 window.addEventListener('cr:cola-cambio', pintarPendientes);
 
 async function pintarVista() {
-  const r = rutaActual();
+  const { vista: r, id } = rutaActual();
   const zona = document.getElementById('vista');
   if (!zona) return pintarMarco();
   /* ⛔ `toggleAttribute` dejaba `aria-current=""`, que segun la
@@ -132,7 +215,10 @@ async function pintarVista() {
     else b.removeAttribute('aria-current');
   });
   document.title = `${VISTAS[r].titulo} · CasaRoca`;
-  try { await VISTAS[r].pintar(zona, sesion); }
+  try {
+    if (id && VISTAS[r].ficha) await VISTAS[r].ficha(zona, id, sesion);
+    else await VISTAS[r].pintar(zona, sesion);
+  }
   catch (e) {
     zona.innerHTML = error(e.message, e.peticionId);
     engancharReintentar(zona, () => pintarVista());
