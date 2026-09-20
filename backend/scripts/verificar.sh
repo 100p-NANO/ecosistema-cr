@@ -77,11 +77,19 @@ else mal "no se pudo generar la especificación"; fi
 rm -rf "$TMP_SPEC"
 
 echo "══ 6 · Secretos fuera del repositorio"
-patron='(APP_JWT_SECRETO|APP_LLAVE_N4|PGPASSWORD|CASAROCA_LLAVE_RESPALDO)[[:space:]]*=[[:space:]]*["'"'"']?[A-Za-z0-9._-]{12,}'
-if grep -rInE "$patron" "$RAIZ" --include='*.ts' --include='*.js' --include='*.sh' --include='*.yaml' --include='*.yml' \
-     2>/dev/null | grep -v node_modules | grep -v '/dist/' | grep -viE 'desarrollo|laboratorio|ejemplo|no-usar|example' | head -5; then
+# ⛔ 20 sep 2026 · Esto era una linea de `grep` con cuatro puntos ciegos:
+#    solo miraba `backend/` (no `infra/` ni `.github/`), exigia `NOMBRE =`
+#    y por tanto no veia el YAML, aplicaba la lista blanca a la LINEA
+#    entera (un comentario con la palabra «ejemplo» absolvia al secreto de
+#    al lado) y solo conocia cuatro nombres. Ahora es un guion que mira
+#    TODO el repositorio y tambien por la FORMA del secreto (clave privada,
+#    llave de Google, token de GitHub, cadena de conexion con contraseña).
+if salida=$(python3 "$RAIZ/scripts/buscar-secretos.py" "$RAIZ/.." 2>&1); then
+  ok "$salida"
+else
+  echo "$salida" | sed 's/^/    /'
   mal "hay algo que parece un secreto escrito en el repositorio"
-else ok "ningún secreto con pinta de real versionado"; fi
+fi
 
 echo "══ 7 · Ninguna tabla legible sin política"
 FUGAS=$(psql -d "$PGDATABASE" -qtA -c "SELECT count(*) FROM plataforma.v_control_rls WHERE veredicto LIKE 'FUGA%';" 2>/dev/null || echo '?')

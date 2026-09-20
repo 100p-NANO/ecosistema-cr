@@ -10,25 +10,21 @@
    confianza + mostaza de calidez.
    ============================================================ */
 
-/* Geomanist es una fuente COMERCIAL (Atipo Foundry). Los archivos no
-   van en el repositorio: la iglesia debe tener la licencia web y
-   ponerlos en /fonts. Mientras no estén, la pila cae a Inter y a la
-   fuente del sistema sin romper nada. */
-@font-face {
-  font-family: "Geomanist";
-  src: url("/fonts/Geomanist-Regular.woff2") format("woff2");
-  font-weight: 400; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Geomanist";
-  src: url("/fonts/Geomanist-Medium.woff2") format("woff2");
-  font-weight: 500; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Geomanist";
-  src: url("/fonts/Geomanist-Bold.woff2") format("woff2");
-  font-weight: 700; font-style: normal; font-display: swap;
-}
+/* ⛔ 20 sep 2026 · Las tres reglas @font-face de Geomanist vivian AQUI, y
+   los archivos no estan en el repositorio (es una fuente comercial de
+   Atipo Foundry y la licencia es de la iglesia). Resultado: TRES 404 en
+   cada carga de la pagina. No rompian nada -- la pila caia a Inter y al
+   sistema -- pero llenaban la consola de errores, y una consola con
+   errores de adorno es una consola donde el error de VERDAD no se ve.
+
+   Ahora viven en `marca-geomanist.css`, que NO se enlaza por omision. El
+   dia que la iglesia ponga sus archivos en /fonts, se añade una linea en
+   `index.html` y la marca aparece. Mientras tanto, cero peticiones fallidas.
+
+   ⛔ Y no se cargan fuentes desde Google Fonts ni desde ningun tercero: en
+   un sistema con datos de menores, cada tipografia remota es una peticion
+   del navegador de un usuario a un servidor ajeno, con su IP. La pila cae a
+   fuentes del sistema, que estan en todas partes y no cuentan nada. */
 
 :root {
   /* ── Marca ─────────────────────────────────────────── */

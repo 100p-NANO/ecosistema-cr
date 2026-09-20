@@ -9,7 +9,27 @@
    ⛔ Nada de gradiente morado ni de Inter por defecto: esto tiene
       que parecer de esta iglesia y de ninguna otra.
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500&display=swap');
+/* ⛔ 20 sep 2026 · AQUI HABIA UN @import A GOOGLE FONTS, y se quita.
+
+   Cada carga de la aplicacion hacia que el navegador de un maestro de
+   RocaKids, o de una secretaria mirando una ficha de consejeria, pidiera
+   la tipografia a un servidor de Google, con su direccion IP y la
+   direccion de la pagina que la pedia. En un sistema que guarda datos de
+   MENORES y de consejeria pastoral, eso es una transferencia de datos a
+   un tercero que nadie autorizo y que no esta en ningun consentimiento.
+   No es una interpretacion exotica: las autoridades europeas ya han
+   multado sitios por exactamente esto, y la sede de Barcelona esta bajo
+   GDPR. Ademas, sin internet la aplicacion se quedaba esperando.
+
+   Las dos fuentes (Fraunces y JetBrains Mono) son libres (SIL OFL) y se
+   pueden SERVIR DESDE AQUI. El dia que la iglesia quiera exactamente
+   esas, se ponen los .woff2 en `frontend/fonts/` y se enlaza
+   `src/styles/marca-tipografias.css`, igual que con Geomanist.
+
+   Mientras tanto, la pila cae a un serif y un monoespaciado que estan en
+   todos los sistemas. La estetica editorial se sostiene: lo que la
+   define es la escala, el papel calido y el acento unico, no el nombre
+   de la fuente. */
 
 :root {
   /* La superficie se vuelve cálida: papel, no pantalla. */

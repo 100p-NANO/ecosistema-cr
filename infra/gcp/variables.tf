@@ -99,7 +99,20 @@ variable "armor_solo_observar" {
 # Cloud Build despliega la real; después Terraform ya no toca la imagen.
 # ---------------------------------------------------------------------
 variable "imagen_frontend" {
-  description = "Imagen del frontend en Cloud Run. Vacío = no se crea. Hoy no existe: el prototipo es HTML estático en Netlify y el React del plan está por construir."
+  description = <<-EOT
+    Imagen del frontend en Cloud Run. Vacío = no se crea.
+
+    ⛔ Esta descripción decía «hoy no existe: el prototipo es HTML estático
+    en Netlify y el React del plan está por construir». Ya existe: la
+    aplicación real vive en `frontend/`, sin paso de construcción, y desde
+    el 20 de septiembre de 2026 tiene su `Dockerfile` (nginx con cabeceras
+    de seguridad, compresión y `Cache-Control: no-cache` en el código, que
+    es obligatorio cuando los archivos no llevan hash en el nombre).
+
+    Se construye y se sube con:
+      gcloud builds submit frontend \
+        --tag=REGION-docker.pkg.dev/PROYECTO/casaroca/frontend:v1
+  EOT
   type        = string
   default     = ""
 }

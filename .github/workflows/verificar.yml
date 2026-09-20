@@ -18,7 +18,7 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_PASSWORD: verificacion
+          POSTGRES_PASSWORD: laboratorio-de-verificacion
           POSTGRES_DB: casaroca_dev
         options: >-
           --health-cmd "pg_isready -U postgres"
@@ -29,7 +29,7 @@ jobs:
       PGHOST: 127.0.0.1
       PGPORT: '5433'
       PGUSER: postgres
-      PGPASSWORD: verificacion
+      PGPASSWORD: laboratorio-de-verificacion
       PGDATABASE: casaroca_dev
       # Valores de laboratorio, declarados como tales. Los de verdad viven
       # en el gestor de secretos y no pasan por aquí.
@@ -107,6 +107,9 @@ jobs:
 
       # ⛔ La infraestructura tambien es codigo: si no pasa por validate,
       #    fmt y test, se entera GCP y cuesta dinero.
+      - name: Ningún secreto versionado
+        run: python3 backend/scripts/buscar-secretos.py .
+
       - name: Terraform válido, formateado y probado
         uses: hashicorp/setup-terraform@v3
         with:
