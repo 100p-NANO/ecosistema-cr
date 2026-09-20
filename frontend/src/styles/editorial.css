@@ -1,0 +1,216 @@
+/* ============================================================
+   editorial.css · La capa de ESTÉTICA sobre los tokens de marca
+   Estilo: remix «Terracotta editorial × identidad CasaRoca».
+   De Terracotta se toma la ESTRUCTURA: superficie crema cálida en
+   vez de gris frío, titulares en serif de display, etiquetas en
+   monoespaciada, escala tipográfica generosa y un solo acento.
+   De la iglesia se conserva la PALETA: azul de confianza #134291
+   y mostaza de calidez #E3A52C, que ya son suyos.
+   ⛔ Nada de gradiente morado ni de Inter por defecto: esto tiene
+      que parecer de esta iglesia y de ninguna otra.
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* La superficie se vuelve cálida: papel, no pantalla. */
+  --cr-fondo:        #FAF7F1;
+  --cr-superficie:   #FFFDF9;
+  --cr-superficie-2: #F3EEE4;
+  --cr-borde:        #E7DFD1;
+  --cr-borde-fuerte: #D6CBB8;
+  --cr-texto:        #1C1A17;
+  --cr-texto-suave:  #55504A;
+  /* ⛔ Medido, no elegido a ojo: #8A8278 daba 3,54:1 sobre la crema y AA
+     exige 4,5:1 para texto normal. Las etiquetas son pequeñas y en
+     mayúsculas, que es donde peor se lee. #6E6659 da 5,3:1. */
+  --cr-texto-tenue:  #6E6659;
+
+  --cr-fuente-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --cr-fuente-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  --cr-radio-sm: 6px; --cr-radio-md: 10px; --cr-radio-lg: 14px;
+  --cr-sombra-sm: 0 1px 2px rgba(28,26,23,.06);
+  --cr-sombra-md: 0 6px 16px -6px rgba(28,26,23,.14);
+  --cr-foco: 0 0 0 3px rgba(227,165,44,.55);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --cr-fondo: #16140F; --cr-superficie: #1E1B15; --cr-superficie-2: #262219;
+    --cr-borde: #332E24; --cr-borde-fuerte: #453E30;
+    --cr-texto: #F2EDE3; --cr-texto-suave: #C6BEB0; --cr-texto-tenue: #A79E8E;
+    --cr-azul-700: #6A9BEA; --cr-azul-100: #1B2B47; --cr-azul-50: #17223A;
+    --cr-mostaza-100: #2E2513;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--cr-fondo); color: var(--cr-texto);
+  font-family: var(--cr-fuente); font-size: var(--cr-tx-base); line-height: var(--cr-linea);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-family: var(--cr-fuente-display); font-weight: 600; letter-spacing: -0.01em; margin: 0 0 var(--cr-sp-3); }
+h1 { font-size: clamp(1.5rem, 4vw, 2.0625rem); line-height: 1.15; }
+h2 { font-size: clamp(1.2rem, 3vw, 1.625rem); line-height: 1.2; }
+h3 { font-size: var(--cr-tx-md); }
+
+.etiqueta {
+  font-family: var(--cr-fuente-mono); font-size: 0.6875rem; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--cr-texto-tenue); font-weight: 500;
+}
+
+/* ── Foco visible SIEMPRE. Accesibilidad AA no es opcional. ── */
+:focus-visible { outline: none; box-shadow: var(--cr-foco); border-radius: var(--cr-radio-sm); }
+.salto-al-contenido {
+  position: absolute; left: -9999px; top: 0; background: var(--cr-azul-700); color: #fff;
+  padding: var(--cr-sp-3) var(--cr-sp-4); z-index: 100; border-radius: 0 0 var(--cr-radio-md) 0;
+}
+.salto-al-contenido:focus { left: 0; }
+
+/* ── Estructura ── */
+.marco { min-height: 100dvh; display: flex; flex-direction: column; }
+.cabecera {
+  display: flex; align-items: center; gap: var(--cr-sp-3);
+  padding: var(--cr-sp-3) var(--cr-sp-4);
+  background: var(--cr-superficie); border-bottom: 1px solid var(--cr-borde);
+  position: sticky; top: 0; z-index: 20;
+}
+.cabecera__marca { font-family: var(--cr-fuente-display); font-weight: 700; font-size: var(--cr-tx-md); }
+.cabecera__sede { color: var(--cr-texto-suave); font-size: var(--cr-tx-sm); }
+.cabecera__derecha { margin-left: auto; display: flex; align-items: center; gap: var(--cr-sp-2); }
+
+.contenido { flex: 1; padding: var(--cr-sp-4); max-width: 1100px; width: 100%; margin: 0 auto; }
+
+/* Navegación: abajo en móvil (el pulgar llega), al lado en escritorio.
+   ⛔ El `order: 2` no es decorativo: en el marcado la navegación va PRIMERO
+   para que el teclado y el lector de pantalla la encuentren al entrar, y
+   visualmente va ABAJO porque es donde llega el pulgar de quien registra
+   de pie en el pasillo, con una mano y un niño en la otra. */
+.nav {
+  order: 2;
+  display: flex; gap: 2px; background: var(--cr-superficie);
+  border-top: 1px solid var(--cr-borde); position: sticky; bottom: 0; z-index: 20;
+  padding: var(--cr-sp-1); padding-bottom: max(var(--cr-sp-1), env(safe-area-inset-bottom));
+  overflow-x: auto;
+}
+.columna { order: 1; }
+.nav__item {
+  flex: 1 0 auto; min-width: 72px; min-height: var(--cr-tactil-min);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 0; background: transparent; color: var(--cr-texto-suave); cursor: pointer;
+  font: inherit; font-size: 0.6875rem; border-radius: var(--cr-radio-md); padding: var(--cr-sp-2);
+}
+.nav__item[aria-current="page"] { background: var(--cr-azul-50); color: var(--cr-azul-700); font-weight: 600; }
+.nav__icono { font-size: 1.1rem; line-height: 1; }
+
+@media (min-width: 860px) {
+  .marco { flex-direction: row; }
+  .nav {
+    order: 0;
+    flex-direction: column; border-top: 0; border-right: 1px solid var(--cr-borde);
+    width: 210px; position: sticky; top: 0; height: 100dvh; padding: var(--cr-sp-3) var(--cr-sp-2);
+  }
+  /* ⛔ `flex: 1` en columna hace que cada botón CREZCA hasta llenar la
+     altura: con dos secciones, la segunda queda al fondo de la pantalla.
+     En la barra de abajo del móvil sí se quiere que crezcan; aquí no. */
+  .nav__item { flex: 0 0 auto; flex-direction: row; justify-content: flex-start;
+               gap: var(--cr-sp-3); font-size: var(--cr-tx-sm); text-align: left; }
+  .nav__item span:last-child { flex: 1; }
+  .columna { order: 1; flex: 1; display: flex; flex-direction: column; min-width: 0; }
+}
+
+/* ── Tarjetas y tablas ── */
+.tarjeta {
+  background: var(--cr-superficie); border: 1px solid var(--cr-borde);
+  border-radius: var(--cr-radio-lg); padding: var(--cr-sp-4); box-shadow: var(--cr-sombra-sm);
+}
+.rejilla { display: grid; gap: var(--cr-sp-3); grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+
+.tabla { width: 100%; border-collapse: collapse; font-size: var(--cr-tx-sm); }
+.tabla th {
+  text-align: left; font-family: var(--cr-fuente-mono); font-size: 0.6875rem;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--cr-texto-tenue);
+  padding: var(--cr-sp-2); border-bottom: 1px solid var(--cr-borde-fuerte); font-weight: 500;
+}
+.tabla td { padding: var(--cr-sp-3) var(--cr-sp-2); border-bottom: 1px solid var(--cr-borde); }
+.tabla tr:last-child td { border-bottom: 0; }
+@media (max-width: 640px) {
+  .tabla, .tabla tbody, .tabla tr, .tabla td { display: block; width: 100%; }
+  .tabla thead { display: none; }
+  .tabla tr { border: 1px solid var(--cr-borde); border-radius: var(--cr-radio-md); margin-bottom: var(--cr-sp-3); padding: var(--cr-sp-2); }
+  .tabla td { border: 0; padding: var(--cr-sp-1) var(--cr-sp-2); display: flex; justify-content: space-between; gap: var(--cr-sp-3); }
+  .tabla td::before { content: attr(data-th); font-family: var(--cr-fuente-mono); font-size: .6875rem; text-transform: uppercase; color: var(--cr-texto-tenue); }
+}
+
+/* ── Controles ── */
+.campo { display: flex; flex-direction: column; gap: var(--cr-sp-1); margin-bottom: var(--cr-sp-3); }
+.campo > label { font-weight: 500; font-size: var(--cr-tx-sm); }
+.campo > .ayuda { color: var(--cr-texto-suave); font-size: var(--cr-tx-xs); }
+input, select, textarea {
+  font: inherit; color: inherit; background: var(--cr-superficie);
+  border: 1px solid var(--cr-borde-fuerte); border-radius: var(--cr-radio-md);
+  padding: 0.65rem 0.8rem; min-height: var(--cr-tactil-min); width: 100%;
+}
+input[aria-invalid="true"] { border-color: var(--cr-peligro); }
+
+.boton {
+  font: inherit; font-weight: 600; cursor: pointer; min-height: var(--cr-tactil-min);
+  padding: 0.65rem 1.1rem; border-radius: var(--cr-radio-md);
+  border: 1px solid transparent; background: var(--cr-azul-700); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--cr-sp-2);
+  transition: filter var(--cr-transicion);
+}
+.boton:hover:not(:disabled) { filter: brightness(1.08); }
+.boton:disabled { opacity: .55; cursor: not-allowed; }
+.boton--suave { background: var(--cr-superficie-2); color: var(--cr-texto); border-color: var(--cr-borde-fuerte); }
+.boton--peligro { background: var(--cr-peligro); }
+.boton--ancho { width: 100%; }
+
+/* ── Distintivos de sensibilidad. El color dice cuánto pesa el dato. ── */
+.distintivo {
+  display: inline-flex; align-items: center; gap: 4px; font-family: var(--cr-fuente-mono);
+  font-size: .6875rem; padding: 2px 8px; border-radius: var(--cr-radio-full);
+  background: var(--cr-superficie-2); color: var(--cr-texto-suave); border: 1px solid var(--cr-borde);
+}
+.distintivo--n3 { background: #F3EDFB; color: #5B3B93; border-color: #E0D2F5; }
+.distintivo--n4 { background: var(--cr-peligro-bg); color: var(--cr-peligro); border-color: #F3CFC9; }
+.distintivo--ok { background: var(--cr-exito-bg); color: var(--cr-exito); border-color: #C6E7D5; }
+.distintivo--aviso { background: var(--cr-aviso-bg); color: var(--cr-aviso); border-color: #F0DFB4; }
+
+/* ── Estados: vacío, carga, error. Los tres, en cada vista. ── */
+.estado { text-align: center; padding: var(--cr-sp-8) var(--cr-sp-4); color: var(--cr-texto-suave); }
+.estado__icono { font-size: 2rem; margin-bottom: var(--cr-sp-3); opacity: .75; }
+.estado__titulo { font-family: var(--cr-fuente-display); font-size: var(--cr-tx-lg); color: var(--cr-texto); margin-bottom: var(--cr-sp-2); }
+.estado--error { color: var(--cr-peligro); }
+
+.esqueleto {
+  background: linear-gradient(90deg, var(--cr-superficie-2) 25%, var(--cr-borde) 50%, var(--cr-superficie-2) 75%);
+  background-size: 200% 100%; animation: brillo 1.4s infinite; border-radius: var(--cr-radio-sm); height: 1rem;
+}
+@keyframes brillo { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .esqueleto { animation: none; } * { transition: none !important; } }
+
+/* ── Aviso de sin conexión: el domingo el wifi del templo falla ── */
+.sin-conexion {
+  background: var(--cr-aviso-bg); color: var(--cr-aviso); border-bottom: 1px solid #F0DFB4;
+  padding: var(--cr-sp-2) var(--cr-sp-4); font-size: var(--cr-tx-sm); text-align: center;
+}
+.sin-conexion strong { font-weight: 600; }
+
+.aviso { padding: var(--cr-sp-3); border-radius: var(--cr-radio-md); margin-bottom: var(--cr-sp-3); font-size: var(--cr-tx-sm); }
+.aviso--error { background: var(--cr-peligro-bg); color: var(--cr-peligro); }
+.aviso--ok { background: var(--cr-exito-bg); color: var(--cr-exito); }
+.aviso--info { background: var(--cr-info-bg); color: var(--cr-info); }
+
+.pie { padding: var(--cr-sp-3) var(--cr-sp-4); color: var(--cr-texto-tenue); font-size: var(--cr-tx-xs); text-align: center; }
+.pie code { font-family: var(--cr-fuente-mono); }
+
+/* ── Entrar: pantalla aparte, centrada ── */
+.entrar { min-height: 100dvh; display: grid; place-items: center; padding: var(--cr-sp-4); }
+.entrar__caja { width: 100%; max-width: 420px; }
+.entrar__marca { text-align: center; margin-bottom: var(--cr-sp-5); }
+.entrar__marca h1 { margin-bottom: var(--cr-sp-1); }
+.entrar__marca p { color: var(--cr-texto-suave); margin: 0; font-size: var(--cr-tx-sm); }
