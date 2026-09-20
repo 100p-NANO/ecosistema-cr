@@ -295,7 +295,14 @@ window.addEventListener('hashchange', () => { if (sesion) { vista = ruta(); marc
 const tramos = () => location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
 const ruta = () => {
   const r = tramos()[0];
-  return NAV.some(n => n.id === r) ? r : 'arranque';
+  /* ⛔ 20 sep 2026. Aquí había dos trampas juntas. Sin dirección en la
+     barra (que es como se abre la consola publicada), `tramos()[0]` es
+     `undefined`; y NAV lleva separadores de grupo `{ grupo: '...' }` SIN
+     `id`, así que `n.id === undefined` daba CIERTO y `ruta()` devolvía
+     `undefined`. La consola arrancaba con «VISTAS[vista] is not a
+     function» y no se veía nada. Se exige que la pestaña exista de
+     verdad: `n.id && n.id === r`. */
+  return r && NAV.some(n => n.id && n.id === r) ? r : 'arranque';
 };
 /* El segundo tramo de la dirección: `#/roles/TESORERIA` → 'TESORERIA'.
    ⛔ Antes cada vista hacía `location.hash.split('/')[1]`, que sobre
