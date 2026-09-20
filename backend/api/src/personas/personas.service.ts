@@ -15,18 +15,44 @@ import type { PoolClient } from 'pg';
  */
 @Injectable()
 export class PersonasService {
+  /**
+   * Buscar personas.
+   *
+   * ⛔ 19 sep 2026 · Esto era un `ILIKE '%texto%'`. Con eso, quien buscaba
+   * «Jon Chavez» no encontraba a «Jhon Chávez» y creaba el duplicado; y con
+   * 25.000 personas llegando de 36 fuentes, los duplicados no son un riesgo,
+   * son una certeza. Ahora llama a `nucleo.buscar_personas`, que tolera
+   * erratas y tildes (trigramas) y además busca por documento, teléfono y
+   * correo en el mismo cuadro.
+   *
+   * La función es STABLE y NO es SECURITY DEFINER a propósito: corre como el
+   * invocador, así que la seguridad por fila se aplica igual. Una búsqueda
+   * que se salta el aislamiento es la forma más cómoda de leer otra sede.
+   */
   async buscar(c: PoolClient, q: string | undefined, limite: number) {
+    if (!q || q.trim().length < 2) {
+      const { rows } = await c.query(
+        `SELECT p.id,
+                trim(concat_ws(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido)) AS nombre,
+                nullif(concat_ws(' ', p.tipo_documento, p.numero_documento), ' ') AS documento,
+                s.codigo AS sede_codigo, p.estado::text AS estado, NULL::real AS parecido,
+                'listado'::text AS por_que
+           FROM nucleo.personas p
+           LEFT JOIN org.sedes s ON s.id = p.sede_id
+          WHERE p.eliminado_en IS NULL
+          ORDER BY p.primer_apellido, p.primer_nombre
+          LIMIT $1`, [limite]);
+      return rows;
+    }
     const { rows } = await c.query(
-      `SELECT id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-              email_principal, telefono_movil, estado, sede_id
-         FROM nucleo.personas
-        WHERE eliminado_en IS NULL
-          AND ($1::text IS NULL OR
-               (primer_nombre||' '||coalesce(primer_apellido,'')) ILIKE '%'||$1||'%' OR
-               email_principal ILIKE '%'||$1||'%' OR
-               numero_documento = regexp_replace(coalesce($1,''), '[^0-9A-Za-z]', '', 'g'))
-        ORDER BY primer_apellido, primer_nombre
-        LIMIT $2`, [q?.trim() || null, limite]);
+      `SELECT * FROM nucleo.buscar_personas($1, $2)`, [q.trim(), limite]);
+    return rows;
+  }
+
+  /** Candidatos a ser la misma persona registrada dos veces. */
+  async duplicados(c: PoolClient, personaId: string) {
+    const { rows } = await c.query(
+      `SELECT * FROM nucleo.candidatos_duplicado($1)`, [personaId]);
     return rows;
   }
 

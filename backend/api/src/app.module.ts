@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { DbModule } from './db/db.module';
 import { NuevosModule } from './nuevos/nuevos.module';
 import { SesionModule } from './sesion/sesion.module';
@@ -8,17 +8,24 @@ import { IdentidadModule } from './identidad/identidad.module';
 import { AportesModule } from './aportes/aportes.module';
 import { NotificacionesModule } from './notificaciones/notificaciones';
 import { Modelo100pModule } from './modelo100p/modelo100p';
+import { AuthModule } from './auth/auth.module';
+import { AuthMiddleware } from './auth/auth.middleware';
+import { SaludModule } from './salud/salud.module';
+import { trazaYRegistro, cabecerasDeSeguridad } from './comun/peticion';
 
 /**
- * ⭐ De UN módulo a SEIS. Hasta el 15 de septiembre de 2026 la API cubría
- * solo Nuevos, así que el Control Tower no tenía con qué hablar y vivía
- * en localStorage. Estos son los módulos del núcleo: sesión, organización,
- * personas (con su ficha 360), identidad y aportes.
+ * ⭐ 19 sep 2026 · Entran AUTENTICACIÓN y SALUD, y toda petición pasa por
+ * traza, cabeceras de seguridad y resolución de sesión. Hasta hoy la API
+ * tenía nueve módulos de negocio y ninguna puerta.
  */
 @Module({
-  imports: [DbModule, SesionModule, OrganizacionModule, PersonasModule,
+  imports: [DbModule, AuthModule, SaludModule,
+            SesionModule, OrganizacionModule, PersonasModule,
             IdentidadModule, AportesModule, NuevosModule,
-            // 18 sep 2026 · lo que pide el Drive 100p: avisos y su modelo de datos
             NotificacionesModule, Modelo100pModule],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(cabecerasDeSeguridad, trazaYRegistro, AuthMiddleware).forRoutes('*');
+  }
+}

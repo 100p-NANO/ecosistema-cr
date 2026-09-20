@@ -20,6 +20,12 @@ export class PersonasController {
       this.personas.porAtributo(c, codigo, valor === undefined ? undefined : valor));
   }
 
+  /** Quién podría ser la misma persona registrada dos veces. */
+  @Get(':id/duplicados')
+  duplicados(@Req() req: Request, @Param('id') id: string) {
+    return conSesion(this.db, req, (c) => this.personas.duplicados(c, id));
+  }
+
   @Get(':id')
   ficha(@Req() req: Request, @Param('id') id: string) {
     return conSesion(this.db, req, (c) => this.personas.ficha(c, id));

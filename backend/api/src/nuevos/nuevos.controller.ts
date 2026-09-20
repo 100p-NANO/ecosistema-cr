@@ -4,6 +4,7 @@ import { NuevosService } from './nuevos.service';
 import { DbService } from '../db/db.service';
 import { almacen } from '../contexto/contexto';
 import type { RegistrarNuevo, RegistrarContacto, ConvertirMiembro } from './dto';
+import { sesionDe } from '../comun/identidad.helper';
 
 /**
  * Rutas del Módulo de Nuevos.
@@ -50,25 +51,24 @@ export class NuevosController {
   /**
    * Resuelve la identidad y deja el contexto disponible para el servicio.
    *
-   * ⚠️ SUPLENTE DE DESARROLLO. Hoy la identidad llega en una cabecera; en
-   * producción llega en el token de Keycloak. Lo único que cambia es esta
-   * función: el resto del sistema ya trabaja contra el contexto, no contra
-   * la cabecera. El punto de sustitución está aislado a propósito.
+   * ⛔ 19 sep 2026 · HALLAZGO H-01 CERRADO. Esta función leía la identidad
+   * de la cabecera `X-Persona-Id`: quien escribiera un identificador ERA
+   * esa persona. Ahora la sesión la resuelve `AuthMiddleware` verificando
+   * la firma del token y preguntándole a la base si sigue viva.
    *
-   * Nótese que las sedes y el nivel NO vienen del cliente: se derivan de
-   * las asignaciones vigentes en la base. Si vinieran de la petición,
-   * cualquiera podría pedir ver otra sede.
+   * Las sedes y el nivel NUNCA vienen del cliente: se derivan de las
+   * asignaciones vigentes. Si vinieran en la petición, cualquiera podría
+   * pedir ver otra sede.
    */
   private async conIdentidad<T>(req: Request, fn: () => Promise<T>): Promise<T> {
-    const personaId = req.header('X-Persona-Id');
-    if (!personaId) {
-      throw new UnauthorizedException(
-        'Falta la identidad de la sesión. En desarrollo va en X-Persona-Id; ' +
-        'en producción, en el token de Keycloak.',
-      );
-    }
-    const ctx = await this.db.contextoDe(personaId, ip(req));
-    return almacen.run(ctx, fn);
+    const s = sesionDe(req);
+    return almacen.run({
+      personaId: s.personaId,
+      sedeIds: s.sedeIds,
+      nivelMax: s.nivelMax,
+      alcanceGlobal: s.alcanceGlobal,
+      ip: ip(req),
+    }, fn);
   }
 }
 
