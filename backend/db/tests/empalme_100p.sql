@@ -208,3 +208,17 @@ SELECT n AS "#", nombre AS "invariante", obtenido AS "resultado",
        CASE WHEN paso THEN 'PASA' ELSE 'FALLA' END AS "veredicto"
 FROM _e ORDER BY n;
 SELECT count(*) FILTER (WHERE paso) AS "pasan", count(*) FILTER (WHERE NOT paso) AS "fallan", count(*) AS "total" FROM _e;
+
+
+-- ⛔ COMPUERTA. Sin esto, el banco IMPRIME los fallos y devuelve exito: la
+--    integracion continua daria por buena una invariante rota. Se descubrio
+--    el 19 de septiembre de 2026: 7 de los 8 bancos eran un informe, no una
+--    compuerta.
+DO $$
+DECLARE v int;
+BEGIN
+  SELECT count(*) FILTER (WHERE NOT paso) INTO v FROM _e;
+  IF v > 0 THEN
+    RAISE EXCEPTION 'BANCO EN ROJO: % invariante(s) rota(s) en empalme_100p.sql', v;
+  END IF;
+END $$;

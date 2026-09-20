@@ -394,7 +394,8 @@ DO $$
 DECLARE v_sede uuid; v_p uuid; v_caso uuid; v_antes bigint; v_despues bigint;
 BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-CHICO';
-  INSERT INTO consejeria.topicos (codigo,nombre,categoria) VALUES ('FAM','Familia','relacional');
+  INSERT INTO consejeria.topicos (codigo,nombre,categoria) VALUES ('FAM','Familia','relacional')
+  ON CONFLICT (codigo) DO NOTHING;
   SELECT id INTO v_p FROM nucleo.personas WHERE primer_nombre='Mudanza';
   INSERT INTO consejeria.casos (consultante_id,sede_id,topico) VALUES (v_p,v_sede,'FAM') RETURNING id INTO v_caso;
   INSERT INTO consejeria.notas (caso_id,autor_id,contenido) VALUES (v_caso,v_p,'Primera sesion registrada.');
@@ -416,3 +417,17 @@ SELECT count(*) FILTER (WHERE paso) AS "pasan",
        count(*) FILTER (WHERE NOT paso) AS "fallan",
        count(*) AS "total"
 FROM _mod;
+
+
+-- ⛔ COMPUERTA. Sin esto, el banco IMPRIME los fallos y devuelve exito: la
+--    integracion continua daria por buena una invariante rota. Se descubrio
+--    el 19 de septiembre de 2026: 7 de los 8 bancos eran un informe, no una
+--    compuerta.
+DO $$
+DECLARE v int;
+BEGIN
+  SELECT count(*) FILTER (WHERE NOT paso) INTO v FROM _mod;
+  IF v > 0 THEN
+    RAISE EXCEPTION 'BANCO EN ROJO: % invariante(s) rota(s) en invariantes_modulos.sql', v;
+  END IF;
+END $$;

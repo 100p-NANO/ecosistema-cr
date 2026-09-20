@@ -88,29 +88,45 @@ BEGIN
     'RECHAZADO', CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO' END, ok);
 END $$;
 
--- H6 · El control: ninguna tabla legible por la app sin una sola politica.
+-- H6 · Ninguna tabla legible por la aplicación sin política y sin registro.
+--      ⛔ Antes, la lista blanca estaba escrita A MANO aquí abajo. Una lista
+--         de control que vive dentro de la prueba se edita para que la prueba
+--         pase. Desde la migración 0042 vive en `plataforma.registro_exposicion`
+--         con justificación, responsable y fecha, y la prueba la contrasta.
 DO $$
-DECLARE fugas int; detalle text;
+DECLARE detalle text; fugas int;
 BEGIN
-  SELECT count(*), coalesce(string_agg(esquema||'.'||tabla,', '),'ninguna')
+  SELECT count(*), string_agg(esquema||'.'||tabla, ', ')
     INTO fugas, detalle
   FROM plataforma.v_control_rls
-  WHERE la_app_la_lee AND politicas = 0
-    AND (esquema,tabla) NOT IN (
-      -- catalogos compartidos por las 36 sedes: no llevan datos de persona
-      ('nucleo','tipos_documento'),('nucleo','tipos_vinculo'),
-      ('org','paises'),('org','sedes'),('org','ministerios'),('org','ministerios_sede'),
-      ('plataforma','finalidades'),('plataforma','niveles_sensibilidad'),
-      ('plataforma','clasificacion_columna'),
-      ('crm','tipos_hecho'),('identidad','roles'),
-      ('rocakids','salas'),('consejeria','topicos'),('aportes','fondos'),
-      ('talento','cargos'),('formacion','cursos'),('formacion','programas'),
-      ('sistema','modulos'),('sistema','acciones'),('sistema','plantillas'),
-      ('sistema','plantilla_modulos'),('sistema','matriz_permisos'),
-      -- 0040: nombres del Drive 100p apuntando a roles y acciones existentes
-      ('identidad','roles_alias'),('sistema','acciones_alias'));
-  PERFORM pg_temp.rg(6,'Tablas con datos de persona legibles sin politica',
-    'ninguna', detalle, fugas = 0);
+  WHERE veredicto LIKE 'FUGA%';
+  PERFORM pg_temp.rg(6,'Tablas legibles sin politica y sin registro firmado',
+    'ninguna', COALESCE(detalle,'ninguna'), fugas = 0);
+END $$;
+
+-- H7 · Lo nuevo nace CERRADO. Si alguien reactiva la herencia de permisos,
+--      toda tabla futura vuelve a nacer legible: es la causa raíz de las
+--      fugas de agosto y del 11 de septiembre.
+DO $$
+DECLARE herencias int; detalle text;
+BEGIN
+  SELECT count(*), string_agg(defaclnamespace::regnamespace::text, ', ')
+    INTO herencias, detalle
+  FROM pg_default_acl
+  WHERE defaclobjtype = 'r'
+    AND array_to_string(defaclacl, ',') ~ '(casaroca_app|casaroca_lectura)=[a-zA-Z]*r';
+  PERFORM pg_temp.rg(7,'Herencia de SELECT para tablas nuevas (nacen abiertas)',
+    'ninguna', COALESCE(detalle,'ninguna'), herencias = 0);
+END $$;
+
+-- H8 · Toda exposición registrada tiene una justificación de verdad.
+DO $$
+DECLARE flojas int;
+BEGIN
+  SELECT count(*) INTO flojas FROM plataforma.registro_exposicion
+  WHERE length(trim(justificacion)) < 20 OR length(trim(decidido_por)) = 0;
+  PERFORM pg_temp.rg(8,'Exposicion registrada sin justificacion real',
+    'ninguna', flojas||' sin justificar', flojas = 0);
 END $$;
 
 \echo ''
@@ -120,3 +136,17 @@ SELECT n AS "#", caso AS invariante, obtenido AS resultado,
 FROM res ORDER BY n;
 SELECT count(*) FILTER (WHERE pasa) AS pasan,
        count(*) FILTER (WHERE NOT pasa) AS fallan, count(*) AS total FROM res;
+
+
+-- ⛔ COMPUERTA. Sin esto, el banco IMPRIME los fallos y devuelve exito: la
+--    integracion continua daria por buena una invariante rota. Se descubrio
+--    el 19 de septiembre de 2026: 7 de los 8 bancos eran un informe, no una
+--    compuerta.
+DO $$
+DECLARE v int;
+BEGIN
+  SELECT count(*) FILTER (WHERE NOT pasa) INTO v FROM res;
+  IF v > 0 THEN
+    RAISE EXCEPTION 'BANCO EN ROJO: % invariante(s) rota(s) en rls_tablas_hijas.sql', v;
+  END IF;
+END $$;
