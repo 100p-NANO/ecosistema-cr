@@ -1,0 +1,168 @@
+#!/usr/bin/env node
+/**
+ * Genera `api/openapi.yaml` a partir de las RUTAS REALES de la aplicación.
+ *
+ * ⛔ Por qué generado y no escrito a mano (checklist B7.02): una
+ * especificación escrita a mano se desactualiza en la segunda semana, y
+ * una especificación desactualizada es peor que ninguna, porque el que la
+ * lee construye contra algo que no existe. Aquí se arranca la aplicación,
+ * se le pregunta al enrutador qué rutas tiene de verdad, y se escribe eso.
+ *
+ * `scripts/verificar.sh` compara lo generado con lo versionado: si alguien
+ * añade una ruta y no regenera, la verificación falla.
+ */
+const path = require('path');
+const fs = require('fs');
+const API = path.join(__dirname, '..', 'api');
+
+process.env.NODE_ENV = process.env.NODE_ENV || 'development';
+process.env.APP_JWT_SECRETO = process.env.APP_JWT_SECRETO || 'generacion-de-especificacion-no-usar-0000';
+process.env.APP_LLAVE_N4 = process.env.APP_LLAVE_N4 || 'generacion-de-especificacion-no-usar-0000';
+
+const { NestFactory } = require(path.join(API, 'node_modules', '@nestjs', 'core'));
+const { AppModule } = require(path.join(API, 'dist', 'src', 'app.module.js'));
+
+/* Descripciones por ruta. Lo único escrito a mano, y si una ruta no la
+   tiene, la especificación lo dice en vez de inventarla. */
+const DESCRIPCIONES = {
+  'POST /api/v1/auth/entrar': ['Entrar al sistema', 'Devuelve token de acceso y de refresco. Si el rol alcanza datos N3 o N4 y el segundo factor no esta activo, devuelve un token limitado que solo sirve para configurarlo.'],
+  'POST /api/v1/auth/refrescar': ['Renovar el acceso', 'El token de refresco se ROTA: usarlo dos veces lo invalida, porque es la senal clasica de un token robado.'],
+  'POST /api/v1/auth/salir': ['Cerrar esta sesion', 'Surte efecto en el instante, no cuando expire el token.'],
+  'POST /api/v1/auth/salir-de-todo': ['Cerrar todas las sesiones', 'Para cuando alguien pierde el telefono.'],
+  'POST /api/v1/auth/cambiar-clave': ['Cambiar la contrasena', 'Cierra las demas sesiones abiertas.'],
+  'POST /api/v1/auth/segundo-factor/iniciar': ['Empezar a configurar el segundo factor', 'Devuelve el secreto y el texto del codigo QR.'],
+  'POST /api/v1/auth/segundo-factor/activar': ['Activar el segundo factor', 'Confirma que el telefono y el servidor estan sincronizados.'],
+  'GET /api/v1/auth/quien-soy': ['Quien soy y que alcanzo', 'El alcance se deriva de la base, nunca de lo que envie el cliente.'],
+  'GET /api/v1/sesion/yo': ['Mi sesion y lo que alcanzo', 'Quien soy, que sedes alcanzo, hasta que nivel de sensibilidad y que modulos veo. El panel se pinta contra esto y no contra una lista cableada en el cliente.'],
+
+  'GET /api/v1/organizacion/sedes': ['Las sedes que alcanzo', 'Solo las que el permiso vigente alcanza. Una sede que no alcanzo no aparece.'],
+  'POST /api/v1/organizacion/sedes': ['Dar de alta una sede', 'Desde plantilla y con bitacora: nadie crea una iglesia a mano. Exige alcance de organizacion.'],
+  'GET /api/v1/organizacion/ministerios': ['Catalogo de ministerios de la red', 'Cada ministerio arrastra su nivel de dato: RocaKids nace N4 y Consejeria N3.'],
+  'GET /api/v1/organizacion/sedes/:id/ministerios': ['Ministerios encendidos en una sede', 'Lo que la sede tiene activo hoy.'],
+  'PUT /api/v1/organizacion/sedes/:id/ministerios/:min': ['Encender o apagar un ministerio en una sede', 'Los modulos con compuerta legal (Aportes, RocaKids) exigen evidencia registrada: la base lo rechaza sin ella.'],
+
+  'GET /api/v1/personas': ['Buscar personas', 'Tolera errores de digitacion, tildes, documento, telefono y correo. Respeta la seguridad por fila: lo que no alcanza la sesion no sale.'],
+  'GET /api/v1/personas/:id': ['Ficha de una persona', 'Los campos por encima del nivel de la sesion no se devuelven, y la lectura de datos N3 o N4 queda en la bitacora.'],
+  'PUT /api/v1/personas/:id': ['Actualizar una persona', 'Exige membresia VIGENTE en una sede alcanzada. La sede de origen puede ver a quien se traslado, pero ya no lo edita.'],
+  'GET /api/v1/personas/:id/linea-tiempo': ['Historia de una persona', 'Todo lo que los modulos publicaron sobre ella, en orden. Filtrada por nivel de sensibilidad.'],
+  'GET /api/v1/personas/:id/atributos': ['Casillas propias de una persona', 'Los atributos extensibles declarados desde la consola, con su nivel.'],
+  'PUT /api/v1/personas/:id/atributos/:codigo': ['Escribir una casilla propia', 'El nivel de la casilla lo declaro quien la creo; escribir por encima del nivel de la sesion se rechaza.'],
+  'GET /api/v1/personas/:id/duplicados': ['Quien podria ser la misma persona', 'Candidatos a duplicado con puntaje y motivo: mismo documento, misma fecha de nacimiento, nombre parecido. Con 36 fuentes migrando, los duplicados son certeza.'],
+  'GET /api/v1/personas/por-atributo': ['Personas que cumplen una casilla', 'Es como se arrastra gente a un modulo nuevo sin migrar nada.'],
+
+  'GET /api/v1/identidad/roles': ['Los roles de la red', 'Con su techo de nivel y su alcance maximo.'],
+  'GET /api/v1/identidad/matriz': ['Matriz de permisos', 'Modulo por accion por rol. Se lee para pintar el menu; escribirla esta cerrado desde la migracion 0031.'],
+  'GET /api/v1/identidad/modulos': ['Modulos del sistema', 'El manifiesto: nivel de dato, si es de nucleo, de que depende y si exige compuerta legal.'],
+  'GET /api/v1/identidad/personas/:id/asignaciones': ['Permisos asignados a una persona', 'Los directos y los heredados de sus equipos, con la columna que dice de donde viene cada uno.'],
+  'GET /api/v1/identidad/personas/:id/efectivo': ['Permiso efectivo', 'Rol por alcance por nivel por vigencia, ya resuelto.'],
+  'POST /api/v1/identidad/personas/:id/otorgar': ['Otorgar un permiso', 'Exige alcance de organizacion. Un rol de menores se rechaza sin antecedentes vigentes.'],
+  'DELETE /api/v1/identidad/asignaciones/:id': ['Revocar un permiso', 'Surte efecto en el instante, no al final del dia, y exige motivo escrito.'],
+  'GET /api/v1/identidad/atributos': ['Catalogo de casillas propias', 'Cada una con su modulo dueno y su nivel de sensibilidad.'],
+  'POST /api/v1/identidad/atributos': ['Declarar una casilla nueva', 'Sin migracion y sin despliegue. Quien la crea tiene que declarar que tan sensible es lo que va a guardar.'],
+
+  'GET /api/v1/aportes': ['Aportes de la sede', 'El pastor congregacional ve habito de aporte SIN ninguna columna de monto: es una decision del modelo, no del frontend.'],
+  'POST /api/v1/aportes': ['Registrar un aporte', 'Idempotente: un doble clic no crea dos aportes.'],
+  'POST /api/v1/aportes/:id/confirmar': ['Confirmar un aporte', 'Parte de la conciliacion: quien recibe no es quien concilia.'],
+  'GET /api/v1/aportes/certificados': ['Certificados de aporte', 'Anuales, con los requisitos fiscales del pais.'],
+  'POST /api/v1/aportes/certificados': ['Emitir un certificado', 'Se emite contra la reconciliacion: si no cuadra al peso, no se emite.'],
+  'GET /api/v1/aportes/certificados/:id': ['Un certificado'],
+  'GET /api/v1/aportes/certificados/:id/documento': ['Documento del certificado', 'La descarga queda en la bitacora de lectura.'],
+  'POST /api/v1/aportes/certificados/:id/anular': ['Anular un certificado', 'No se borra: se anula, con motivo.'],
+  'GET /api/v1/aportes/pagos-sin-dueno': ['Pagos sin persona', 'Lo que entro por pasarela y todavia no se sabe de quien es. La cola de trabajo de tesoreria.'],
+  'POST /api/v1/aportes/pagos/:id/emparejar': ['Emparejar un pago con su persona'],
+  'POST /api/v1/aportes/pasarela/webhook': ['Aviso de la pasarela de pagos', 'Verifica la firma y la ventana de tiempo, y es idempotente: el mismo aviso dos veces no cobra dos veces.'],
+
+  'POST /api/v1/nuevos/registrar': ['Registrar a alguien que llega', 'Puerta publica del formulario de la sede. Exige al menos una forma de contacto y deja el consentimiento registrado.'],
+  'GET /api/v1/nuevos/dashboard': ['Bandeja de seguimiento', 'Con los atrasados marcados: que nadie se pierda es el trabajo del modulo.'],
+  'GET /api/v1/nuevos/:id/historial': ['Historial de contactos con un nuevo'],
+  'POST /api/v1/nuevos/:id/registrar-contacto': ['Registrar un contacto', 'Con la reaccion de la persona, que alimenta el recorrido.'],
+  'POST /api/v1/nuevos/:id/convertir-miembro': ['Convertir un registro en persona', 'No duplica si la persona ya existe, y no se puede convertir dos veces.'],
+
+  'GET /api/v1/modelo100p': ['Vistas del Drive «Sistema 100p»', 'Los mismos datos publicados con los nombres del documento del equipo.'],
+  'GET /api/v1/modelo100p/:tabla': ['Una vista del modelo 100p'],
+  'POST /api/v1/notificaciones/procesar': ['Procesar la cola de avisos', 'Tarea programada. Respeta el consentimiento por canal: sin registro, no se contacta.'],
+  'GET /salud': ['Salud para el balanceador', 'Comprueba la base de verdad.'],
+  'GET /salud/detalle': ['Salud detallada', 'Base, particiones, fugas de lectura y ultimo mantenimiento.'],
+};
+
+function esc(s) { return String(s).replace(/"/g, '\\"'); }
+
+async function main() {
+  const app = await NestFactory.create(AppModule, { logger: false });
+  await app.init();
+  const servidor = app.getHttpAdapter().getInstance();
+  const capa = servidor._router?.stack ?? [];
+
+  const rutas = [];
+  for (const c of capa) {
+    if (!c.route) continue;
+    for (const m of Object.keys(c.route.methods)) {
+      if (m === '_all') continue;
+      rutas.push({ metodo: m.toUpperCase(), ruta: c.route.path });
+    }
+  }
+  rutas.sort((a, b) => (a.ruta + a.metodo).localeCompare(b.ruta + b.metodo));
+
+  const porRuta = new Map();
+  for (const r of rutas) {
+    if (!porRuta.has(r.ruta)) porRuta.set(r.ruta, []);
+    porRuta.get(r.ruta).push(r.metodo);
+  }
+
+  let y = '';
+  y += 'openapi: 3.1.0\n';
+  y += 'info:\n';
+  y += '  title: CasaRoca System AI · API\n';
+  y += '  version: "' + (process.env.APP_VERSION || '1.0.0') + '"\n';
+  y += '  description: |\n';
+  y += '    API del sistema eclesial de Casa Sobre la Roca: una central y 36 sedes.\n\n';
+  y += '    ESTE ARCHIVO SE GENERA. No lo edite a mano: corra `scripts/generar-openapi.js`.\n';
+  y += '    La verificacion de entrega compara lo generado con lo versionado.\n\n';
+  y += '    Autenticacion: token de portador (Bearer). El token dice que sesion DICE ser;\n';
+  y += '    quien decide es la base, que en cada peticion responde si esa sesion sigue viva.\n';
+  y += '    Por eso cerrar una sesion surte efecto en el instante.\n';
+  y += 'servers:\n';
+  y += '  - url: https://api.casaroca.org\n    description: produccion\n';
+  y += '  - url: https://api.staging.casaroca.org\n    description: pruebas\n';
+  y += '  - url: http://127.0.0.1:3000\n    description: desarrollo\n';
+  y += 'components:\n';
+  y += '  securitySchemes:\n';
+  y += '    portador:\n      type: http\n      scheme: bearer\n      bearerFormat: JWT\n';
+  y += '  schemas:\n';
+  y += '    Error:\n';
+  y += '      type: object\n';
+  y += '      properties:\n';
+  y += '        error: { type: boolean }\n';
+  y += '        mensaje: { type: string, description: "En castellano y con la accion siguiente. Nunca filtra la estructura interna." }\n';
+  y += '        peticionId: { type: string, description: "Identificador de traza. El usuario lo lee por telefono al soporte." }\n';
+  y += 'security:\n  - portador: []\n';
+  y += 'paths:\n';
+
+  const publicas = new Set(['/salud', '/salud/detalle', '/api/v1/auth/entrar', '/api/v1/auth/refrescar']);
+
+  for (const [ruta, metodos] of porRuta) {
+    y += '  ' + ruta + ':\n';
+    for (const m of metodos) {
+      const clave = m + ' ' + ruta;
+      const d = DESCRIPCIONES[clave];
+      y += '    ' + m.toLowerCase() + ':\n';
+      y += '      summary: "' + esc(d ? d[0] : 'Sin descripcion declarada') + '"\n';
+      if (d) y += '      description: "' + esc(d[1]) + '"\n';
+      else   y += '      description: "⛔ Esta ruta no tiene descripcion en generar-openapi.js. Agreguela antes de entregar."\n';
+      if (publicas.has(ruta)) y += '      security: []\n';
+      y += '      responses:\n';
+      y += '        "200": { description: correcto }\n';
+      if (!publicas.has(ruta)) y += '        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }\n';
+      y += '        "429": { description: "demasiadas peticiones" }\n';
+      y += '        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }\n';
+    }
+  }
+
+  const salida = path.join(API, 'openapi.yaml');
+  fs.writeFileSync(salida, y, 'utf8');
+  const sinDescribir = rutas.filter(r => !DESCRIPCIONES[r.metodo + ' ' + r.ruta]).length;
+  console.log(`✔ ${salida}`);
+  console.log(`  ${rutas.length} rutas · ${sinDescribir} sin descripcion declarada`);
+  await app.close();
+}
+main().catch(e => { console.error('⛔ ' + e.message); process.exit(1); });

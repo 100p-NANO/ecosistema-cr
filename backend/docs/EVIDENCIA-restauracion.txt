@@ -1,0 +1,7 @@
+════════════════════════════════════════════════════
+RESTAURACION EJECUTADA · 2026-09-19 22:28:51 -05
+  archivo:   casaroca-20260919-222850.dump
+  duracion:  0s
+  conteos:   personas=57 sedes=6 membresias=59 aportes=12 auditoria=117
+  fugas RLS: 0
+  veredicto: OK
