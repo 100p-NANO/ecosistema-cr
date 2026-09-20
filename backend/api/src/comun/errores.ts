@@ -69,7 +69,22 @@ export class FiltroDeErrores implements ExceptionFilter {
     if (e instanceof HttpException) {
       const cuerpo = e.getResponse();
       const mensaje = typeof cuerpo === 'string' ? cuerpo : (cuerpo as any)?.mensaje ?? (cuerpo as any)?.message ?? 'Error';
-      return res.status(e.getStatus()).json({ error: true, mensaje, peticionId: id });
+      /* ⛔ 20 de septiembre de 2026. Aquí se reconstruía el cuerpo con TRES
+         campos y se tiraba todo lo demás. Parece inofensivo y dejaba a
+         media iglesia fuera del sistema: al entrar con el segundo factor
+         ya activo, `auth.service` lanza
+         `UnauthorizedException({ mensaje, faltaSegundoFactor: true })`, y
+         esa bandera es la que hace que la pantalla enseñe el campo de los
+         seis dígitos. Como se perdía aquí, el campo NO APARECÍA NUNCA:
+         quien ya tenía el segundo factor activo —es decir, todo el que
+         alcanza datos N4: menores, consejería, aportes— no podía volver a
+         entrar. El primer ingreso funciona porque va por otra rama.
+         Se conservan los campos extra. El mensaje, el marcador de error y
+         el identificador de la petición mandan sobre ellos, para que un
+         cuerpo mal formado no pueda pisarlos. */
+      const extra = (cuerpo && typeof cuerpo === 'object') ? { ...(cuerpo as any) } : {};
+      delete extra.message; delete extra.statusCode; delete extra.error;
+      return res.status(e.getStatus()).json({ ...extra, error: true, mensaje, peticionId: id });
     }
 
     /* Cuerpo demasiado grande: 413, no 500. */

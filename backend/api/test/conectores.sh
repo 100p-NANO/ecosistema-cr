@@ -109,20 +109,20 @@ comprobar "reiniciar segundo factor · lo deja apagado" "f" \
 # ── 3. Otorgar un rol · el fallo del acta ────────────────────────────
 echo "· Roles otorgados a una persona"
 post "/identidad/personas/$PID/otorgar" \
-  "{\"roles\":[{\"rol\":\"CONSEJERO\",\"alcanceTipo\":\"sede\",\"alcanceId\":\"$SEDE\",\"acta\":\"ACTA-CX-$SX\"}]}"
+  "{\"roles\":[{\"rol\":\"PASTOR_CONGREGACIONAL\",\"alcanceTipo\":\"sede\",\"alcanceId\":\"$SEDE\",\"acta\":\"ACTA-CX-$SX\"}]}"
 comprobar "otorgar rol · el ACTA llega a la base (el fallo del 20 sep)" "ACTA-CX-$SX" \
   "$(sql "SELECT acta_referencia FROM identidad.asignaciones
-          WHERE persona_id='$PID' AND rol='CONSEJERO' AND vigente_hasta IS NULL")"
+          WHERE persona_id='$PID' AND rol='PASTOR_CONGREGACIONAL' AND vigente_hasta IS NULL")"
 comprobar "otorgar rol · queda anotado quién lo otorgó" "$DG" \
   "$(sql "SELECT otorgado_por FROM identidad.asignaciones
-          WHERE persona_id='$PID' AND rol='CONSEJERO' AND vigente_hasta IS NULL")"
+          WHERE persona_id='$PID' AND rol='PASTOR_CONGREGACIONAL' AND vigente_hasta IS NULL")"
 post "/identidad/personas/$PID/otorgar" \
   "{\"roles\":[{\"rol\":\"AUDITOR\",\"alcanceTipo\":\"organizacion\"}]}"
 comprobar "otorgar rol SIN acta · se rechaza, no se otorga a ciegas" "0" \
   "$(sql "SELECT count(*) FROM identidad.asignaciones WHERE persona_id='$PID' AND rol='AUDITOR'")"
 
 ASIG=$(sql "SELECT id FROM identidad.asignaciones
-            WHERE persona_id='$PID' AND rol='CONSEJERO' AND vigente_hasta IS NULL")
+            WHERE persona_id='$PID' AND rol='PASTOR_CONGREGACIONAL' AND vigente_hasta IS NULL")
 del() { RES=$(curl -s -X DELETE -H "$H" -H "Authorization: Bearer $T" -d "$2" "$A$1"); }
 del "/identidad/asignaciones/$ASIG" '{}'
 comprobar "revocar SIN motivo · se rechaza, no se revoca a ciegas" "1" \
@@ -134,6 +134,20 @@ comprobar "revocar rol · el MOTIVO llega a la base" "Fin de la prueba de conect
   "$(sql "SELECT motivo_revocacion FROM identidad.asignaciones WHERE id='$ASIG'")"
 comprobar "revocar rol · queda anotado QUIÉN revocó" "$DG" \
   "$(sql "SELECT revocada_por FROM identidad.asignaciones WHERE id='$ASIG'")"
+# ⛔ EL EFECTO, no la fila. Este banco comprobaba que el papel quedara bien
+#    escrito y NO que el permiso se fuera. Por eso no vio, durante toda una
+#    tarde, que revocar un rol dejaba el permiso vivo hasta la medianoche.
+comprobar "revocar rol · LA PERSONA PIERDE EL PERMISO, no solo la fila" "f" \
+  "$(sql "SELECT identidad.puede('$PID','personas','ver')")"
+comprobar "revocar rol · y pierde el techo" "0" \
+  "$(sql "SELECT identidad.nivel_max_de('$PID')")"
+
+# ⛔ Un rol NO se otorga con un alcance más ancho que su máximo: era la
+#    segunda escalada (dos clics para volver global a alguien de una sede).
+post "/identidad/personas/$PID/otorgar" \
+  "{\"roles\":[{\"rol\":\"CONSEJERO\",\"alcanceTipo\":\"organizacion\",\"acta\":\"ACTA-ESC-$SX\"}]}"
+comprobar "otorgar un rol MÁS ANCHO que su máximo · se niega" "0" \
+  "$(sql "SELECT count(*) FROM identidad.asignaciones WHERE persona_id='$PID' AND rol='CONSEJERO'")"
 del "/identidad/asignaciones/$ASIG" '{"motivo":"Intentar revocar dos veces"}'
 comprobar "revocar dos veces · avisa que ya estaba revocado" "1" \
   "$(if grep -q '"error":true' <<<"$RES"; then echo 1; else echo 0; fi)"
@@ -153,9 +167,9 @@ comprobar "revocar el ÚLTIMO rol que administra la red · se niega" "1" \
 # ── 3b. Recertificar y cerrar sesiones ───────────────────────────────
 echo "· Recertificacion y vigilancia"
 post "/identidad/personas/$PID/otorgar" \
-  "{\"roles\":[{\"rol\":\"CONSEJERO\",\"alcanceTipo\":\"sede\",\"alcanceId\":\"$SEDE\",\"acta\":\"ACTA-REC-$SX\"}]}"
+  "{\"roles\":[{\"rol\":\"PASTOR_CONGREGACIONAL\",\"alcanceTipo\":\"sede\",\"alcanceId\":\"$SEDE\",\"acta\":\"ACTA-REC-$SX\"}]}"
 REC=$(sql "SELECT id FROM identidad.asignaciones
-           WHERE persona_id='$PID' AND rol='CONSEJERO' AND revocada_en IS NULL LIMIT 1")
+           WHERE persona_id='$PID' AND rol='PASTOR_CONGREGACIONAL' AND revocada_en IS NULL LIMIT 1")
 comprobar "el numero de «por recertificar» cuenta solo los VENCIDOS" "si" \
   "$(if [ "$(sql "SELECT count(*) FROM identidad.v_accesos_por_recertificar WHERE vencido")" \
         -le "$(sql "SELECT count(*) FROM identidad.v_accesos_por_recertificar")" ]; then echo si; else echo no; fi)"
@@ -262,7 +276,7 @@ comprobar "meter a alguien · el ROL EN EL EQUIPO llega a la base" "lider" \
   "$(sql "SELECT rol_en_unidad FROM org.unidad_miembros
           WHERE unidad_id='$UNI' AND persona_id='$PID' AND hasta IS NULL")"
 post "/administracion/unidades/$UNI/roles" \
-  "{\"rol\":\"CONSEJERO\",\"alcanceTipo\":\"sede\",\"alcanceId\":\"$SEDE\",\"nivelMax\":3,\"acta\":\"ACTA-EQ-$SX\"}"
+  "{\"rol\":\"PASTOR_CONGREGACIONAL\",\"alcanceTipo\":\"sede\",\"alcanceId\":\"$SEDE\",\"nivelMax\":3,\"acta\":\"ACTA-EQ-$SX\"}"
 comprobar "otorgar rol al equipo · el acta llega a la base" "ACTA-EQ-$SX" \
   "$(sql "SELECT acta_referencia FROM identidad.asignaciones_unidad
           WHERE unidad_id='$UNI' AND revocada_en IS NULL")"

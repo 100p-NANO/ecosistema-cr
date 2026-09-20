@@ -69,49 +69,41 @@ export class IdentidadService {
    * alguien con un rol y sin el otro, y nadie sabe si fue a propósito.
    * La transacción de la petición ya lo garantiza: si una falla, revierte.
    */
+  /**
+   * Otorgar uno o varios roles a una persona.
+   *
+   * ⛔ 20 de septiembre de 2026. Esto hacía un INSERT directo y solo
+   * comprobaba el techo de nivel. NO llamaba a `exigir_admin_de`, que sí
+   * llama la revocación: se podía DAR lo que no se podía QUITAR. Un
+   * auditor lo probó con una cuenta de CONTABILIDAD, que no administra
+   * identidad, otorgando AUDITOR/N3/organización a otra persona.
+   *
+   * Y el único freno que quedaba era la política de escritura, que solo
+   * mira si quien llama es global: por eso un administrador de UNA sede
+   * recibía 403 al otorgar dentro de su propia sede, mientras revocar sí
+   * le funcionaba.
+   *
+   * Ahora va por `identidad.otorgar_asignacion` (migración 0066), que
+   * lleva el guardia dentro, respeta el techo de quien llama y no deja
+   * otorgar un alcance más ancho que el máximo del rol.
+   */
   async otorgar(c: PoolClient, personaId: string, lista: any[]) {
-    const ctx = contextoActual();
     if (!Array.isArray(lista) || !lista.length) {
       throw new BadRequestException('No se indicó ningún rol que otorgar.');
     }
     const salida = [];
     for (const a of lista) {
-      if (!a.rol) throw new BadRequestException('Falta el código del rol.');
-
-      /* ⛔ 20 sep 2026. El acta se leía de `a.acta` y la consola mandaba
-         `actaReferencia`: el permiso se otorgaba y el papel que lo
-         autoriza se perdía EN SILENCIO. La pregunta número uno de una
-         auditoría de accesos es «¿quién autorizó esto?», y la respuesta
-         quedaba en blanco sin que nadie se enterara. Ahora se aceptan
-         los dos nombres y, sobre todo, SIN ACTA NO SE OTORGA. */
-      const acta = String(a.acta ?? a.actaReferencia ?? '').trim();
-      if (acta.length < 4) {
-        throw new BadRequestException(
-          'Falta el acta que autoriza el rol. Un permiso sin constancia de quién lo autorizó no se otorga.');
-      }
-      const { rows: [rol] } = await c.query(
-        `SELECT codigo, nivel_maximo, alcance_maximo FROM identidad.roles WHERE codigo=$1`, [a.rol]);
-      if (!rol) throw new BadRequestException(`No existe el rol «${a.rol}».`);
-
-      /* ⛔ Nadie otorga por encima de su propio techo. Sin esto, quien
-         tiene N2 podría nombrarse a sí mismo N4 y leer datos de menores. */
-      const techo = Math.min(a.nivelMax ?? rol.nivel_maximo, rol.nivel_maximo);
-      if (techo > ctx.nivelMax) {
-        throw new ForbiddenException(
-          `No puede otorgar nivel N${techo}: su propio techo es N${ctx.nivelMax}.`);
-      }
-      const { rows } = await c.query(
-        `INSERT INTO identidad.asignaciones
-           (persona_id, rol, alcance_tipo, alcance_id, nivel_max,
-            vigente_desde, vigente_hasta, otorgado_por, acta_referencia)
-         VALUES ($1,$2,$3,$4,$5,coalesce($6::date,CURRENT_DATE),$7,$8,$9)
-         RETURNING id, rol, alcance_tipo, alcance_id, nivel_max, vigente_desde, vigente_hasta`,
-        [personaId, a.rol, a.alcanceTipo ?? rol.alcance_maximo, a.alcanceId ?? null,
-         techo, a.desde ?? null, a.hasta ?? null, ctx.personaId, acta]);
-      salida.push(rows[0]);
+      if (!a?.rol) throw new BadRequestException('Falta el código del rol.');
+      const { rows: [r] } = await c.query(
+        `SELECT identidad.otorgar_asignacion($1,$2,$3,$4,$5::smallint,$6,$7::date,$8::date) AS hecho`,
+        [personaId, a.rol, a.alcanceTipo ?? null, a.alcanceId || null,
+         a.nivelMax ?? null, a.acta ?? a.actaReferencia ?? null,
+         a.desde ?? null, a.hasta ?? null]);
+      salida.push(r.hecho);
     }
     return { ok: true, otorgados: salida };
   }
+
 
   /** Cerrar un acceso. ⛔ No se borra: se le pone fecha de fin. */
   /**

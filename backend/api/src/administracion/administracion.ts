@@ -495,7 +495,12 @@ export class AdministracionController {
   /** Meter a alguien en un equipo. Hereda los roles del equipo. */
   @Post('unidades/:id/miembros')
   meterEnEquipo(@Req() req: Request, @Param('id') id: string, @Body() b: any) {
-    exigirNivel(req, 3, 'meter a alguien en un equipo');
+    /* ⛔ N4, no N3. Un auditor lo midió: meter a una persona en un equipo
+       que ya sostiene un rol de alcance de ORGANIZACIÓN la vuelve global
+       al instante, con su token vivo y sin volver a entrar. Es decir, una
+       acción de N3 producía el efecto de una de N4 (la de otorgar un rol
+       al equipo). Los dos caminos piden ahora lo mismo. */
+    exigirNivel(req, 4, 'meter a alguien en un equipo');
     return conSesion(this.db, req, async (c) => {
       try {
         await c.query(`SELECT org.meter_en_equipo($1,$2,$3)`,

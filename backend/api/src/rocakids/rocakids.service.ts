@@ -127,13 +127,34 @@ export class RocakidsService {
     return rows;
   }
 
-  /** Entrar a servir. La base rechaza a quien no tenga antecedentes vigentes. */
+  /**
+   * Entrar a servir. La base rechaza a quien no tenga antecedentes vigentes.
+   *
+   * ⛔ 20 de septiembre de 2026. Esto fallaba con 403 PARA TODO EL MUNDO,
+   * incluido el Pastor Director General, y con ello se caía el domingo
+   * entero: sin este paso ninguna sala llega nunca a dos adultos, y sin
+   * dos adultos no se puede recibir a ningún niño.
+   *
+   * La causa era una línea: `ON CONFLICT ... DO UPDATE`. PostgreSQL exige
+   * el privilegio UPDATE para esa cláusula Y LO COMPRUEBA AUNQUE NO HAYA
+   * CONFLICTO, y la migración 0051 se lo revocó a la aplicación a
+   * propósito, para que nadie pueda reescribir quién sirvió en una sala.
+   *
+   * Se conserva ese candado: el camino normal es un INSERT que no toca
+   * nada, y la reentrada —el voluntario que salió y vuelve— va por una
+   * función con guardia, gemela de `rocakids.salir_de_sala`.
+   */
   async entrarASala(c: PoolClient, salaId: string, personaId: string) {
     const { rows } = await c.query(
       `INSERT INTO rocakids.servidores_sala (sala_id, persona_id, sede_id)
        SELECT $1, $2, sa.sede_id FROM rocakids.salas sa WHERE sa.id = $1
-       ON CONFLICT (sala_id, persona_id, fecha) DO UPDATE SET salio_en = NULL
+       ON CONFLICT (sala_id, persona_id, fecha) DO NOTHING
        RETURNING id`, [salaId, personaId]);
-    return { registrado: true, id: rows[0]?.id };
+    if (rows[0]?.id) return { registrado: true, id: rows[0].id, reentrada: false };
+
+    /* Ya estaba hoy en la sala: o sigue dentro, o salió y vuelve. */
+    const { rows: [r] } = await c.query(
+      `SELECT rocakids.volver_a_sala($1, $2) AS hecho`, [salaId, personaId]);
+    return { registrado: true, ...r.hecho, reentrada: true };
   }
 }
