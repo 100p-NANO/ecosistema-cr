@@ -11,14 +11,17 @@ export function pintarGrupos(c) {
     cargar: () => api.obtener('/api/v1/grupos?limite=100'),
     pintar: (d) => (form?.html ?? '') + (d.grupos.length
       ? tabla(d.grupos, [
-          { titulo: 'Grupo', pintar: g => `<strong>${esc(g.nombre)}</strong><br><span class="ayuda">${esc(g.tipo)}</span>` },
+          /* ⛔ Regla de `docs/DISENO.md`: la acción va en la PRIMERA celda.
+             En un teléfono la última columna de una tabla que se desplaza
+             de lado empieza fuera de la pantalla, y el control no existe. */
+          { titulo: 'Grupo', pintar: g => `<a class="enlace-fila" href="#/grupos/${esc(g.id)}">
+              <strong>${esc(g.nombre)}</strong></a><br><span class="ayuda">${esc(g.tipo)}</span>` },
           { titulo: 'Sede', campo: 'sede' },
           { titulo: 'Reunión', pintar: g => g.dia_reunion ? `${esc(g.dia_reunion)} ${esc(g.hora ?? '')}` : '<span class="ayuda">sin fijar</span>' },
           { titulo: 'Miembros', campo: 'miembros' },
           { titulo: 'Última reunión', pintar: g => g.ultima_reunion
               ? `${esc(g.ultima_reunion)} ${g.dias_sin_reunirse > 45 ? chip(g.dias_sin_reunirse + ' días', 'distintivo--n4') : ''}`
               : chip('nunca', 'distintivo--n4') },
-          { titulo: '', pintar: g => `<a class="boton boton--suave" href="#/grupos/${esc(g.id)}">Abrir</a>` },
         ])
       : vacio('🏠', 'Ningún grupo todavía', 'Cree el primero con el formulario de arriba.')),
   });

@@ -318,8 +318,14 @@ kbd{
 /* ⛔ Sin `flex-wrap`, tres botones en un teléfono se aplastan unos contra
    otros y el texto se parte: «Abrir lo que ve esta» quedaba cortado. */
 .ms-acciones .ms-btn{flex:0 1 auto; white-space:nowrap}
+/* ⛔ Los botones que LLEVAN A OTRA PÁGINA son enlaces, no ventanas
+   emergentes abiertas desde código: esas las bloquea el navegador en
+   silencio y el botón parece muerto.
+   ⛔ Y el selector NO lleva `a.` delante: `a.ms-btn` pesa más que
+      `.ms-btn--primario` y le robaba el azul al botón principal. */
 .ms-btn{
   display:inline-flex; align-items:center; gap:var(--e2);
+  text-decoration:none;
   height:32px; padding:0 var(--e4); border-radius:var(--r); cursor:pointer;
   font:inherit; font-size:13px; font-weight:500;
   background:var(--sup); border:1px solid var(--fil); color:var(--tin);

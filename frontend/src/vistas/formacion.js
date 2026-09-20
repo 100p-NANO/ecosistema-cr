@@ -18,14 +18,14 @@ export function pintarFormacion(c) {
       <h2>Cohortes abiertas</h2>
       ${d.cohortes.length
         ? tabla(d.cohortes, [
-            { titulo: 'Cohorte', pintar: h => `<strong>${esc(h.codigo)}</strong><br><span class="ayuda">${esc(h.curso)}</span>` },
+            { titulo: 'Cohorte', pintar: h => `<a class="enlace-fila" href="#/formacion/${esc(h.id)}">
+                <strong>${esc(h.codigo)}</strong></a><br><span class="ayuda">${esc(h.curso)}</span>` },
             { titulo: 'Programa', campo: 'programa' },
             { titulo: 'Sede', campo: 'sede' },
             { titulo: 'Inicia', campo: 'inicia' },
             { titulo: 'Inscritos', pintar: h => h.cupo
                 ? `${h.inscritos} / ${h.cupo} ${Number(h.inscritos) > h.cupo ? chip('pasado', 'distintivo--n4') : ''}`
                 : String(h.inscritos) },
-            { titulo: '', pintar: h => `<a class="boton boton--suave" href="#/formacion/${esc(h.id)}">Abrir</a>` },
           ])
         : vacio('🎓', 'Ninguna cohorte abierta', 'Abra una con el formulario de arriba.')}
 

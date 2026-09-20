@@ -17,7 +17,8 @@ export function pintarConsejeria(c) {
     cargar: () => api.obtener('/api/v1/consejeria/casos?limite=100'),
     pintar: (d) => (form?.html ?? '') + (d.casos.length
       ? tabla(d.casos, [
-          { titulo: 'Consultante', pintar: k => `<strong>${esc(k.consultante)}</strong>` },
+          { titulo: 'Consultante', pintar: k => `<a class="enlace-fila" href="#/consejeria/${esc(k.id)}">
+              <strong>${esc(k.consultante)}</strong></a>` },
           { titulo: 'Tópico', pintar: k => `${esc(k.topico_nombre || k.topico)}
               ${k.requiere_profesional ? chip('profesional', 'distintivo--n4') : ''}` },
           { titulo: 'Estado', pintar: k => chip(k.estado, k.estado === 'abierto' ? 'distintivo--aviso' : '') },
@@ -25,7 +26,6 @@ export function pintarConsejeria(c) {
               ? esc(k.consejeros) : chip('sin asignar', 'distintivo--n4') },
           { titulo: 'Abierto', pintar: k => `${k.dias_abierto} día(s)` },
           { titulo: 'Sesiones', campo: 'sesiones' },
-          { titulo: '', pintar: k => `<a class="boton boton--suave" href="#/consejeria/${esc(k.id)}">Abrir</a>` },
         ])
       : vacio('🕊', 'Ningún caso abierto', 'Cuando alguien pida acompañamiento, ábralo aquí.')),
   });

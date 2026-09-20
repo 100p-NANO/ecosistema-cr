@@ -21,13 +21,15 @@ export function pintarAsistencia(c) {
           'Abra el servicio del domingo antes de marcar a nadie.');
       }
       return (form?.html ?? '') + tabla(d.servicios.map(s => ({ ...s, __id: s.id })), [
-        { titulo: 'Fecha', pintar: s => `<strong>${esc(s.fecha)}</strong> ${esc(s.hora)}` },
+        /* La acción va en la primera celda, no en la última: regla de
+           `docs/DISENO.md`. */
+        { titulo: 'Fecha', pintar: s => `<a class="enlace-fila" href="#/asistencia/${esc(s.id)}">
+            <strong>${esc(s.fecha)}</strong> ${esc(s.hora)}</a>` },
         { titulo: 'Sede', campo: 'sede' },
         { titulo: 'Servicio', pintar: s => esc(s.nombre || s.tipo) },
         { titulo: 'Contados', pintar: s => s.contados == null
             ? `<span class="ayuda">sin reportar</span>` : `<strong>${esc(s.contados)}</strong>` },
         { titulo: 'Marcados', campo: 'marcados' },
-        { titulo: '', pintar: s => `<a class="boton boton--suave" href="#/asistencia/${esc(s.id)}">Abrir</a>` },
       ]);
     },
   });

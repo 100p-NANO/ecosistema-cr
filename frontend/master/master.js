@@ -49,6 +49,25 @@ const NAV = [
   { id: 'bitacora',   icono: '📖', titulo: 'Quién hizo y quién miró', nivel: 'N4' },
 ];
 
+/**
+ * Dónde vive la aplicación de los pastores.
+ *
+ * ⛔ 20 de septiembre de 2026, por la tarde. Los dos botones que prometen
+ * abrirla hacían `window.open('../index.html#/panel')`. En el repositorio
+ * eso es correcto: la consola vive en `master/` y la aplicación al lado.
+ * Pero en la copia publicada son DOS PÁGINAS DISTINTAS, cada una en su
+ * dirección, y `../index.html` resolvía a la propia consola. Encima, una
+ * ventana emergente abierta desde código la bloquea el navegador sin
+ * decir nada. Daniel pulsaba el botón y «no me dirige a nada»: las dos
+ * cosas a la vez.
+ *
+ * Ahora es un ENLACE de verdad (no una ventana emergente, que se bloquea)
+ * y el destino se puede fijar desde fuera, que es lo que hace la copia
+ * publicada en su `index.html`.
+ */
+const APP_PASTORES = (typeof window !== 'undefined' && window.CASAROCA_APP_PASTORES)
+  || '../index.html';
+
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
   c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 const niv = (n) => `<span class="ms-niv ms-niv--${Number(n) || 0}">N${Number(n) || 0}</span>`;
@@ -1163,7 +1182,8 @@ Object.assign(VISTAS, {
             <div class="ms-kpi"><b>${esc(f.conteo.modulos_encendidos)}</b><span>módulos encendidos</span></div>
           </div>
           <div class="ms-acciones" style="margin:16px 0">
-            <button class="ms-btn ms-btn--primario" id="f-ver">Abrir la aplicación de los pastores</button>
+            <a class="ms-btn ms-btn--primario" id="f-ver" href="${esc(APP_PASTORES)}#/panel"
+               target="_blank" rel="noopener">Abrir la aplicación de los pastores ↗</a>
             <button class="ms-btn" id="f-mod">Cambiar sus módulos</button>
             <button class="ms-btn" id="f-pas">Asignar pastor</button>
           </div>
@@ -1194,7 +1214,8 @@ Object.assign(VISTAS, {
             ? f.unidades.map(u => `<span class="ms-chip">${esc(u.nombre)}</span>`).join('')
             : '<span class="ms-vacio">Ninguna.</span>'}</div>`);
 
-        z.querySelector('#f-ver').addEventListener('click', () => window.open('../index.html#/panel', '_blank', 'noopener'));
+        /* Es un enlace, no una ventana emergente: lo de antes lo bloqueaba
+           el navegador y no pasaba nada al pulsarlo. */
         z.querySelector('#f-mod').addEventListener('click', () => { z.remove(); location.hash = '#/modulos/' + id; });
         z.querySelector('#f-pas').addEventListener('click', async () => {
           const personas = await opcPersonas();
@@ -1389,7 +1410,8 @@ Object.assign(VISTAS, {
             ${x.id === pedida ? 'selected' : ''}>${esc(x.codigo)} · ${esc(x.nombre)}</option>`).join('')}</select>
         </label>
         <span class="ms-barra__sp"></span>
-        <button class="ms-btn" id="b-ver">Abrir la aplicación de los pastores</button>
+        <a class="ms-btn" id="b-ver" href="${esc(APP_PASTORES)}#/panel"
+           target="_blank" rel="noopener">Abrir la aplicación de los pastores ↗</a>
       </div>
       <div id="lista">${cargando}</div>`;
 
@@ -1399,11 +1421,12 @@ Object.assign(VISTAS, {
        los pastores todavía no toma la sede de la dirección, así que el
        botón dice la verdad y, de paso, deja el código de la iglesia a la
        vista para que se sepa cuál se estaba mirando. */
+    /* Un `<a target="_blank">` no lo bloquea el navegador; una ventana
+       emergente abierta desde código, sí. */
     m.querySelector('#b-ver').addEventListener('click', () => {
       const s = sedes.find(x => x.id === sel.value);
       avisar('Se abre la aplicación de los pastores con SU usuario. Todavía no entra situada en '
         + (s ? s.codigo : 'esa iglesia') + ': eso exige que la aplicación acepte la sede en la dirección.', 'ambar');
-      window.open('../index.html#/panel', '_blank', 'noopener');
     });
 
     const pintarLista = async () => {
