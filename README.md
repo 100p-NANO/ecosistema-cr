@@ -7,17 +7,25 @@ Hasta ahora esto vivía en tres carpetas sueltas y en documentos de Drive. Aquí
 sobre todo, **revisable línea por línea** — que es lo que pidió el CTO.
 
 ```
-backend/           Fase 1 · PostgreSQL 16 · 32 migraciones SQL + 89 pruebas + API NestJS
+backend/           PostgreSQL 16 · 58 migraciones + 22 semillas + 16 bancos · API NestJS
+frontend/          La aplicación real: móvil primero, sin paso de construcción
+infra/gcp/         Terraform (16 archivos), validado y SIN aplicar
+docs/              Arquitectura, infraestructura, runbook, entrega, checklist y puesta en marcha
 fase0-prototipo/   El prototipo navegable: ~26.000 líneas de JS sin framework, 127 archivos
 web/               El sitio unificado que hoy está desplegado en Netlify
 ```
+
+**Por dónde empezar si llegas hoy:** `docs/HANDOFF.md` dice en qué estado está cada columna
+(backend, frontend, infraestructura) sin suavizarlo; `docs/RUNBOOK.md`, qué hacer cuando algo se
+rompe; y `docs/PUESTA-EN-MARCHA-GCP.md`, cómo se instala todo esto el día que exista la cuenta de
+Google Cloud.
 
 ## Por dónde empezar según quién seas
 
 | Si eres… | Abre esto primero |
 |---|---|
-| **Jhon** (desarrollo e infraestructura) | `backend/db/migrations/` — las 31 migraciones en orden, y `backend/db/tests/` |
-| **Manuel** (testing y calidad) | `backend/db/tests/` — los 5 bancos de invariantes, y `backend/docs/EVIDENCIA-pruebas.txt` |
+| **Jhon** (desarrollo e infraestructura) | `backend/db/migrations/` — las 58 migraciones en orden, `infra/gcp/README.md` y `docs/PUESTA-EN-MARCHA-GCP.md` |
+| **Manuel** (testing y calidad) | `backend/db/tests/` — los 16 bancos de invariantes, y `backend/scripts/verificar.sh`, que es la compuerta |
 | **Ps. Carlos Ricardo** (gerencia) | `backend/entregas-drive/` — los documentos de arquitectura, modelo financiero y plan |
 
 ## Cómo se corre la base de datos (3 comandos, sin nube ni Docker)
@@ -25,11 +33,14 @@ web/               El sitio unificado que hoy está desplegado en Netlify
 ```bash
 cd backend
 ./scripts/arrancar.sh    # PostgreSQL 16 local en el puerto 5433
-./scripts/migrar.sh      # recrea casaroca_dev: 32 migraciones + seeds
-./scripts/probar.sh      # 89 pruebas
+./scripts/migrar.sh      # recrea casaroca_dev: 58 migraciones + 22 semillas
+./scripts/probar.sh      # 16 bancos, 217 invariantes
+./scripts/verificar.sh   # LA COMPUERTA: once verificaciones, de la base a Terraform
 ```
 
-Última corrida verificada: **11 de septiembre de 2026 · 32 migraciones limpias · 89/89 en verde.**
+Última corrida verificada: **20 de septiembre de 2026 · 58 migraciones limpias · 16 bancos, 217
+invariantes · 19 pruebas de autenticación · 42 de la API · Terraform válido y probado · 0 fugas
+de lectura.**
 
 ## Qué está demostrado, no solo diseñado
 
@@ -64,9 +75,10 @@ se había puesto donde se estaba mirando, no donde estaban todos los datos.
 
 ## Lo que está abierto y necesita decisión de la mesa
 
-1. **`personas` sin `sede_id`.** En el modelo v1.1 del equipo no existe esa columna. Sin ella
-   no hay multi-tenancy ni RLS posible para las 36 sedes. Está detallado, con la corrección ya
-   implementada, en `backend/entregas-drive/01-Estructura-Datos/DIVERGENCIAS-Y-CORRECCIONES.md`.
+1. ✅ **`personas` sin `sede_id`** — **cerrado.** La columna existe y, desde el 19 de septiembre,
+   además está `nucleo.membresias_sede` con vigencia: una persona puede pertenecer a una sede y
+   servir en otra, y trasladarla ya no reescribe su pasado ni entrega su historia a la sede
+   nueva. Este punto llevaba nueve días figurando como abierto sin estarlo.
 2. **Región de GCP.** São Paulo en vez de `us-east1` cuesta unos 575.000 COP/mes más. Depende
    de la cláusula de residencia de datos. Ver `backend/entregas-drive/04-Infraestructura-Operacion/`.
 3. **La llave de cifrado.** En desarrollo viene de un GUC. **En producción debe venir del KMS**,
@@ -74,5 +86,10 @@ se había puesto donde se estaba mirando, no donde estaban todos los datos.
 
 ## Advertencia que sigue vigente
 
-Esto certifica que **lo diseñado** cubre los controles. No certifica que lo construido los
-cumpla en producción: eso lo verifica la prueba de intrusión externa de la compuerta G5.
+Esto certifica que **lo diseñado** cubre los controles y que **lo construido** pasa la compuerta
+completa. **No certifica que lo desplegado los cumpla en producción, porque todavía no hay
+producción:** la infraestructura está escrita, validada y sin aplicar. Eso lo verifica la prueba
+de intrusión externa de la compuerta G5, sobre la infraestructura ya aplicada.
+
+**Y el frontend no está completo:** cubre 3 de los 22 módulos declarados (personas, check-in de
+RocaKids y la consola de catálogos). Está dicho con ese nombre en `docs/HANDOFF.md`.

@@ -19,7 +19,7 @@
 | **Backend · datos** | 🟠 | 41 migraciones, 76 tablas en 14 esquemas, 8 bancos de prueba. Sólido, con tres huecos estructurales (H-02, H-03, H-04) |
 | **Backend · API** | 🔴 | Sin autenticación, sin validación, sin límite de tasa, sin especificación, sin `/health`. 6 módulos expuestos |
 | **Frontend** | 🔴 | `frontend/src` contiene 5 hojas de estilo y ningún componente. Lo vivo es el prototipo y el sitio de Netlify |
-| **Infraestructura** | 🔴 | 21 archivos de Terraform escritos y **ninguno aplicado**. Sin ambientes, sin CI, sin copia restaurada. La API corre en el Mac de Daniel |
+| **Infraestructura** | 🔴 | 16 archivos de Terraform escritos y **ninguno aplicado**. Sin ambientes, sin CI, sin copia restaurada. La API corre en el Mac de Daniel |
 
 **Cómo se reporta a la mesa, sin suavizarlo:** el modelo de datos está terminado a un 85 %. El producto está terminado a un 30 %. **Hoy esto no se puede poner en manos de 36 sedes.**
 
@@ -84,7 +84,7 @@ Este es exactamente el «la base es rígida» que Daniel intuyó. Es el hallazgo
 **Arreglo:** unidad organizativa jerárquica (red → región → sede → campus), `org.equipos` con líder y `org.equipo_miembros` con vigencia, y `tipo_alcance` ampliado con `equipo` y `region`. Nota: ampliar ese enumerado es justo el problema de H-04, así que los dos arreglos se hacen juntos.
 
 ### 🔴 H-06 · La infraestructura está escrita y no está aplicada
-**Evidencia:** `infra/gcp/` tiene 21 archivos de Terraform (`sql.tf`, `kms.tf`, `run.tf`, `observabilidad.tf`, `red_y_redis.tf`, `balanceador.tf`, `ci.tf`) y una prueba `fases.tftest.hcl`. No hay estado aplicado, no existe `.github/`, y la API se conecta a `PGHOST=/tmp` con `PGPORT=5433`: un PostgreSQL local.
+**Evidencia:** `infra/gcp/` tiene 16 archivos de Terraform (`sql.tf`, `kms.tf`, `run.tf`, `observabilidad.tf`, `red_y_redis.tf`, `balanceador.tf`, `ci.tf`) y una prueba `fases.tftest.hcl`. No hay estado aplicado, no existe `.github/`, y la API se conecta a `PGHOST=/tmp` con `PGPORT=5433`: un PostgreSQL local.
 **Qué significa:** no hay tres ambientes, no hay integración continua, no hay copia de seguridad, no hay restauración probada, no hay alertas, no hay monitoreo externo. Lo que está «en línea» es el sitio de Netlify leyendo una API que corre en un portátil que se duerme al 1 % de batería. Para un auditor, esto es la diferencia entre un producto y una demostración.
 **Ítems:** B11.01 a B11.14. Preguntas **5** y **15** del auditor.
 **Arreglo por orden:** aplicar Terraform en `staging`, subir la API a Cloud Run, base gestionada con copia diaria, **ejecutar una restauración y anotar fecha y duración**, CI en GitHub Actions que corra las migraciones y los 8 bancos, y presupuesto con alerta.
@@ -223,3 +223,30 @@ Este es exactamente el «la base es rígida» que Daniel intuyó. Es el hallazgo
 | 15 | Qué hay en producción fuera del repositorio | 🟠 Nada, porque **todavía no hay producción** |
 
 **Doce de quince contestadas con evidencia.** Las tres que faltan son trámites y decisiones de la mesa, no trabajo de ingeniería: el registro ante la SIC, la segunda persona que sepa operar esto, y aplicar la infraestructura.
+
+
+---
+
+# Apéndice · La madrugada del 20 de septiembre
+
+Esta auditoría se escribió el 19. Lo que sigue pasó después, al revivir tres bancos de la API
+que llevaban desde H-01 sin correr (42 comprobaciones que la documentación daba por buenas), y
+al instalar Terraform por primera vez en la máquina para validarlo de verdad.
+
+**No fueron fallos de las pruebas: fueron fallos del producto que nadie veía porque quien tenía
+que verlos estaba apagado.** Están en `docs/HANDOFF.md`, sección 2b, como H-14 a H-23. Los tres
+que más pesan:
+
+1. **Toda donación devolvía 500.** El módulo de Aportes estaba roto entero desde la migración
+   0046, que borró un enumerado que el código seguía citando dentro de una cadena de SQL.
+2. **La salvaguarda de menores no llegaba por la API.** Dos versiones de `registrar_checkin`
+   vivas; el banco probaba la endurecida y la API llamaba a la vieja. Por la aplicación se podía
+   entregar a un niño sin figurar como acudiente.
+3. **El procedimiento de rotar la llave N4 destruía los datos.** Un procedimiento equivocado es
+   peor que no tener procedimiento: se sigue con confianza.
+
+**Y una corrección de método**, que es la lección que queda: en esta auditoría se contaron
+«21 archivos de Terraform» sin haberlos contado, y se dio por buena una infraestructura que
+nunca había pasado por `terraform validate`. Son 16, y al validarlos aparecieron cuatro cosas
+(estado local, sin sonda externa, sonda de arranque por puerto, Cloud Armor sin morder). Auditar
+leyendo no es auditar: hay que correr la herramienta.

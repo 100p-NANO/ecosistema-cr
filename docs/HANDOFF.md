@@ -9,12 +9,20 @@
 
 | Columna | Estado | Evidencia |
 |---|---|---|
-| **Backend · datos** | ✅ | 49 migraciones + 21 semillas, aplicadas desde cero en máquina limpia · **14 bancos, 176 invariantes en verde** · `scripts/probar.sh` |
-| **Backend · API** | ✅ | Autenticación real con segundo factor · **19 pruebas de punta a punta** · `openapi.yaml` generado con 50 rutas, todas descritas · validación, límite de peticiones, cabeceras, traza y `/salud` |
-| **Frontend** | 🟠 | Aplicación real con entrada, segundo factor, navegación **por permiso**, búsqueda, check-in **sin conexión** y consola de catálogos. Verificada en navegador, móvil y escritorio, contraste AA medido. Faltan las pantallas de Aportes, Consejería, Formación y Analítica |
-| **Infraestructura** | 🔴 | 21 archivos de Terraform **escritos y sin aplicar**. Copia y **restauración ejecutadas de verdad** (`backend/docs/EVIDENCIA-restauracion.txt`), integración continua escrita, nueve compuertas en `scripts/verificar.sh`. **Falta crear los proyectos de GCP y aplicar** |
+| **Backend · datos** | ✅ | 58 migraciones + 22 semillas, aplicadas desde cero en máquina limpia · **16 bancos, 217 invariantes en verde** · `scripts/probar.sh` |
+| **Backend · API** | ✅ | Autenticación real con segundo factor · **19 pruebas de autenticación + 42 de la API** (humo, Drive 100p y extremo a extremo), las tres dentro de la compuerta · `openapi.yaml` con **62 rutas**, todas descritas · validación, límite de peticiones, cabeceras, traza y `/salud` · la API **se niega a arrancar** con un rol que pueda saltarse RLS |
+| **Frontend** | 🟠 | Aplicación real con entrada, segundo factor, navegación **por permiso**, búsqueda, check-in **sin conexión** y consola de catálogos. Verificada en navegador, móvil y escritorio, contraste AA medido. **Cubre 3 de los 22 módulos declarados** |
+| **Infraestructura** | 🔴 | **16 archivos de Terraform, validados de verdad** (`validate`, `fmt -check`, `test`: 6 casos) y **sin aplicar**. Copia y **restauración ejecutadas** (`backend/docs/EVIDENCIA-restauracion.txt`), integración continua escrita, **once compuertas** en `scripts/verificar.sh`. **Falta crear los proyectos de GCP y aplicar** |
 
-**Cómo se dice en la mesa:** el modelo de datos y la API están listos para producción. El frontend cubre el núcleo y le faltan cuatro módulos. **La infraestructura está escrita y no aplicada, así que el sistema todavía no está en producción**, y eso no se suaviza: lo que falta es media jornada de trabajo con las llaves de Google Cloud en la mano.
+**Cómo se dice en la mesa:** el modelo de datos y la API están listos para producción. **El frontend NO está completo: tiene tres pantallas de veintidós módulos.** Cubre lo que se usa un domingo (buscar personas, check-in de RocaKids) y la consola de catálogos; lo demás se opera todavía por API o no se opera.
+
+> ⚠️ **Esta tabla decía antes «faltan las pantallas de Aportes, Consejería, Formación y Analítica»,
+> como si fueran cuatro.** Son diecinueve. Se corrige aquí porque un informe de entrega que
+> minimiza lo que falta es exactamente lo que un auditor busca, y con razón: la diferencia entre
+> «faltan cuatro pantallas» y «hay tres de veintidós» es la diferencia entre un remate y medio
+> proyecto de frontend.
+
+**La infraestructura está escrita y no aplicada, así que el sistema todavía no está en producción**, y eso no se suaviza. Aplicarla es media jornada con las llaves de Google Cloud en la mano, y el paso a paso está en `docs/PUESTA-EN-MARCHA-GCP.md`.
 
 ## 2 · Lo que se cerró el 19 de septiembre de 2026
 
@@ -41,6 +49,31 @@
 | **Cinco catálogos bloqueantes vacíos** | Consejería, Formación y RocaKids **no se podían usar**: no se abría un caso, no se inscribía a nadie y **no se hacía el check-in de un solo niño** |
 | **Revocar un acceso solo surtía efecto al día siguiente** | Sacar a alguien del equipo de Finanzas a las 10:00 lo dejaba dentro hasta la medianoche |
 
+## 2b · Lo que apareció en la madrugada del 20 de septiembre, al revivir las pruebas muertas
+
+Tres bancos de la API (42 comprobaciones) se identificaban con la cabecera `X-Persona-Id`, que se
+eliminó al cerrar H-01. Quedaron **muertos y fuera de la compuerta**, y los README seguían
+afirmando su resultado. Al hacerlos entrar por la puerta de verdad aparecieron **fallos que
+estaban en el producto, no en las pruebas**:
+
+| # | Hallazgo | Por qué importa | Cómo se cerró |
+|---|---|---|---|
+| H-14 | **Toda donación devolvía 500** | El código seguía escribiendo `::aportes.tipo_aporte`, un enumerado que la migración 0046 convirtió en catálogo y **borró**. TypeScript no mira dentro de una cadena de SQL. El módulo de Aportes estaba roto entero | Se quitó el cast y hay una **compuerta nueva** que compara cada tipo citado por la API contra los tipos vivos de la base |
+| H-15 | **Quien no autorizaba correo no podía ser miembro** | Convertir disparaba el aviso de bienvenida, el aviso exigía consentimiento, y al no haberlo **se deshacía la transacción entera**: la persona no llegaba a existir. Además se exigía consentimiento para finalidades cuya base legal **no** es el consentimiento (Ley 1581, art. 10): un certificado que la persona misma pidió | Migración 0055: el consentimiento se exige donde la ley lo exige, y lo que no se puede enviar **queda escrito** en `plataforma.avisos_no_enviados` con su motivo en vez de tumbar la operación |
+| H-16 | **La API podía arrancar como superusuario** | Si heredaba `PGUSER` del entorno se conectaba como `postgres`, que **se salta todas las políticas**. Medellín veía la bandeja de Bogotá y nada fallaba a la vista. Pasaba dentro de la propia compuerta | La API **se niega a levantar** con un rol superusuario o con `BYPASSRLS` |
+| H-17 | **La salvaguarda de menores no llegaba por la API** | Quedaban dos `registrar_checkin` vivas: la vieja (5 argumentos) y la endurecida (6). **La API llamaba con cinco.** Por la aplicación se podía entregar a un niño sin figurar como acudiente, y una sala con un solo adulto recibía sin decir nada. El banco probaba una puerta y el producto entraba por la otra | Se tumbó la sobrecarga vieja y la API llama a la endurecida |
+| H-18 | **El check-in reventaba un domingo por una salida de la semana anterior** | Un ingreso que se quedó abierto hacía que el del domingo siguiente chocara con el índice único: error en crudo, en la pantalla, a las nueve, con la fila de padres | El ingreso abierto **se cierra dejando dicho por qué**. El modelo pasa a tres estados: abierto · entregado · cerrado por el sistema |
+| H-19 | **El procedimiento de rotar la llave N4 destruía los datos** | El RUNBOOK decía que no hacía falta recifrar. El sistema cifra con **una** llave simétrica sin versión: rotar sin recifrar deja ilegibles los códigos de entrega de los menores, y si se destruye la versión anterior en KMS, para siempre | `plataforma.recifrar_n4()` + `scripts/rotar-llave-n4.sh`, probado de ida y vuelta, y el guion se planta si queda una fila ilegible |
+| H-20 | **El estado de Terraform iba a quedar en un portátil** | El `backend "gcs"` estaba comentado. Dos personas aplicando se pisan, no hay bloqueo, y perder el portátil es perder el mapa de la nube | Backend parcial activo: el bucket se pasa en el `init` |
+| H-21 | **Nadie se enteraba de una caída completa** | Todas las alertas viven dentro del proyecto que vigilan. Y la sonda de arranque de Cloud Run era TCP: puerto abierto bastaba, aunque la base estuviera caída | Sonda **externa** de disponibilidad con su alerta, y sondas de arranque y de vida contra `/salud` |
+| H-22 | **El domingo se podía desplegar, y sin copia previa** | Un push a `main` llegaba a producción cualquier día, y las migraciones corrían sin una copia hecha a propósito | Freno de domingo con escape explícito y registrado, y copia bajo demanda etiquetada con el build, antes de migrar |
+| H-23 | **Las conexiones no daban para el domingo** | 10 de negocio y 5 de autenticación por instancia; la puerta era más angosta que la casa. Con 36 sedes a la vez las peticiones no fallan: **se encolan**, justo en la pantalla de check-in | Los pozos salen de la tabla de fases, igual que el número de instancias, y Cloud SQL declara `max_connections` con la misma cuenta. La API avisa al arrancar cuántas instancias caben |
+
+**Y cuatro pruebas que habían dejado de probar lo que decían** (una sala sembrada compartida, un
+líder elegido con `LIMIT 1` sin orden, una invariante que registraba `ACEPTADO` sin mirar nada y
+otra que dependía de cómo quedó la semilla). Todas pasaban en base nueva y fallaban en base
+usada, que es la peor clase de prueba: la que da confianza sin darla.
+
 ## 3 · Cómo se opera
 
 Todo está en **`docs/RUNBOOK.md`**, escrito para que lo siga alguien que no construyó esto. Los cinco comandos que hay que conocer:
@@ -49,8 +82,8 @@ Todo está en **`docs/RUNBOOK.md`**, escrito para que lo siga alguien que no con
 cd backend
 ./scripts/arrancar.sh    # levanta la base local
 ./scripts/migrar.sh      # recrea desde cero
-./scripts/probar.sh      # 14 bancos, 176 invariantes
-./scripts/verificar.sh   # LA COMPUERTA: nueve verificaciones
+./scripts/probar.sh      # 16 bancos, 217 invariantes
+./scripts/verificar.sh   # LA COMPUERTA: once verificaciones
 ./scripts/desplegar.sh staging
 ```
 
@@ -75,7 +108,11 @@ cd backend
 4. Primer despliegue, prueba de carga contra staging, despliegue a producción.
 
 **Ola 2 · para que se pueda entregar a las 36 sedes**
-5. Las cuatro pantallas que faltan (Aportes, Consejería, Formación, Analítica).
+5. **Las pantallas que faltan: 19 de 22 módulos.** Por orden de uso real, no de tamaño:
+   Aportes y Asistencia (todas las semanas), CRM Pastoral · 4C y Grupos (el seguimiento),
+   Consejería y Talento (con datos sensibles, exigen cuidado extra), Formación, Calendario,
+   Comunicaciones, Analítica, y el resto. **No es un remate: es un frente de trabajo completo**,
+   y conviene decirlo con ese nombre al presupuestarlo.
 6. Cablear las cuatro alertas que ya tienen su vista en la base.
 7. **Prueba de intrusión externa** (compuerta G5). Lo diseñado cubre los controles; esto certifica lo construido.
 8. Registro de las bases ante la SIC y publicación del aviso de privacidad.
@@ -94,4 +131,4 @@ cd backend
 
 ## 7 · La advertencia que sigue vigente
 
-Esto certifica que **lo diseñado** cubre los controles y que **lo construido** pasa 176 invariantes de base, 19 pruebas de autenticación y una prueba de carga. **No certifica que lo desplegado los cumpla en producción**, porque todavía no hay producción. Eso lo certifica la prueba de intrusión externa de la compuerta G5, sobre la infraestructura aplicada.
+Esto certifica que **lo diseñado** cubre los controles y que **lo construido** pasa 217 invariantes de base, 19 pruebas de autenticación, 42 de la API y una prueba de carga. **No certifica que lo desplegado los cumpla en producción**, porque todavía no hay producción. Eso lo certifica la prueba de intrusión externa de la compuerta G5, sobre la infraestructura aplicada.

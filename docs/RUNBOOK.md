@@ -21,7 +21,7 @@
 cd backend
 ./scripts/arrancar.sh     # PostgreSQL 16 local, puerto 5433
 ./scripts/migrar.sh       # recrea la base: migraciones + semillas
-./scripts/probar.sh       # los 14 bancos de invariantes
+./scripts/probar.sh       # los 16 bancos de invariantes
 cd api && npm run build && node dist/src/main.js
 ```
 
