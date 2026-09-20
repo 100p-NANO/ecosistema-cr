@@ -105,6 +105,22 @@ jobs:
           diff /tmp/antes.yaml api/openapi.yaml || {
             echo "⛔ openapi.yaml quedó atrás: corra scripts/generar-openapi.js y versione el resultado"; exit 1; }
 
+      # ⛔ La infraestructura tambien es codigo: si no pasa por validate,
+      #    fmt y test, se entera GCP y cuesta dinero.
+      - name: Terraform válido, formateado y probado
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.3
+          terraform_wrapper: false
+
+      - name: Terraform
+        working-directory: infra/gcp
+        run: |
+          terraform init -backend=false
+          terraform validate
+          terraform fmt -check -recursive
+          terraform test
+
       - name: Copia y restauración probada
         working-directory: backend
         run: |

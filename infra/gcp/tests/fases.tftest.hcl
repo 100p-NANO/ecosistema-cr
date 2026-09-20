@@ -62,6 +62,23 @@ run "fase_0_maqueta" {
     condition     = google_cloud_run_v2_service.api.ingress == "INGRESS_TRAFFIC_ALL" && length(google_compute_global_forwarding_rule.https) == 0
     error_message = "Sin dominio no hay balanceador."
   }
+  # ⛔ 19 sep 2026 · La sonda externa se apunta a un nombre público: sin
+  #    dominio no hay nada que sondear desde fuera, y Terraform no debe
+  #    intentar crearla.
+  assert {
+    condition     = length(google_monitoring_uptime_check_config.api) == 0
+    error_message = "Sin dominio no se crea la sonda externa de disponibilidad."
+  }
+  # La sonda de arranque comprueba /salud, no que el puerto abra: un proceso
+  # con el puerto abierto y la base caída NO debe recibir tráfico.
+  assert {
+    condition     = google_cloud_run_v2_service.api.template[0].containers[0].startup_probe[0].http_get[0].path == "/salud"
+    error_message = "La sonda de arranque de la API tiene que preguntar por /salud."
+  }
+  assert {
+    condition     = google_cloud_run_v2_service.api.template[0].containers[0].liveness_probe[0].http_get[0].path == "/salud"
+    error_message = "Sin sonda de vida, una revisión con la base caída contesta 500 durante horas."
+  }
 }
 
 run "fase_1_pruebas" {
@@ -95,6 +112,22 @@ run "fase_1_pruebas" {
   assert {
     condition     = google_logging_project_bucket_config.por_omision.retention_days == 30
     error_message = "La fase 1 guarda registros 30 días."
+  }
+  # ⭐ Con dominio SÍ hay sonda externa, y en cualquier fase: decir «en la
+  #    fase 1 todavía no nos enteramos de que está caído» no tiene sentido.
+  assert {
+    condition     = length(google_monitoring_uptime_check_config.api) == 1 && google_monitoring_uptime_check_config.api[0].http_check[0].path == "/salud"
+    error_message = "Con dominio tiene que existir la sonda externa contra /salud."
+  }
+  # Cloud Armor BLOQUEA por omisión. Si vuelve a nacer en modo vista previa,
+  # el inventario contaría como protección algo que solo mira.
+  # ⛔ No se puede mirar `google_compute_security_policy.armor[0].rule`: en
+  #    `plan` es un conjunto con valores aún desconocidos (Google añade sus
+  #    reglas por omisión). Se mira la variable, que es lo que de verdad se
+  #    cambió y lo que alguien podría volver a poner en `true` sin querer.
+  assert {
+    condition     = var.armor_solo_observar == false
+    error_message = "Cloud Armor no puede venir en modo vista previa por omisión."
   }
 }
 

@@ -11,28 +11,33 @@ nuevo.
 
 ---
 
-## Antes de todo: tres cosas que bloquean producción
+## Antes de todo: qué bloqueaba producción y qué queda
 
-1. **⛔ La API no puede abrirse a internet todavía.** Hoy toma la identidad de la
-   cabecera `X-Persona-Id` (lo dice su propio README: «en producción vendrá en el
-   token de Keycloak»). Quien conozca el id de una persona puede hacerse pasar por
-   ella, incluido el Pastor Director General con N4 sobre toda la red. Por eso
-   `api_publica = false` por omisión: la API solo responde a identidades de Google
-   con permiso (se prueba con `gcloud run services proxy`, paso 7). Abrirla exige
-   antes validar un token real en la API y tener cargado el secreto de reCAPTCHA.
-2. **Seis catálogos quedan vacíos con las semillas de producción.** Medido el 18 sep
-   contra una base nueva: `consejeria.topicos`, `formacion.cohortes`,
-   `formacion.cursos`, `formacion.programas`, `rocakids.salas` y
-   `sistema.atributos`. Otra tabla los exige con `NOT NULL`, así que esas
-   operaciones son imposibles hasta sembrarlos. En desarrollo la prueba
-   `db/tests/catalogos_no_vacios.sql` pasa porque los llenan las pruebas del banco,
-   no las semillas. El migrador lo avisa en cada corrida. Se arregla en
-   `backend/db/seeds/`, no en la infraestructura.
-3. **La sede maestra real.** Producción no lleva la semilla 002 (inventa una
-   persona con N4 sobre toda la organización), pero varias semillas necesitan la
-   sede maestra. El migrador la pide con datos reales en la primera corrida
-   (paso 6). El primer Pastor Director General con acceso también está por crear
-   (taller H-01).
+> **Al 19 de septiembre de 2026 los dos primeros bloqueos están CERRADOS.** Se dejan escritos
+> con su historia porque explican por qué varias variables vienen como vienen.
+
+1. ✅ **«La API no puede abrirse a internet: toma la identidad de la cabecera `X-Persona-Id`».**
+   **Cerrado.** Esa cabecera se eliminó. Hoy la identidad va en un token firmado con `jti`,
+   sesión revocable en el instante, y segundo factor TOTP obligatorio para los roles N3 y N4.
+   Hay 19 pruebas de punta a punta de autenticación y 42 más de la API, todas dentro de la
+   compuerta. `api_publica` sigue en `false` por omisión, pero ya no por esto.
+2. ✅ **«Seis catálogos quedan vacíos con las semillas de producción».** **Cerrado.** Los cinco
+   bloqueantes (`consejeria.topicos`, `formacion.programas`, `formacion.cursos`,
+   `formacion.cohortes`, `rocakids.salas`) los siembra `019_catalogos_que_faltaban.sql`, y
+   `db/tests/catalogos_no_vacios.sql` falla si alguno vuelve a quedar vacío. `sistema.atributos`
+   queda vacío **a propósito**: son los campos que cada sede define, no un catálogo de red.
+3. 🟠 **La sede maestra real.** Sigue abierto, y es de la iglesia, no técnico. Producción no
+   lleva la semilla 002 (inventa una persona con N4 sobre toda la organización). El migrador
+   pide la sede maestra con datos reales en la primera corrida (paso 6), y el primer Pastor
+   Director General con acceso se crea a mano con `scripts/crear-cuenta.js`.
+
+**Lo que queda antes de poner `api_publica = true`:**
+
+| Falta | Quién | Por qué bloquea |
+|---|---|---|
+| `recaptcha-secreto` cargado | Sistemas | El formulario público sin validar es un grifo abierto de registros falsos |
+| Prueba de intrusión externa (compuerta G5) | Tercero contratado | Es la única mirada que no es la nuestra |
+| `armor_solo_observar = false` | Sistemas | Ya es el valor por omisión; hay que confirmarlo en el `tfvars` real |
 
 ---
 
@@ -193,7 +198,8 @@ gcloud storage buckets create gs://casaroca-system-XXXX-tfstate \
 gcloud storage buckets update gs://casaroca-system-XXXX-tfstate --versioning
 ```
 
-Descomentar el bloque `backend "gcs"` de `versions.tf` con ese nombre.
+`versions.tf` ya declara `backend "gcs" {}` como configuración parcial: **no hay que descomentar
+nada**, el bucket se pasa en el `init` del paso siguiente.
 
 ### 3. Variables, prueba y plan
 

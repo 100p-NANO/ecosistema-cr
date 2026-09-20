@@ -106,6 +106,25 @@ PART=$(psql -d "$PGDATABASE" -qtA -c \
 [[ "$PART" == "0" ]] && ok "ninguna partición legible saltándose su madre" \
                      || mal "control de particiones: $PART objeto(s) fuera de BIEN"
 
+echo "══ 8b · La infraestructura escrita es válida"
+# ⛔ 19 sep 2026 · El Terraform se daba por bueno sin haberlo pasado nunca
+#    por `validate`: en este Mac no estaba instalado. Se instalo y aparecio
+#    lo que tenia que aparecer (el backend de estado comentado, la sonda
+#    externa que no existia, la sonda de arranque por puerto). Si la
+#    herramienta no esta, la compuerta lo DICE en vez de callarse: un
+#    silencio parece verde.
+TF="$(command -v terraform || command -v tofu || echo /tmp/tfbin/terraform)"
+if [ -x "$TF" ]; then
+  if ( cd "$RAIZ/../infra/gcp" && "$TF" init -backend=false >/dev/null 2>&1 \
+       && "$TF" validate >/tmp/cr-tf.log 2>&1 \
+       && "$TF" fmt -check -recursive >>/tmp/cr-tf.log 2>&1 \
+       && "$TF" test >>/tmp/cr-tf.log 2>&1 ); then
+    ok "terraform: válido, formateado y $(grep -oE '[0-9]+ passed' /tmp/cr-tf.log | tail -1)"
+  else mal "el Terraform no valida (ver /tmp/cr-tf.log)"; fi
+else
+  echo "  ⚠ terraform no está instalado: la infraestructura NO se verificó en esta corrida"
+fi
+
 echo "══ 9 · La restauración se ejecutó de verdad"
 # ⛔ La version anterior miraba que el archivo EXISTIERA y que su fecha de
 #    modificacion fuera reciente. Nunca leia el veredicto. Una restauracion
