@@ -52,6 +52,15 @@ paths:
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "429": { description: "demasiadas peticiones" }
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/catalogo:
+    get:
+      summary: "Catalogo de gobierno"
+      description: "Lo que la consola necesita en UNA peticion para pintar las casillas: modulos con su nivel de dato, acciones (las seis generales y las propias de cada modulo), roles con su techo y su alcance, niveles de sensibilidad y tipos de documento vigentes. Los tipos de documento salen del catalogo, no de una lista escrita en el frontend: la central los cambia sin desplegar."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /api/v1/administracion/cuentas/:id/desbloquear:
     post:
       summary: "Desbloquear una cuenta"
@@ -114,10 +123,36 @@ paths:
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "429": { description: "demasiadas peticiones" }
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/matriz:
+    get:
+      summary: "Que puede hacer un rol, casilla por casilla"
+      description: "Devuelve TODAS las combinaciones posibles de modulo x accion para ese rol, marcadas o no. La columna `por_encima` avisa de un permiso que engana: existe en la tabla y no sirve, porque el modulo guarda datos mas sensibles que el techo del rol."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    post:
+      summary: "Marcar o desmarcar una casilla"
+      description: "Otorga o quita UNA cosa que un rol puede hacer. Desmarcar borra la fila: un permiso que no esta es un permiso que no existe, no uno apagado. Exige alcance de organizacion."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /api/v1/administracion/organigrama:
     get:
       summary: "El organigrama"
       description: "La central, sus regiones, sus direcciones y sus equipos, con cuantas sedes alcanza cada uno."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/personas/:id:
+    get:
+      summary: "Ficha completa de una persona"
+      description: "Su cuenta, sus roles vigentes con el acta que los autoriza y los equipos a los que pertenece. Es lo que se abre al pulsar a alguien en la consola."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -132,6 +167,24 @@ paths:
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "429": { description: "demasiadas peticiones" }
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/plantillas/:codigo/borrar:
+    post:
+      summary: "Borrar una plantilla"
+      description: "Se niega si ya se desplego alguna iglesia con ella: borrarla dejaria sin explicacion por que esa iglesia nacio como nacio."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/plantillas/:codigo/modulos:
+    post:
+      summary: "Marcar un modulo en la plantilla"
+      description: "Se niega a quitar un modulo de nucleo: sin el, una iglesia nueva no podria ni registrar personas."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /api/v1/administracion/plantillas:
     get:
       summary: "Las plantillas de iglesia"
@@ -141,10 +194,27 @@ paths:
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "429": { description: "demasiadas peticiones" }
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    post:
+      summary: "Crear o renombrar una plantilla"
+      description: "Una plantilla responde a con que modulos nace una iglesia nueva de ese tipo."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /api/v1/administracion/recertificar:
     get:
       summary: "Accesos por recertificar"
       description: "Un permiso que nadie revisa es un permiso que nadie quito."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/roles:
+    post:
+      summary: "Crear o cambiar un rol"
+      description: "Lo que no se manda NO SE TOCA: omitir la descripcion no la borra y omitir `activo` no resucita un rol descontinuado. Bajar el techo o descontinuar el rol queda escrito en la bitacora con a cuantas personas afecta."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -162,6 +232,15 @@ paths:
     post:
       summary: "Encender o apagar un modulo"
       description: "La base impone las reglas: un modulo de nucleo no se apaga, uno con compuerta legal no se enciende sin evidencia, y uno no se enciende si su dependencia esta apagada."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/sedes/:id:
+    get:
+      summary: "Ficha completa de una iglesia"
+      description: "Cuanta gente tiene, cuantos grupos, cuantos modulos encendidos, quien la pastorea y que unidades la alcanzan. Avisa en rojo si no tiene pastor: una sede sin pastor no se opera sola."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }

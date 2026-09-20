@@ -45,6 +45,21 @@ if ( cd "$RAIZ/api" && npm run probar >/tmp/cr-e2e.log 2>&1 ); then
   ok "extremo a extremo de Nuevos: $(grep -oE '^ [0-9]+ *\| [0-9]+ *\| [0-9]+' /tmp/cr-e2e.log | tail -1 | tr -s ' ')"
 else mal "el banco de extremo a extremo esta en rojo (ver /tmp/cr-e2e.log)"; fi
 
+echo "══ 4d · Los conectores de la consola llegan a la base"
+# ⛔ 20 sep 2026. Este banco existe porque la consola otorgaba un rol
+#    mandando `actaReferencia` mientras la API leia `acta`: la peticion
+#    devolvia 200, el rol quedaba otorgado y el acta que lo autoriza se
+#    perdia EN SILENCIO. Ningun banco que mire el codigo de respuesta lo
+#    habria visto. Este manda EXACTAMENTE el cuerpo que manda la consola
+#    y despues le PREGUNTA A LA BASE si el dato llego. Ese mismo dia
+#    destapo otros cuatro: el tipo de documento no existia como lista,
+#    guardar un rol borraba su descripcion, editar un rol descontinuado
+#    lo resucitaba solo, y REVOCAR UN ROL NO FUNCIONABA (sin politica de
+#    UPDATE, el RLS dejaba el update en cero filas sin dar error).
+if "$RAIZ/api/test/conectores.sh" >/tmp/cr-conectores.log 2>&1; then
+  ok "conectores: $(grep -o 'CONECTORES: [0-9]* de [0-9]*' /tmp/cr-conectores.log | tail -1)"
+else mal "hay conectores rotos entre la consola y la base (ver /tmp/cr-conectores.log)"; fi
+
 echo "══ 4c · Ningun cast de la API apunta a un tipo que ya no existe"
 # ⛔ El 19 de septiembre TODA donacion devolvia 500 porque el codigo seguia
 #    escribiendo `$4::aportes.tipo_aporte`, un enum que la migracion 0046

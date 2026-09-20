@@ -27,7 +27,36 @@ const TRADUCCIONES: Record<string, { estado: number; mensaje: string }> = {
   '22003': { estado: HttpStatus.BAD_REQUEST, mensaje: 'Un número está fuera del rango admitido.' },
   '40001': { estado: HttpStatus.CONFLICT,    mensaje: 'Otra persona cambió lo mismo al mismo tiempo. Inténtelo otra vez.' },
   '40P01': { estado: HttpStatus.CONFLICT,    mensaje: 'Dos operaciones se bloquearon entre sí. Inténtelo otra vez.' },
+
+  /* ⛔ 20 de septiembre de 2026. Estos TRES faltaban, y son justo los que
+     usan nuestras propias funciones. Todas las reglas del negocio viven
+     en la base (RAISE EXCEPTION dentro de funciones SECURITY DEFINER)
+     precisamente para que no se puedan saltar según por dónde entre la
+     llamada. Sin estos códigos en el mapa, cada una de esas reglas subía
+     como «Ocurrió un error inesperado, reporte este código al soporte»:
+     la base decía en español y con el nombre del dato qué estaba mal, y
+     el operador recibía un número de incidencia. */
+  'P0001': { estado: HttpStatus.BAD_REQUEST, mensaje: 'La operación no cumple una regla del sistema.' },
+  'P0002': { estado: HttpStatus.NOT_FOUND,   mensaje: 'No se encontró lo que se pedía.' },
+  '02000': { estado: HttpStatus.NOT_FOUND,   mensaje: 'No se encontró lo que se pedía.' },
 };
+
+/* ⛔ Qué mensaje se le puede enseñar a quien está usando el sistema.
+   Antes esto se decidía con una lista de PALABRAS INICIALES («La», «El»,
+   «No se»…). Bastaba con que una regla empezara por «Escriba para qué
+   sirve el rol…» o «Es el único rol que administra la red…» para que el
+   mensaje, escrito a mano para esa situación, se tirara a la basura y
+   saliera el texto genérico.
+   La pregunta correcta no es cómo empieza la frase, sino QUIÉN la
+   escribió: si la escribió el motor, filtra la estructura interna y no
+   sale; si la escribió una función nuestra, es para leerse. */
+const JERGA = /violates|constraint|relation "|column "|syntax error|duplicate key|invalid input|permission denied for|type "|operator does not exist/i;
+function esParaElUsuario(codigo: string, mensaje?: string): boolean {
+  if (!mensaje) return false;
+  if (JERGA.test(mensaje)) return false;
+  /* Lo que lanza nuestro código a propósito. */
+  return ['P0001', 'P0002', '02000', '23514', '42501'].includes(codigo);
+}
 
 @Catch()
 export class FiltroDeErrores implements ExceptionFilter {
@@ -57,13 +86,8 @@ export class FiltroDeErrores implements ExceptionFilter {
     const codigo = (e as any)?.code as string | undefined;
     const t = codigo ? TRADUCCIONES[codigo] : undefined;
 
-    /* El mensaje que escribe la propia base con RAISE EXCEPTION sí está
-       redactado para humanos: ese se devuelve tal cual. Se reconoce porque
-       lleva el código de una restricción de negocio, no del motor. */
     const mensajeDeLaBase = (e as any)?.message as string | undefined;
-    const esMensajeRedactado = !!mensajeDeLaBase &&
-      /^(La |El |Un |Una |No se |Se |Toda |Falta |Sacar|Retirar|Revocar|Origen)/.test(mensajeDeLaBase) &&
-      !mensajeDeLaBase.includes('violates');
+    const esMensajeRedactado = esParaElUsuario(codigo ?? '', mensajeDeLaBase);
 
     log.error(`${id} ${req.method} ${req.path} · ${codigo ?? 'sin-codigo'} · ${mensajeDeLaBase ?? e}`);
 

@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Module, Param, Post, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Module,
+         NotFoundException, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { randomInt } from 'node:crypto';
 import { DbModule } from '../db/db.module';
@@ -40,6 +41,57 @@ const PALABRAS = [
 function claveProvisional(): string {
   const p = Array.from({ length: 4 }, () => PALABRAS[randomInt(PALABRAS.length)]);
   return `${p.join(' ')} ${randomInt(10, 100)}`;
+}
+
+/**
+ * Traduce lo que la base ya explicó.
+ *
+ * ⛔ 20 de septiembre de 2026. Cada una de las doce rutas de este archivo
+ * tenía SU PROPIA lista de códigos de error, y cada lista era distinta.
+ * Desplegar una iglesia con una plantilla mal escrita devolvía «Ocurrió
+ * un error inesperado. Reporte este código al soporte» porque `P0002` no
+ * estaba en la lista de ESA ruta, mientras la base ya había dicho, en
+ * español y con el nombre del dato: «La plantilla PLANTA no existe o no
+ * tiene módulos». El operador veía un código de incidencia; la respuesta
+ * estaba a un `catch` de distancia.
+ *
+ * Las reglas del negocio viven en la base (funciones con RAISE,
+ * restricciones, disparadores) justo para que no se puedan saltar. Si
+ * esos mensajes se pierden al subir, el sistema queda mudo. Esto los
+ * sube TODOS, en un solo sitio, para que ninguna ruta pueda olvidarse de
+ * uno.
+ */
+function traducir(e: any, propios: Record<string, string> = {}): never {
+  const codigo = String(e?.code ?? '');
+  if (propios[codigo]) throw new BadRequestException(propios[codigo]);
+
+  /* Lo que se negó a propósito: no es un fallo, es la regla funcionando. */
+  if (codigo === '42501') throw new ForbiddenException(limpiar(e.message));
+
+  const delNegocio = [
+    'P0001',  // RAISE EXCEPTION nuestro
+    'P0002',  // no encontrado, lanzado por una función nuestra
+    '02000',  // sin datos
+    '23514',  // restricción CHECK
+    '23505',  // repetido
+    '23503',  // apunta a algo que no existe
+    '23502',  // falta un dato obligatorio en la tabla
+    '22P02',  // un valor con una forma que la columna no acepta
+    '22003',  // fuera de rango
+    '23P01',  // se cruza con otro periodo
+  ];
+  if (delNegocio.includes(codigo)) throw new BadRequestException(limpiar(e.message));
+  throw e;
+}
+
+/** El mensaje que ve un operador, sin la jerga del motor. */
+function limpiar(mensaje: string): string {
+  return String(mensaje ?? '')
+    .replace(/^new row for relation "[^"]+" violates check constraint "([^"]+)"$/,
+             'Ese dato no cumple la regla «$1» del sistema.')
+    .replace(/^duplicate key value violates unique constraint "[^"]+"$/,
+             'Ya existe un registro con ese mismo valor.')
+    .trim() || 'La operación no se pudo completar.';
 }
 
 @Controller('api/v1/administracion')
@@ -89,8 +141,10 @@ export class AdministracionController {
                  + 'no se vuelve a mostrar y el sistema obligará a cambiarla al entrar.',
         };
       } catch (e: any) {
-        if (e.code === '23505') throw new BadRequestException('Ya existe una cuenta con ese usuario, o esa persona ya tiene cuenta.');
-        if (e.code === '23503') throw new BadRequestException('Esa persona no existe.');
+        traducir(e, {
+          '23505': 'Ya existe una cuenta con ese usuario, o esa persona ya tiene cuenta.',
+          '23503': 'Esa persona no existe.',
+        });
         throw e;
       }
     });
@@ -218,7 +272,7 @@ export class AdministracionController {
            textoOpcional(b?.nota, 'nota', { max: 400 })]);
         return { mensaje: b.activo ? 'Módulo encendido en esa sede.' : 'Módulo apagado en esa sede.' };
       } catch (e: any) {
-        if (e.code === '23514') throw new BadRequestException(e.message);
+        traducir(e);
         throw e;
       }
     });
@@ -283,10 +337,7 @@ export class AdministracionController {
                  + 'Los módulos con compuerta legal quedaron apagados hasta que haya evidencia jurídica.',
         };
       } catch (e: any) {
-        if (e.code === '23505') throw new BadRequestException('Ya existe una iglesia con ese código.');
-        if (e.code === '23514' || e.code === 'P0001' || e.code === '02000')
-          throw new BadRequestException(e.message);
-        throw e;
+        traducir(e, { '23505': 'Ya existe una iglesia con ese código.' });
       }
     });
   }
@@ -315,10 +366,16 @@ export class AdministracionController {
            textoOpcional(b?.telefono, 'telefono', { max: 40 })]);
         return { id: p.id, mensaje: 'Persona registrada. Ya se le puede crear cuenta y otorgar roles.' };
       } catch (e: any) {
-        if (e.code === '23505') throw new BadRequestException('Ya hay alguien con ese documento.');
-        if (e.code === '23503') throw new BadRequestException('Esa sede no está en su alcance.');
-        if (e.code === '23514') throw new BadRequestException(e.message);
-        throw e;
+        traducir(e, {
+          '23505': 'Ya hay alguien con ese documento.',
+          '23503': 'Esa sede no está en su alcance.',
+          ...(String(e.message).includes('personas_documento_completo') ? { '23514':
+            'El documento va completo o no va: si escribe el número, elija también el tipo (CC, TI, CE…), y al revés.' } : {}),
+          /* ⛔ Una restricción de la base es una frase para quien la
+             escribió, no para quien está llenando un formulario: el
+             equipo de la central veía «violates check constraint
+             personas_documento_completo» y no sabía qué corregir. */
+        });
       }
     });
   }
@@ -369,8 +426,7 @@ export class AdministracionController {
            b?.liderId ? uuid(b.liderId, 'liderId') : null]);
         return { id: u.id, mensaje: 'Equipo creado. Ahora otórguele su rol: un equipo sin rol no puede hacer nada.' };
       } catch (e: any) {
-        if (e.code === '23505') throw new BadRequestException('Ya existe un equipo con ese código.');
-        if (e.code === '23514' || e.code === 'P0001') throw new BadRequestException(e.message);
+        traducir(e, { '23505': 'Ya existe un equipo con ese código.' });
         throw e;
       }
     });
@@ -390,9 +446,10 @@ export class AdministracionController {
                  + 'revise qué alcanza el equipo antes de dejarlo así.',
         };
       } catch (e: any) {
-        if (e.code === '23505') throw new BadRequestException('Esa persona ya está en el equipo.');
-        if (e.code === '23503') throw new BadRequestException('El equipo o la persona no existen.');
-        if (e.code === '23514' || e.code === 'P0001') throw new BadRequestException(e.message);
+        traducir(e, {
+          '23505': 'Esa persona ya está en el equipo.',
+          '23503': 'El equipo o la persona no existen.',
+        });
         throw e;
       }
     });
@@ -483,8 +540,7 @@ export class AdministracionController {
            texto(b?.acta, 'acta', { min: 3, max: 200 })]);
         return { ...a, mensaje: 'Rol otorgado al equipo. Lo heredan sus integrantes desde ahora.' };
       } catch (e: any) {
-        if (e.code === '23514' || e.code === 'P0001') throw new BadRequestException(e.message);
-        if (e.code === '23503') throw new BadRequestException('El equipo, el rol o el alcance no existen.');
+        traducir(e, { '23503': 'El equipo, el rol o el alcance no existen.' });
         throw e;
       }
     });
@@ -501,6 +557,225 @@ export class AdministracionController {
       await c.query(`SELECT identidad.revocar_asignacion_unidad($1,$2)`,
         [uuid(asignacionId, 'asignacionId'), texto(b?.motivo, 'motivo', { min: 5, max: 300 })]);
       return { mensaje: 'Rol revocado. Todos los integrantes lo pierden en este instante.' };
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     GOBIERNO EDITABLE
+     ⛔ Las cuatro tablas que definen quién puede qué estaban en SOLO
+     LECTURA para la aplicación: se podían mirar y no tocar. Un comando
+     central que no puede cambiar la matriz de permisos es un informe.
+     ══════════════════════════════════════════════════════════════════ */
+
+  /** El catálogo de módulos y el de acciones, para pintar las casillas. */
+  @Get('catalogo')
+  catalogo(@Req() req: Request) {
+    exigirNivel(req, 2, 'ver el catálogo del sistema');
+    return conSesion(this.db, req, async (c) => {
+      const [m, a, r, n, td] = await Promise.all([
+        c.query(`SELECT codigo, nombre, esquema, nivel_dato, es_nucleo, exige_compuerta_legal, depende_de, orden
+                   FROM sistema.modulos ORDER BY orden, nombre`),
+        c.query(`SELECT codigo, nombre, orden, es_sensible, modulo, descripcion
+                   FROM sistema.acciones ORDER BY orden, codigo`),
+        c.query(`SELECT codigo, nombre, alcance_maximo, nivel_maximo, descripcion, activo
+                   FROM identidad.roles ORDER BY nivel_maximo DESC, nombre`),
+        c.query(`SELECT nivel, codigo, descripcion, exige_cifrado, exige_bitacora_lect
+                   FROM plataforma.niveles_sensibilidad ORDER BY nivel`),
+        /* ⛔ Los tipos de documento salen del CATÁLOGO, no de una lista
+           escrita en el frontend: la central los cambia sin desplegar. */
+        c.query(`SELECT codigo, etiqueta, descripcion
+                   FROM sistema.catalogo_valores
+                  WHERE catalogo='tipo_documento' AND vigente AND retirado_en IS NULL
+                  ORDER BY orden`),
+      ]);
+      return { modulos: m.rows, acciones: a.rows, roles: r.rows,
+               niveles: n.rows, tiposDocumento: td.rows };
+    });
+  }
+
+  /** La matriz: rol × módulo × acción, con la casilla ya marcada o no. */
+  @Get('matriz')
+  matriz(@Req() req: Request, @Query('rol') rol?: string) {
+    exigirNivel(req, 3, 'ver la matriz de permisos');
+    return conSesion(this.db, req, async (c) => {
+      const { rows } = await c.query(`SELECT * FROM sistema.ver_matriz($1)`,
+        [textoOpcional(rol, 'rol', { max: 40 })]);
+      const enganosos = rows.filter(r => r.marcado && r.por_encima);
+      return {
+        total_filas: rows.length, matriz: rows,
+        aviso: enganosos.length
+          ? `⛔ ${enganosos.length} permiso(s) marcados sobre módulos cuyo dato está POR ENCIMA del techo del rol. `
+            + 'La casilla se puede marcar, pero la base no devolverá una sola fila: es un permiso que engaña.'
+          : null,
+      };
+    });
+  }
+
+  /** Marcar o desmarcar UNA casilla. */
+  @Post('matriz')
+  marcarPermiso(@Req() req: Request, @Body() b: any) {
+    exigirNivel(req, 4, 'cambiar la matriz de permisos');
+    return conSesion(this.db, req, async (c) => {
+      try {
+        const { rows: [r] } = await c.query(
+          `SELECT sistema.marcar_permiso($1,$2,$3,$4,$5::smallint,$6) AS marcado`,
+          [texto(b?.rol, 'rol', { min: 2, max: 40 }),
+           texto(b?.modulo, 'modulo', { min: 2, max: 40 }),
+           texto(b?.accion, 'accion', { min: 2, max: 40 }),
+           booleano(b?.marcado, 'marcado'),
+           b?.nivelMax === undefined || b?.nivelMax === null ? null : entero(b.nivelMax, 'nivelMax', { min: 0, max: 4 }),
+           textoOpcional(b?.acta, 'acta', { max: 200 })]);
+        return { marcado: r.marcado, mensaje: r.marcado ? 'Permiso otorgado.' : 'Permiso quitado.' };
+      } catch (e: any) {
+        traducir(e);
+      }
+    });
+  }
+
+  /** Crear o editar un rol, con su techo y su alcance máximo. */
+  @Post('roles')
+  guardarRol(@Req() req: Request, @Body() b: any) {
+    exigirNivel(req, 4, 'crear o cambiar un rol');
+    return conSesion(this.db, req, async (c) => {
+      try {
+        await c.query(`SELECT identidad.guardar_rol($1,$2,$3,$4::smallint,$5,$6)`,
+          [texto(b?.codigo, 'codigo', { min: 2, max: 40 }),
+           texto(b?.nombre, 'nombre', { min: 3, max: 120 }),
+           texto(b?.alcanceMaximo, 'alcanceMaximo', { min: 4, max: 30 }),
+           entero(b?.nivelMaximo, 'nivelMaximo', { min: 0, max: 4 }),
+           textoOpcional(b?.descripcion, 'descripcion', { max: 400 }),
+           /* ⛔ `undefined` viaja como NULL y la función lo entiende como
+              «no lo toque». Antes se mandaba `true` por omisión, así que
+              cambiarle el nombre a un rol descontinuado lo devolvía a la
+              circulación sin que nadie lo pidiera. */
+           typeof b?.activo === 'boolean' ? b.activo : null]);
+        return { mensaje: 'Rol guardado. Los permisos que le sobren por encima del techo dejan de servir.' };
+      } catch (e: any) {
+        traducir(e);
+      }
+    });
+  }
+
+  /** Crear o editar una plantilla de iglesia. */
+  @Post('plantillas')
+  guardarPlantilla(@Req() req: Request, @Body() b: any) {
+    exigirNivel(req, 4, 'crear o cambiar una plantilla');
+    return conSesion(this.db, req, async (c) => {
+      try {
+        await c.query(`SELECT sistema.guardar_plantilla($1,$2,$3,$4)`,
+          [texto(b?.codigo, 'codigo', { min: 2, max: 30 }),
+           texto(b?.nombre, 'nombre', { min: 3, max: 120 }),
+           texto(b?.tipoSede, 'tipoSede', { min: 4, max: 30 }),
+           textoOpcional(b?.descripcion, 'descripcion', { max: 400 })]);
+        return { mensaje: 'Plantilla guardada. Marque los módulos que debe traer una iglesia nueva.' };
+      } catch (e: any) {
+        traducir(e, { '22P02': 'Ese tipo de sede no existe.' });
+        throw e;
+      }
+    });
+  }
+
+  /** La casilla de un módulo dentro de una plantilla. */
+  @Post('plantillas/:codigo/modulos')
+  marcarModuloPlantilla(@Req() req: Request, @Param('codigo') codigo: string, @Body() b: any) {
+    exigirNivel(req, 4, 'cambiar los módulos de una plantilla');
+    return conSesion(this.db, req, async (c) => {
+      try {
+        const { rows: [r] } = await c.query(
+          `SELECT sistema.marcar_modulo_de_plantilla($1,$2,$3) AS marcado`,
+          [texto(codigo, 'codigo', { min: 2, max: 30 }),
+           texto(b?.modulo, 'modulo', { min: 2, max: 40 }),
+           booleano(b?.marcado, 'marcado')]);
+        return { marcado: r.marcado, mensaje: r.marcado ? 'Módulo añadido a la plantilla.' : 'Módulo quitado.' };
+      } catch (e: any) {
+        traducir(e);
+      }
+    });
+  }
+
+  @Post('plantillas/:codigo/borrar')
+  borrarPlantilla(@Req() req: Request, @Param('codigo') codigo: string) {
+    exigirNivel(req, 4, 'borrar una plantilla');
+    return conSesion(this.db, req, async (c) => {
+      try {
+        await c.query(`SELECT sistema.borrar_plantilla($1)`, [texto(codigo, 'codigo', { min: 2, max: 30 })]);
+        return { mensaje: 'Plantilla borrada.' };
+      } catch (e: any) {
+        traducir(e);
+      }
+    });
+  }
+
+  /** La ficha de una persona: su cuenta, sus roles y sus sesiones. */
+  @Get('personas/:id')
+  fichaPersona(@Req() req: Request, @Param('id') id: string) {
+    exigirNivel(req, 3, 'ver la ficha de una persona');
+    return conSesion(this.db, req, async (c) => {
+      const p = uuid(id, 'id');
+      const { rows: [persona] } = await c.query(
+        `SELECT p.id, p.nombre_completo, p.numero_documento, p.tipo_documento,
+                p.email_principal, p.telefono_movil, p.estado, p.edad, p.es_menor,
+                s.codigo AS sede, s.nombre AS sede_nombre
+           FROM nucleo.v_personas p LEFT JOIN org.sedes s ON s.id = p.sede_id
+          WHERE p.id = $1`, [p]);
+      if (!persona) throw new NotFoundException('Esa persona no existe o no está en su alcance.');
+      const { rows: cuenta } = await c.query(
+        `SELECT * FROM identidad.listar_cuentas(NULL, 500)`);
+      const { rows: roles } = await c.query(
+        `SELECT a.id, a.rol, r.nombre AS rol_nombre, a.alcance_tipo, a.alcance_id, a.nivel_max,
+                to_char(a.vigente_desde,'YYYY-MM-DD') AS desde,
+                to_char(a.vigente_hasta,'YYYY-MM-DD') AS hasta, a.acta_referencia
+           FROM identidad.asignaciones a
+           LEFT JOIN identidad.roles r ON r.codigo = a.rol
+          WHERE a.persona_id = $1 AND a.revocada_en IS NULL
+          ORDER BY a.nivel_max DESC`, [p]);
+      const { rows: equipos } = await c.query(
+        `SELECT u.id, u.nombre, u.clase, m.rol_en_unidad
+           FROM org.unidad_miembros m JOIN org.unidades u ON u.id = m.unidad_id
+          WHERE m.persona_id = $1 AND m.hasta IS NULL AND m.revocado_en IS NULL`, [p]);
+      return {
+        persona,
+        cuenta: cuenta.find((x: any) => x.persona_id === p) ?? null,
+        roles, equipos,
+        aviso: roles.length === 0 && equipos.length === 0
+          ? 'Esta persona no tiene ningún rol ni equipo: puede entrar y no ve nada.' : null,
+      };
+    });
+  }
+
+  /** La ficha de una iglesia: qué ve, quién la atiende y quién la alcanza. */
+  @Get('sedes/:id')
+  fichaSede(@Req() req: Request, @Param('id') id: string) {
+    exigirNivel(req, 2, 'ver la ficha de una iglesia');
+    return conSesion(this.db, req, async (c) => {
+      const s = uuid(id, 'id');
+      const { rows: [sede] } = await c.query(
+        `SELECT s.id, s.codigo, s.nombre, s.tipo, s.pais, s.ciudad, s.activa,
+                pa.codigo AS sede_padre, s.ola_migracion
+           FROM org.sedes s LEFT JOIN org.sedes pa ON pa.id = s.sede_padre_id
+          WHERE s.id = $1`, [s]);
+      if (!sede) throw new NotFoundException('Esa iglesia no existe o no está en su alcance.');
+      const { rows: [conteo] } = await c.query(
+        `SELECT (SELECT count(*) FROM nucleo.personas p WHERE p.sede_id = $1 AND p.eliminado_en IS NULL) AS personas,
+                (SELECT count(*) FROM grupos.grupos g WHERE g.sede_id = $1 AND g.cerrado_en IS NULL) AS grupos,
+                (SELECT count(*) FROM sistema.modulos_sede ms WHERE ms.sede_id = $1 AND ms.activo) AS modulos_encendidos`,
+        [s]);
+      const { rows: equipo } = await c.query(
+        `SELECT a.persona_id, p.nombre_completo, a.rol, a.nivel_max
+           FROM identidad.asignaciones a JOIN nucleo.v_personas p ON p.id = a.persona_id
+          WHERE a.alcance_tipo = 'sede' AND a.alcance_id = $1 AND a.revocada_en IS NULL
+            AND (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE)
+          ORDER BY a.nivel_max DESC, p.nombre_completo`, [s]);
+      const { rows: unidades } = await c.query(
+        `SELECT u.id, u.nombre, u.clase FROM org.unidades u
+          WHERE $1 = ANY(org.sedes_de_unidad(u.id)) AND u.activa
+          ORDER BY u.clase, u.nombre`, [s]);
+      return {
+        sede, conteo, equipo, unidades,
+        aviso: equipo.some(e => e.rol === 'PASTOR_CONGREGACIONAL')
+          ? null
+          : '⛔ Esta iglesia NO tiene pastor congregacional asignado. Una sede sin pastor no se opera sola.',
+      };
     });
   }
 

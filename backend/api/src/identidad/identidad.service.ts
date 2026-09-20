@@ -77,6 +77,18 @@ export class IdentidadService {
     const salida = [];
     for (const a of lista) {
       if (!a.rol) throw new BadRequestException('Falta el código del rol.');
+
+      /* ⛔ 20 sep 2026. El acta se leía de `a.acta` y la consola mandaba
+         `actaReferencia`: el permiso se otorgaba y el papel que lo
+         autoriza se perdía EN SILENCIO. La pregunta número uno de una
+         auditoría de accesos es «¿quién autorizó esto?», y la respuesta
+         quedaba en blanco sin que nadie se enterara. Ahora se aceptan
+         los dos nombres y, sobre todo, SIN ACTA NO SE OTORGA. */
+      const acta = String(a.acta ?? a.actaReferencia ?? '').trim();
+      if (acta.length < 4) {
+        throw new BadRequestException(
+          'Falta el acta que autoriza el rol. Un permiso sin constancia de quién lo autorizó no se otorga.');
+      }
       const { rows: [rol] } = await c.query(
         `SELECT codigo, nivel_maximo, alcance_maximo FROM identidad.roles WHERE codigo=$1`, [a.rol]);
       if (!rol) throw new BadRequestException(`No existe el rol «${a.rol}».`);
@@ -95,20 +107,33 @@ export class IdentidadService {
          VALUES ($1,$2,$3,$4,$5,coalesce($6::date,CURRENT_DATE),$7,$8,$9)
          RETURNING id, rol, alcance_tipo, alcance_id, nivel_max, vigente_desde, vigente_hasta`,
         [personaId, a.rol, a.alcanceTipo ?? rol.alcance_maximo, a.alcanceId ?? null,
-         techo, a.desde ?? null, a.hasta ?? null, ctx.personaId, a.acta ?? null]);
+         techo, a.desde ?? null, a.hasta ?? null, ctx.personaId, acta]);
       salida.push(rows[0]);
     }
     return { ok: true, otorgados: salida };
   }
 
   /** Cerrar un acceso. ⛔ No se borra: se le pone fecha de fin. */
-  async cerrar(c: PoolClient, asignacionId: string, hasta?: string) {
+  /**
+   * Quitarle un rol a alguien.
+   *
+   * ⛔ 20 de septiembre de 2026. Esto NO FUNCIONABA. Hacía un UPDATE
+   * directo sobre `identidad.asignaciones`, que tiene RLS encendido y
+   * solo políticas de SELECT e INSERT: sin política de UPDATE, Postgres
+   * no toca ninguna fila y no se queja. La ruta veía cero filas y
+   * respondía «No existe esa asignación, o no está a su alcance»
+   * mientras la asignación existía y el rol seguía puesto.
+   *
+   * En una plataforma de accesos, no poder QUITAR un acceso es lo más
+   * grave que puede fallar. Ahora va por `identidad.revocar_asignacion`
+   * (migración 0063), que comprueba por dentro quién llama, exige el
+   * motivo por escrito, deja el rastro de quién revocó y qué, y no deja
+   * que se revoque el último rol capaz de administrar la red.
+   */
+  async cerrar(c: PoolClient, asignacionId: string, motivo?: string) {
     const { rows } = await c.query(
-      `UPDATE identidad.asignaciones
-          SET vigente_hasta = coalesce($2::date, CURRENT_DATE)
-        WHERE id = $1 RETURNING id, rol, vigente_hasta`, [asignacionId, hasta ?? null]);
-    if (!rows.length) throw new BadRequestException('No existe esa asignación, o no está a su alcance.');
-    return rows[0];
+      `SELECT identidad.revocar_asignacion($1, $2) AS revocada`, [asignacionId, motivo ?? null]);
+    return { ...rows[0].revocada, mensaje: 'Rol revocado. Queda en la ficha de la persona y en la auditoría.' };
   }
 
   /* ---------- casillas (migración 0037) ---------- */

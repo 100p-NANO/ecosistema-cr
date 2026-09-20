@@ -30,6 +30,16 @@ const { AppModule } = require(path.join(API, 'dist', 'src', 'app.module.js'));
 /* Descripciones por ruta. Lo único escrito a mano, y si una ruta no la
    tiene, la especificación lo dice en vez de inventarla. */
 const DESCRIPCIONES = {
+  // ── Gobierno de la red (consola del Sistema Master, 20 sep 2026) ──
+  'GET /api/v1/administracion/catalogo': ['Catalogo de gobierno', 'Lo que la consola necesita en UNA peticion para pintar las casillas: modulos con su nivel de dato, acciones (las seis generales y las propias de cada modulo), roles con su techo y su alcance, niveles de sensibilidad y tipos de documento vigentes. Los tipos de documento salen del catalogo, no de una lista escrita en el frontend: la central los cambia sin desplegar.'],
+  'GET /api/v1/administracion/matriz': ['Que puede hacer un rol, casilla por casilla', 'Devuelve TODAS las combinaciones posibles de modulo x accion para ese rol, marcadas o no. La columna `por_encima` avisa de un permiso que engana: existe en la tabla y no sirve, porque el modulo guarda datos mas sensibles que el techo del rol.'],
+  'POST /api/v1/administracion/matriz': ['Marcar o desmarcar una casilla', 'Otorga o quita UNA cosa que un rol puede hacer. Desmarcar borra la fila: un permiso que no esta es un permiso que no existe, no uno apagado. Exige alcance de organizacion.'],
+  'POST /api/v1/administracion/roles': ['Crear o cambiar un rol', 'Lo que no se manda NO SE TOCA: omitir la descripcion no la borra y omitir `activo` no resucita un rol descontinuado. Bajar el techo o descontinuar el rol queda escrito en la bitacora con a cuantas personas afecta.'],
+  'GET /api/v1/administracion/personas/:id': ['Ficha completa de una persona', 'Su cuenta, sus roles vigentes con el acta que los autoriza y los equipos a los que pertenece. Es lo que se abre al pulsar a alguien en la consola.'],
+  'GET /api/v1/administracion/sedes/:id': ['Ficha completa de una iglesia', 'Cuanta gente tiene, cuantos grupos, cuantos modulos encendidos, quien la pastorea y que unidades la alcanzan. Avisa en rojo si no tiene pastor: una sede sin pastor no se opera sola.'],
+  'POST /api/v1/administracion/plantillas': ['Crear o renombrar una plantilla', 'Una plantilla responde a con que modulos nace una iglesia nueva de ese tipo.'],
+  'POST /api/v1/administracion/plantillas/:codigo/modulos': ['Marcar un modulo en la plantilla', 'Se niega a quitar un modulo de nucleo: sin el, una iglesia nueva no podria ni registrar personas.'],
+  'POST /api/v1/administracion/plantillas/:codigo/borrar': ['Borrar una plantilla', 'Se niega si ya se desplego alguna iglesia con ella: borrarla dejaria sin explicacion por que esa iglesia nacio como nacio.'],
   'POST /api/v1/auth/entrar': ['Entrar al sistema', 'Devuelve token de acceso y de refresco. Si el rol alcanza datos N3 o N4 y el segundo factor no esta activo, devuelve un token limitado que solo sirve para configurarlo.'],
   'POST /api/v1/auth/refrescar': ['Renovar el acceso', 'El token de refresco se ROTA: usarlo dos veces lo invalida, porque es la senal clasica de un token robado.'],
   'POST /api/v1/auth/salir': ['Cerrar esta sesion', 'Surte efecto en el instante, no cuando expire el token.'],

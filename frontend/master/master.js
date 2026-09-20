@@ -54,6 +54,78 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
 const niv = (n) => `<span class="ms-niv ms-niv--${Number(n) || 0}">N${Number(n) || 0}</span>`;
 const num = (n) => `<span class="num">${esc(n ?? 0)}</span>`;
 
+
+/* ── Catálogos ──────────────────────────────────────────────────────
+   ⛔ Un campo que pide un IDENTIFICADOR a mano no es una interacción:
+      nadie se sabe un uuid. Todo lo que antes se escribía ahora se
+      ELIGE de una lista que sale de la base. */
+let CAT = null, SEDES = null;
+async function catalogo() {
+  if (!CAT) CAT = await api.obtener('/api/v1/administracion/catalogo');
+  return CAT;
+}
+async function sedesDe() {
+  if (!SEDES) {
+    const s = await api.obtener('/api/v1/organizacion/sedes').catch(() => []);
+    SEDES = Array.isArray(s) ? s : (s?.sedes ?? []);
+  }
+  return SEDES;
+}
+const opcSedes = (l) => l.map(s => ({ valor: s.id, texto: `${s.codigo} · ${s.nombre}` }));
+async function opcPersonas() {
+  const r = await api.obtener('/api/v1/personas?limite=400').catch(() => []);
+  const l = Array.isArray(r) ? r : (r?.personas ?? r?.resultados ?? []);
+  return l.map(p => ({
+    valor: p.id,
+    texto: `${p.nombre_completo ?? p.nombre ?? p.persona ?? p.id}${p.sede ? ' · ' + p.sede : ''}`,
+  }));
+}
+
+/* Casilla de acceso. Es el gesto de toda la consola: una cosa se enciende
+   o se apaga, y la base decide si se deja. */
+function casilla({ id, titulo, sub, marcado, bloqueado, motivo, datos = {} }) {
+  const at = Object.entries(datos).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ');
+  return `<label class="ms-opt${marcado ? ' is-on' : ''}${bloqueado ? ' is-off' : ''}" ${at}>
+    <input type="checkbox" ${marcado ? 'checked' : ''} ${bloqueado ? 'disabled' : ''}>
+    <div><b>${esc(titulo)}</b><small>${esc(bloqueado && motivo ? motivo : (sub ?? ''))}</small></div>
+  </label>`;
+}
+
+/* Deja la casilla como estaba cuando la base dice que no. Sin esto, la
+   pantalla miente: se ve encendido lo que el servidor rechazó. */
+function revertir(inp, e) {
+  inp.checked = !inp.checked;
+  inp.closest('.ms-opt')?.classList.toggle('is-on', inp.checked);
+  avisar(e.message, 'roja');
+}
+function pintarEstado(inp) {
+  inp.closest('.ms-opt')?.classList.toggle('is-on', inp.checked);
+}
+
+/* Ficha lateral: lo que se abre al pulsar una persona o una iglesia. */
+function fichaAbrir(titulo, sub, cuerpo) {
+  document.getElementById('ms-ficha')?.remove();
+  const d = document.createElement('div');
+  d.id = 'ms-ficha';
+  d.className = 'ms-ficha';
+  d.innerHTML = `<div class="ms-ficha__caja" role="dialog" aria-modal="true" aria-label="${esc(titulo)}">
+      <div class="ms-ficha__cab">
+        <div><b>${esc(titulo)}</b><span class="ms-doc">${esc(sub ?? '')}</span></div>
+        <button class="ms-btn ms-btn--peq" id="ms-ficha-x" aria-label="Cerrar">Cerrar</button>
+      </div>
+      <div class="ms-ficha__cuerpo">${cuerpo}</div>
+    </div>`;
+  document.body.appendChild(d);
+  const cerrar = () => d.remove();
+  d.querySelector('#ms-ficha-x').addEventListener('click', cerrar);
+  d.addEventListener('click', ev => { if (ev.target === d) cerrar(); });
+  document.addEventListener('keydown', function esc_(ev) {
+    if (ev.key === 'Escape') { cerrar(); document.removeEventListener('keydown', esc_); }
+  });
+  d.querySelector('#ms-ficha-x').focus();
+  return d;
+}
+
 /* ── Arranque ─────────────────────────────────────────────────────── */
 async function arrancar() {
   if (demoActivo() && !hayTokens()) guardarTokens({ acceso: 'demo', refresco: null });
@@ -91,7 +163,7 @@ function entrada(mensaje = '') {
             <label class="ms-campo"><span>Contraseña</span>
               <input name="clave" type="password" autocomplete="current-password" required></label>
             <div id="zona-codigo"></div>
-            <button class="ms-btn ms-btn--pri" style="width:100%" type="submit">Entrar</button>
+            <button class="ms-btn ms-btn--primario" style="width:100%" type="submit">Entrar</button>
           </form>
         </div>
         <p style="text-align:center;color:var(--tin-dim);font-size:11px;margin-top:16px">
@@ -151,7 +223,7 @@ function sinPaso() {
         <p>El Sistema Master administra los accesos, las iglesias y los permisos de
            toda la red, y exige alcance de organización. Su trabajo diario está en la
            aplicación de la sede.</p></div>
-      <p><a class="ms-btn ms-btn--pri" href="../index.html">Ir a la aplicación</a>
+      <p><a class="ms-btn ms-btn--primario" href="../index.html">Ir a la aplicación</a>
          <button class="ms-btn" id="b-salir2">Salir</button></p>
     </div>`;
   RAIZ.querySelector('#b-salir2').addEventListener('click', salir);
@@ -222,8 +294,16 @@ const cargando = `<div class="ms-main" style="padding:0"><p style="color:var(--t
 
 async function pintar() {
   vista = ruta();
-  const m = document.getElementById('ms-main');
-  if (!m) return;
+  const viejo = document.getElementById('ms-main');
+  if (!viejo) return;
+  /* ⛔ Se cambia el NODO, no solo su contenido. `innerHTML = ...` borra
+     lo de adentro pero deja vivos los escuchadores colgados del propio
+     contenedor: al ir y volver de una pestaña se acumulaban, y un solo
+     clic terminaba abriendo el mismo diálogo tres o cuatro veces.
+     Un nodo nuevo no arrastra nada del anterior. */
+  const m = viejo.cloneNode(false);
+  viejo.replaceWith(m);
+  document.getElementById('ms-ficha')?.remove();
   m.innerHTML = cargando;
   document.title = `${NAV.find(n => n.id === vista)?.titulo ?? 'Sistema Master'} · Casa Roca`;
   try {
@@ -255,7 +335,7 @@ function tablaMs(filas, cols, vacio = 'Nada todavía.') {
 function pedir(campos, titulo) {
   return new Promise(resolve => {
     const d = document.createElement('div');
-    d.style.cssText = 'position:fixed;inset:0;z-index:90;display:grid;place-items:center;background:rgba(20,20,24,.35)';
+    d.style.cssText = 'position:fixed;inset:0;z-index:120;display:grid;place-items:center;background:rgba(20,20,24,.45)';
     d.innerHTML = `<div style="background:var(--sup);border:1px solid var(--fil);border-radius:var(--r-lg);
         padding:24px;width:min(520px,92vw);max-height:88dvh;overflow:auto;box-shadow:var(--som-flota)">
       <h3 style="margin:0 0 16px;font-size:15px">${esc(titulo)}</h3>
@@ -263,8 +343,13 @@ function pedir(campos, titulo) {
         ${campos.map(c => `
           <label class="ms-campo"><span>${esc(c.etiqueta)}${c.obligatorio ? ' <i class="ms-req">obligatorio</i>' : ''}</span>
             ${c.opciones
-              ? `<select name="${esc(c.nombre)}" ${c.obligatorio ? 'required' : ''}>
-                   ${c.opciones.map(o => `<option value="${esc(o.valor)}">${esc(o.texto)}</option>`).join('')}
+              ? `${c.opciones.length > 8 ? `<input class="ms-filtro" data-filtra="${esc(c.nombre)}"
+                     placeholder="Escriba para filtrar entre ${c.opciones.length}">` : ''}
+                 <select name="${esc(c.nombre)}" ${c.obligatorio ? 'required' : ''}
+                         ${c.opciones.length > 8 ? 'size="7"' : ''}>
+                   ${c.vacio ? `<option value="">${esc(c.vacio)}</option>` : ''}
+                   ${c.opciones.map(o => `<option value="${esc(o.valor)}"
+                        ${o.valor === c.valor ? 'selected' : ''}>${esc(o.texto)}</option>`).join('')}
                  </select>`
               : `<input name="${esc(c.nombre)}" type="${esc(c.tipo ?? 'text')}"
                         ${c.obligatorio ? 'required' : ''} ${c.valor ? `value="${esc(c.valor)}"` : ''}
@@ -272,10 +357,22 @@ function pedir(campos, titulo) {
           </label>`).join('')}
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
           <button type="button" class="ms-btn" id="b-cancelar">Cancelar</button>
-          <button type="submit" class="ms-btn ms-btn--pri">Confirmar</button>
+          <button type="submit" class="ms-btn ms-btn--primario">Confirmar</button>
         </div>
       </form></div>`;
     document.body.appendChild(d);
+    /* Filtrar una lista larga: teclear acorta lo que se ve. Sin esto,
+       elegir entre 400 personas es imposible. */
+    d.querySelectorAll('[data-filtra]').forEach(inp => {
+      const sel = d.querySelector(`select[name="${inp.dataset.filtra}"]`);
+      const todas = [...sel.options].map(o => ({ v: o.value, t: o.textContent }));
+      inp.addEventListener('input', () => {
+        const q = inp.value.trim().toLowerCase();
+        sel.innerHTML = todas.filter(o => !q || o.t.toLowerCase().includes(q))
+          .map(o => `<option value="${esc(o.v)}">${esc(o.t)}</option>`).join('')
+          || '<option value="">Nadie coincide</option>';
+      });
+    });
     d.querySelector('input,select')?.focus();
     d.querySelector('#b-cancelar').addEventListener('click', () => { d.remove(); resolve(null); });
     d.querySelector('#f-modal').addEventListener('submit', ev => {
@@ -291,7 +388,9 @@ function pedir(campos, titulo) {
 }
 
 function avisar(texto, clase = 'verde') {
-  const m = document.getElementById('ms-main');
+  /* Con una ficha abierta, el aviso tiene que salir donde está la vista
+     del administrador: si va al fondo, no se entera de nada. */
+  const m = document.querySelector('#ms-ficha .ms-ficha__cuerpo') ?? document.getElementById('ms-main');
   if (!m) return;
   const d = document.createElement('div');
   d.className = `ms-alerta ms-alerta--${clase}`;
@@ -415,20 +514,24 @@ const VISTAS = {
   },
 
   /* ── Personas con acceso ───────────────────────────────────────── */
+  /* ── Personas con acceso ───────────────────────────────────────────
+     La lista de quién puede entrar. Pulsar una persona abre su ficha
+     completa: su cuenta, sus roles vigentes, sus equipos y lo que se le
+     puede hacer. Antes los botones colgaban de la fila y no había a
+     dónde entrar. */
   async cuentas(m) {
     const d = await api.obtener('/api/v1/administracion/cuentas?limite=300');
     m.innerHTML = `
       ${cabecera('Personas con acceso',
-        'Quién puede entrar hoy, con qué roles y en qué estado está su cuenta.')}
+        'Quién puede entrar hoy, con qué roles y en qué estado está su cuenta. Pulse una persona para abrir su ficha.')}
       ${alerta(d.aviso)}
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <input id="q" class="ms-campo" style="max-width:320px;height:32px;padding:0 12px;
-               border:1px solid var(--fil);border-radius:var(--r);font:inherit"
-               placeholder="Buscar por nombre o usuario">
-        <button class="ms-btn ms-btn--pri" id="b-nuevo">+ Crear acceso</button>
+      <div class="ms-barra">
+        <button class="ms-btn ms-btn--primario" id="b-nuevo">+ Crear acceso</button>
+        <input class="ms-busca" id="q" placeholder="Buscar por nombre o usuario">
+        <span class="ms-barra__sp"></span>
+        <span style="color:var(--tin-dim);font-size:12px" id="cuantas">${d.cuentas.length} cuentas</span>
       </div>
       <div id="tabla">${tablaMs(d.cuentas, COLS_CUENTA, 'Ninguna cuenta a su alcance.')}</div>`;
-    engancharCuentas(m);
     m.querySelector('#b-nuevo').addEventListener('click', () => { location.hash = '#/crear'; });
     let t;
     m.querySelector('#q').addEventListener('input', ev => {
@@ -437,15 +540,18 @@ const VISTAS = {
       t = setTimeout(async () => {
         const r = await api.obtener('/api/v1/administracion/cuentas?limite=300&q=' + encodeURIComponent(q));
         m.querySelector('#tabla').innerHTML = tablaMs(r.cuentas, COLS_CUENTA, 'Nadie coincide.');
-        engancharCuentas(m);
+        m.querySelector('#cuantas').textContent = r.cuentas.length + ' cuentas';
       }, 300);
+    });
+    m.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-persona]');
+      if (b) abrirPersona(b.dataset.persona);
     });
   },
 
   /* ── Crear acceso ──────────────────────────────────────────────── */
   async crear(m) {
-    const sed = await api.obtener('/api/v1/organizacion/sedes').catch(() => []);
-    const sedes = Array.isArray(sed) ? sed : (sed?.sedes ?? []);
+    const [sedes, cat] = await Promise.all([sedesDe(), catalogo()]);
     m.innerHTML = `
       <div class="ms-ancho--forma">
       ${cabecera('Crear acceso',
@@ -464,10 +570,24 @@ const VISTAS = {
               ${sedes.map(s => `<option value="${esc(s.id)}">${esc(s.codigo)} · ${esc(s.nombre)}</option>`).join('')}
             </select></label>
           <div class="ms-fila2">
-            <label class="ms-campo"><span>Documento</span><input name="numeroDocumento"></label>
+            <label class="ms-campo"><span>Tipo de documento</span>
+              <select name="tipoDocumento">
+                <option value="">— sin documento —</option>
+                ${(cat.tiposDocumento ?? []).map(t =>
+                  `<option value="${esc(t.codigo)}">${esc(t.codigo)} · ${esc(t.etiqueta)}</option>`).join('')}
+              </select></label>
+            <label class="ms-campo"><span>Número de documento</span>
+              <input name="numeroDocumento" autocomplete="off"></label>
+          </div>
+          <p class="ms-nota">El documento va completo o no va: si escribe el número, elija también el tipo.
+            Los tipos salen del catálogo, así que la central los cambia sin tocar código.</p>
+          <div class="ms-fila2">
+            <label class="ms-campo"><span>Fecha de nacimiento</span>
+              <input name="fechaNacimiento" type="date"></label>
             <label class="ms-campo"><span>Correo</span><input name="email" type="email"></label>
           </div>
-          <button class="ms-btn ms-btn--pri" type="submit">Registrar</button>
+          <label class="ms-campo"><span>Teléfono móvil</span><input name="telefono" type="tel"></label>
+          <button class="ms-btn ms-btn--primario" type="submit">Registrar</button>
         </form>
         <div id="salida-persona"></div>
       </div>
@@ -475,11 +595,15 @@ const VISTAS = {
       <div class="ms-paso" style="margin-top:12px">
         <h3><i>2</i>Crearle la cuenta</h3>
         <form id="f-cuenta">
-          <label class="ms-campo"><span>Identificador de la persona <i class="ms-req">obligatorio</i></span>
-            <input name="personaId" required placeholder="Se rellena solo al registrarla arriba"></label>
+          <label class="ms-campo"><span>Persona <i class="ms-req">obligatorio</i></span>
+            <input class="ms-filtro" id="q-persona" placeholder="Escriba para buscar a alguien ya registrado"
+                   style="margin-bottom:6px">
+            <select name="personaId" required id="sel-persona" size="6">
+              <option value="">— registre a alguien arriba o búsquelo aquí —</option>
+            </select></label>
           <label class="ms-campo"><span>Usuario (correo) <i class="ms-req">obligatorio</i></span>
             <input name="usuario" type="email" required></label>
-          <button class="ms-btn ms-btn--pri" type="submit">Crear cuenta</button>
+          <button class="ms-btn ms-btn--primario" type="submit">Crear cuenta</button>
         </form>
         <div id="salida-cuenta"></div>
       </div>
@@ -488,20 +612,54 @@ const VISTAS = {
     m.querySelector('#f-persona').addEventListener('submit', async ev => {
       ev.preventDefault();
       const f = ev.target, d = {};
-      for (const k of ['primerNombre','primerApellido','sedeId','numeroDocumento','email'])
-        if (f.elements[k].value.trim()) d[k] = f.elements[k].value.trim();
+      for (const k of ['primerNombre','primerApellido','sedeId','tipoDocumento',
+                       'numeroDocumento','fechaNacimiento','email','telefono'])
+        if (f.elements[k]?.value.trim()) d[k] = f.elements[k].value.trim();
+      /* ⛔ La pareja incompleta se avisa AQUÍ, antes de gastar una
+         petición y antes de que la base conteste con el nombre de una
+         restricción que nadie fuera del equipo entiende. */
+      const z = m.querySelector('#salida-persona');
+      if (!!d.numeroDocumento !== !!d.tipoDocumento) {
+        z.innerHTML = `<div class="ms-alerta ms-alerta--roja" style="margin-top:12px">
+          ${d.numeroDocumento ? 'Escribió el número del documento pero no eligió el tipo.'
+                              : 'Eligió el tipo de documento pero no escribió el número.'}
+          Van juntos: un número suelto no identifica a nadie.</div>`;
+        return;
+      }
       try {
         const r = await api.enviar('/api/v1/administracion/personas', d);
         m.querySelector('#f-cuenta').elements.personaId.value = r.id;
+        m.querySelector('#f-cuenta').dataset.nombre = `${d.primerNombre} ${d.primerApellido}`;
         if (d.email) m.querySelector('#f-cuenta').elements.usuario.value = d.email;
-        m.querySelector('#salida-persona').innerHTML =
-          `<div class="ms-alerta ms-alerta--verde" style="margin-top:12px">${esc(r.mensaje)}
-            <div class="mono" style="margin-top:4px">${esc(r.id)}</div></div>`;
+        const s2 = m.querySelector('#sel-persona');
+        const etiqueta = `${d.primerNombre} ${d.primerApellido}`;
+        s2.insertAdjacentHTML('afterbegin',
+          `<option value="${esc(r.id)}" selected>${esc(etiqueta)} · recién registrada</option>`);
+        s2.value = r.id;
+        z.innerHTML = `<div class="ms-alerta ms-alerta--verde" style="margin-top:12px">${esc(r.mensaje)}
+            Ya queda elegida abajo, en el paso 2.</div>`;
         f.reset();
       } catch (e) {
         m.querySelector('#salida-persona').innerHTML =
           `<div class="ms-alerta ms-alerta--roja" style="margin-top:12px">${esc(e.message)}</div>`;
       }
+    });
+
+    /* Quien ya está registrado no se vuelve a registrar: se busca.
+       ⛔ Antes había que pegar su identificador a mano. */
+    const sel = m.querySelector('#sel-persona');
+    let personas = [];
+    opcPersonas().then(l => {
+      personas = l;
+      sel.innerHTML = '<option value="">— elija a quien va a tener cuenta —</option>' +
+        l.map(p => `<option value="${esc(p.valor)}">${esc(p.texto)}</option>`).join('');
+      m.querySelector('#q-persona').placeholder = `Escriba para buscar entre ${l.length} personas`;
+    });
+    m.querySelector('#q-persona').addEventListener('input', ev => {
+      const q = ev.target.value.trim().toLowerCase();
+      sel.innerHTML = '<option value="">— elija a quien va a tener cuenta —</option>' +
+        personas.filter(p => !q || p.texto.toLowerCase().includes(q))
+          .map(p => `<option value="${esc(p.valor)}">${esc(p.texto)}</option>`).join('');
     });
 
     m.querySelector('#f-cuenta').addEventListener('submit', async ev => {
@@ -530,20 +688,36 @@ const VISTAS = {
    ══════════════════════════════════════════════════════════════════════ */
 Object.assign(VISTAS, {
 
+  /* ── Qué puede cada quien ──────────────────────────────────────────
+     La pregunta de toda auditoría: «muéstreme qué alcanza esta persona».
+     ⛔ Antes pedía pegar un identificador. Nadie tiene a mano un uuid:
+        ahora se elige de la lista y se puede filtrar escribiendo. */
   async permisos(m) {
+    const personas = await opcPersonas();
     m.innerHTML = `
       ${cabecera('Qué puede cada quien',
-        'Los roles de una persona y lo que de verdad alcanza con ellos. Es la pregunta de toda auditoría.')}
-      <form id="f-p" style="display:flex;gap:8px;margin-bottom:16px;max-width:560px">
-        <input name="id" style="flex:1;height:32px;padding:0 12px;border:1px solid var(--fil);
-               border-radius:var(--r);font:inherit" placeholder="Identificador de la persona" required>
-        <button class="ms-btn ms-btn--pri" type="submit">Ver</button>
-      </form>
-      <div id="det"><p class="ms-vacio">Pegue el identificador de una persona.</p></div>`;
-    m.querySelector('#f-p').addEventListener('submit', async ev => {
-      ev.preventDefault();
-      const id = ev.target.elements.id.value.trim();
+        'Los roles de una persona y lo que de verdad alcanza con ellos.')}
+      <div class="ms-barra">
+        <input class="ms-busca" id="q" placeholder="Escriba para filtrar entre ${personas.length} personas">
+        <select id="sel" class="ms-sel-ancho">
+          <option value="">— elija una persona —</option>
+          ${personas.map(p => `<option value="${esc(p.valor)}">${esc(p.texto)}</option>`).join('')}
+        </select>
+      </div>
+      <div id="det"><p class="ms-vacio">Elija una persona para ver sus roles y lo que alcanza.</p></div>`;
+
+    const sel = m.querySelector('#sel');
+    m.querySelector('#q').addEventListener('input', ev => {
+      const q = ev.target.value.trim().toLowerCase();
+      sel.innerHTML = '<option value="">— elija una persona —</option>' +
+        personas.filter(p => !q || p.texto.toLowerCase().includes(q))
+          .map(p => `<option value="${esc(p.valor)}">${esc(p.texto)}</option>`).join('');
+    });
+
+    const ver = async () => {
+      const id = sel.value;
       const z = m.querySelector('#det');
+      if (!id) { z.innerHTML = '<p class="ms-vacio">Elija una persona.</p>'; return; }
       z.innerHTML = cargando;
       try {
         const [asig, efe] = await Promise.all([
@@ -553,45 +727,239 @@ Object.assign(VISTAS, {
         const filas = Array.isArray(asig) ? asig : (asig?.asignaciones ?? []);
         const permisos = Array.isArray(efe) ? efe : (efe?.permisos ?? []);
         z.innerHTML = `
+          <div class="ms-barra">
+            <button class="ms-btn ms-btn--primario" id="b-otorgar">+ Otorgar un rol</button>
+            <button class="ms-btn" id="b-ficha">Abrir su ficha completa</button>
+          </div>
           <h2 class="ms-h2">Roles vigentes</h2>
           ${tablaMs(filas, [
-            { t: 'Rol', p: a => `<b>${esc(a.rol)}</b>` },
+            { t: 'Rol', p: a => `<b>${esc(a.rol_nombre ?? a.rol)}</b><span class="ms-doc">${esc(a.rol)}</span>` },
             { t: 'Alcance', p: a => esc(a.alcance_tipo) },
             { t: 'Techo', p: a => niv(a.nivel_max) },
-            { t: 'Desde', k: 'vigente_desde' },
-            { t: '', p: a => `<button class="ms-btn" data-rev="${esc(a.id)}">Revocar</button>` },
+            { t: 'Desde', p: a => esc(a.vigente_desde ?? a.desde ?? '—') },
+            { t: 'Acta', p: a => a.acta_referencia ? `<code>${esc(a.acta_referencia)}</code>` : '<span class="ms-falta">sin acta</span>' },
+            { t: '', p: a => `<button class="ms-btn ms-btn--peq" data-rev="${esc(a.id)}">Revocar</button>` },
           ], 'Sin roles vigentes: esta persona no puede hacer nada.')}
-          <h2 class="ms-h2">Lo que alcanza de verdad</h2>
+          <h2 class="ms-h2">Lo que alcanza de verdad <span class="num">${permisos.length}</span></h2>
           ${tablaMs(permisos.slice(0, 300), [
-            { t: 'Módulo', k: 'modulo' }, { t: 'Acción', k: 'accion' },
+            { t: 'Módulo', p: p => esc(p.modulo_nombre ?? p.modulo) },
+            { t: 'Acción', p: p => esc(p.accion_nombre ?? p.accion) },
             { t: 'Techo', p: p => niv(p.nivel_max ?? p.nivel) },
-          ], 'Nada.')}`;
-        z.querySelectorAll('[data-rev]').forEach(b => b.addEventListener('click', async () => {
-          const r = await pedir([{ nombre: 'motivo', etiqueta: 'Motivo de la revocación', obligatorio: true }],
-                                'Revocar el rol');
+          ], 'Nada. Tiene rol pero ninguna casilla marcada: revise «Roles y techos».')}
+          ${permisos.length > 300 ? `<p class="ms-vacio">Se muestran 300 de ${permisos.length}.</p>` : ''}`;
+
+        z.querySelector('#b-ficha').addEventListener('click', () => abrirPersona(id));
+        z.querySelector('#b-otorgar').addEventListener('click', async () => {
+          const cat = await catalogo();
+          const r = await pedir([
+            { nombre: 'rol', etiqueta: 'Rol', obligatorio: true,
+              opciones: cat.roles.filter(x => x.activo)
+                .map(x => ({ valor: x.codigo, texto: `${x.nombre} · techo N${x.nivel_maximo} · ${x.alcance_maximo}` })) },
+            { nombre: 'alcanceTipo', etiqueta: 'Alcance', obligatorio: true, valor: 'sede',
+              opciones: ['persona_propia','grupo','ministerio','segmento','sede','unidad','organizacion']
+                .map(v => ({ valor: v, texto: v })) },
+            { nombre: 'alcanceId', etiqueta: 'Iglesia (solo si el alcance es «sede»)',
+              vacio: '— no aplica —', opciones: opcSedes(await sedesDe()) },
+            { nombre: 'acta', etiqueta: 'Acta que lo autoriza', obligatorio: true },
+          ], 'Otorgar un rol');
           if (!r) return;
           try {
-            await api.borrar('/api/v1/identidad/asignaciones/' + b.dataset.rev);
-            avisar('Rol revocado.'); m.querySelector('#f-p').requestSubmit();
+            await api.enviar('/api/v1/identidad/personas/' + id + '/otorgar', { roles: [r] });
+            avisar('Rol otorgado.'); ver();
+          } catch (e) { avisar(e.message, 'roja'); }
+        });
+        z.querySelectorAll('[data-rev]').forEach(b => b.addEventListener('click', async () => {
+          const r = await pedir([{ nombre: 'motivo', obligatorio: true,
+            etiqueta: 'Motivo · queda en su ficha y en la auditoría' }], 'Quitarle el rol');
+          if (!r) return;
+          try {
+            const x = await api.borrar('/api/v1/identidad/asignaciones/' + b.dataset.rev, { motivo: r.motivo });
+            avisar(x.mensaje ?? 'Rol revocado.'); ver();
           } catch (e) { avisar(e.message, 'roja'); }
         }));
       } catch (e) { z.innerHTML = `<div class="ms-alerta ms-alerta--roja">${esc(e.message)}</div>`; }
-    });
+    };
+    sel.addEventListener('change', ver);
   },
 
+  /* ── Roles y techos ────────────────────────────────────────────────
+     La pantalla donde se decide QUÉ PUEDE HACER cada rol, casilla por
+     casilla. El techo no es decorativo: la base no deja otorgar por
+     encima de él. Una casilla marcada sobre un módulo MÁS sensible que
+     el techo del rol se señala «engaña», porque el permiso existe en la
+     tabla y no sirve para nada: es la clase de detalle que una auditoría
+     busca y que nadie ve hasta que alguien reclama que «no le aparece». */
   async roles(m) {
-    const r = await api.obtener('/api/v1/identidad/roles');
-    const lista = Array.isArray(r) ? r : (r?.roles ?? []);
+    const cat = await catalogo();
+    const pedidas = location.hash.split('/')[1];
+    let actual = cat.roles.some(r => r.codigo === pedidas) ? pedidas : cat.roles[0]?.codigo;
+
     m.innerHTML = `
       ${cabecera('Roles y techos',
-        'Cada rol tiene un alcance máximo y un techo de sensibilidad. La base no deja otorgar por encima.')}
-      ${tablaMs(lista, [
-        { t: 'Rol', p: x => `<b>${esc(x.nombre ?? x.codigo)}</b>` },
-        { t: 'Código', p: x => `<code>${esc(x.codigo)}</code>` },
-        { t: 'Alcance máximo', k: 'alcance_maximo' },
-        { t: 'Techo', p: x => niv(x.nivel_maximo) },
-        { t: 'Para qué', p: x => `<span style="color:var(--tin-mid)">${esc(x.descripcion ?? '')}</span>` },
-      ])}`;
+        'Cada rol tiene un alcance máximo, un techo de sensibilidad y una casilla por cada cosa que puede hacer.')}
+      <div class="ms-dos">
+        <aside class="ms-lateral">
+          <button class="ms-btn ms-btn--primario" id="b-rol">+ Crear un rol</button>
+          <input class="ms-filtro" id="q-rol" placeholder="Filtrar ${cat.roles.length} roles">
+          <div class="ms-listilla" id="lista-roles"></div>
+        </aside>
+        <section id="det">${cargando}</section>
+      </div>`;
+
+    const listar = (q = '') => {
+      m.querySelector('#lista-roles').innerHTML = cat.roles
+        .filter(r => !q || (r.nombre + r.codigo).toLowerCase().includes(q.toLowerCase()))
+        .map(r => `<button class="ms-itemlista${r.codigo === actual ? ' is-on' : ''}" data-rol="${esc(r.codigo)}">
+            <b>${esc(r.nombre)}</b>
+            <span>${niv(r.nivel_maximo)} ${esc(r.alcance_maximo)}${r.activo ? '' : ' · inactivo'}</span>
+          </button>`).join('') || '<p class="ms-vacio">Ninguno coincide.</p>';
+    };
+
+    const detalle = async () => {
+      const z = m.querySelector('#det');
+      z.innerHTML = cargando;
+      const rol = cat.roles.find(r => r.codigo === actual);
+      const d = await api.obtener('/api/v1/administracion/matriz?rol=' + encodeURIComponent(actual));
+      const celda = new Map(d.matriz.map(x => [x.modulo + '|' + x.accion, x]));
+      const globales = cat.acciones.filter(a => !a.modulo);
+      const propias = (mod) => cat.acciones.filter(a => a.modulo === mod);
+      const marcadas = d.matriz.filter(x => x.marcado).length;
+      const enganan = d.matriz.filter(x => x.marcado && x.por_encima).length;
+
+      const cel = (mod, acc) => {
+        const c = celda.get(mod + '|' + acc);
+        if (!c) return '<td class="ms-cel ms-cel--na"></td>';
+        return `<td class="ms-cel ${c.marcado ? 'ms-cel--si' : 'ms-cel--no'}${c.por_encima ? ' ms-cel--veda' : ''}">
+          <input type="checkbox" class="ms-tick" ${c.marcado ? 'checked' : ''}
+                 data-mod="${esc(mod)}" data-acc="${esc(acc)}"
+                 aria-label="${esc(acc)} en ${esc(mod)}"
+                 title="${c.por_encima ? 'El módulo es N' + c.modulo_nivel + ' y el techo del rol es N' + c.rol_techo + ': aunque se marque, no verá el dato.' : ''}">
+        </td>`;
+      };
+
+      z.innerHTML = `
+        <div class="ms-persona">
+          <div class="ms-persona__cab">
+            <div><b>${esc(rol.nombre)}</b><span class="ms-doc">${esc(rol.codigo)}</span></div>
+            <div style="display:flex;gap:8px;align-items:center">
+              ${niv(rol.nivel_maximo)}
+              <span class="ms-chip">${esc(rol.alcance_maximo)}</span>
+              ${rol.activo ? '' : '<span class="ms-vig ms-vig--fin">inactivo</span>'}
+              <button class="ms-btn" id="b-editar">Editar</button>
+            </div>
+          </div>
+          <div style="padding:12px 16px">
+            <p style="margin:0 0 12px;color:var(--tin-mid);font-size:13px">${esc(rol.descripcion ?? 'Sin descripción.')}</p>
+            <div class="ms-kpis">
+              <div class="ms-kpi"><b>${marcadas}</b><span>permisos marcados</span></div>
+              <div class="ms-kpi"><b>${d.total_filas}</b><span>casillas posibles</span></div>
+              <div class="ms-kpi ${enganan ? 'ms-kpi--ojo' : ''}"><b>${enganan}</b><span>marcados que engañan</span></div>
+            </div>
+            ${enganan ? alerta('Hay ' + enganan + ' permisos marcados sobre módulos más sensibles que el techo del rol: existen en la tabla y no dejan ver el dato. O se sube el techo, o se desmarcan.', 'ambar') : ''}
+            ${alerta(d.aviso)}
+          </div>
+        </div>
+
+        <h2 class="ms-h2">Lo que puede hacer</h2>
+        <div class="ms-leyenda" style="margin-bottom:8px">
+          <span><i style="background:var(--ok-bg)"></i>marcado</span>
+          <span><i style="background:var(--sup)"></i>sin marcar</span>
+          <span><i style="background:var(--pel-bg)"></i>por encima del techo</span>
+          <span><i style="background:var(--pa-alt)"></i>no aplica a ese módulo</span>
+        </div>
+        <div class="ms-scroll"><table class="ms-tabla ms-matriz">
+          <thead><tr><th class="ms-rolcel" style="text-align:left">Módulo</th>
+            ${globales.map(a => `<th>${esc(a.nombre)}</th>`).join('')}
+            <th style="text-align:left">Acciones propias del módulo</th></tr></thead>
+          <tbody>${cat.modulos.map(mo => `
+            <tr>
+              <td class="ms-rolcel">${esc(mo.nombre)} ${niv(mo.nivel_dato)}</td>
+              ${globales.map(a => cel(mo.codigo, a.codigo)).join('')}
+              <td>${propias(mo.codigo).length
+                ? `<div class="ms-rejilla ms-rejilla--apretada">${propias(mo.codigo).map(a => {
+                    const c = celda.get(mo.codigo + '|' + a.codigo);
+                    return casilla({ titulo: a.nombre, sub: a.codigo, marcado: !!c?.marcado,
+                      datos: { mod: mo.codigo, acc: a.codigo } });
+                  }).join('')}</div>`
+                : '<span class="ms-vacio">ninguna</span>'}</td>
+            </tr>`).join('')}</tbody>
+        </table></div>`;
+
+      z.querySelector('#b-editar').addEventListener('click', async () => {
+        const r = await pedir([
+          { nombre: 'nombre', etiqueta: 'Nombre', obligatorio: true, valor: rol.nombre },
+          { nombre: 'alcanceMaximo', etiqueta: 'Alcance máximo', obligatorio: true, valor: rol.alcance_maximo,
+            opciones: ['persona_propia','grupo','ministerio','segmento','sede','unidad','organizacion']
+              .map(v => ({ valor: v, texto: v })) },
+          { nombre: 'nivelMaximo', etiqueta: 'Techo de sensibilidad', obligatorio: true, numero: true,
+            valor: String(rol.nivel_maximo),
+            opciones: cat.niveles.map(n => ({ valor: String(n.nivel), texto: `N${n.nivel} · ${n.descripcion}` })) },
+          { nombre: 'descripcion', etiqueta: 'Para qué sirve', valor: rol.descripcion ?? '' },
+          { nombre: 'activo', etiqueta: '¿Se puede otorgar?', obligatorio: true, valor: rol.activo ? 'si' : 'no',
+            opciones: [{ valor: 'si', texto: 'Sí, está vigente' }, { valor: 'no', texto: 'No, quedó descontinuado' }] },
+        ], 'Editar ' + rol.nombre);
+        if (!r) return;
+        try {
+          const x = await api.enviar('/api/v1/administracion/roles',
+            { codigo: rol.codigo, ...r, activo: r.activo === 'si' });
+          CAT = null; avisar(x.mensaje);
+          CAT = await catalogo();
+          Object.assign(rol, CAT.roles.find(y => y.codigo === rol.codigo));
+          listar(m.querySelector('#q-rol').value); detalle();
+        } catch (e) { avisar(e.message, 'roja'); }
+      });
+    };
+
+    /* ⛔ UNA vez. Dentro de `detalle()` se volvía a colgar en cada
+       repintado sobre el mismo `#det`: marcar una casilla disparaba el
+       guardado tantas veces como roles se hubieran mirado antes. */
+    m.addEventListener('change', async ev => {
+      const inp = ev.target;
+      if (inp.type !== 'checkbox') return;
+      const cont = inp.closest('[data-mod]') ?? inp;
+      const mod = inp.dataset.mod ?? cont.dataset?.mod;
+      const acc = inp.dataset.acc ?? cont.dataset?.acc;
+      if (!mod || !acc) return;
+      pintarEstado(inp);
+      inp.closest('td')?.classList.toggle('ms-cel--si', inp.checked);
+      inp.closest('td')?.classList.toggle('ms-cel--no', !inp.checked);
+      try {
+        const r = await api.enviar('/api/v1/administracion/matriz',
+          { rol: actual, modulo: mod, accion: acc, marcado: inp.checked });
+        avisar(r.mensaje);
+      } catch (e) { revertir(inp, e); detalle(); }
+    });
+
+    m.querySelector('#lista-roles').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-rol]');
+      if (!b) return;
+      actual = b.dataset.rol;
+      history.replaceState(null, '', '#/roles/' + actual);
+      listar(m.querySelector('#q-rol').value); detalle();
+    });
+    m.querySelector('#q-rol').addEventListener('input', ev => listar(ev.target.value));
+    m.querySelector('#b-rol').addEventListener('click', async () => {
+      const r = await pedir([
+        { nombre: 'codigo', etiqueta: 'Código (en mayúsculas, sin espacios)', obligatorio: true, ayuda: 'TESORERIA_SEDE' },
+        { nombre: 'nombre', etiqueta: 'Nombre', obligatorio: true },
+        { nombre: 'alcanceMaximo', etiqueta: 'Alcance máximo', obligatorio: true, valor: 'sede',
+          opciones: ['persona_propia','grupo','ministerio','segmento','sede','unidad','organizacion']
+            .map(v => ({ valor: v, texto: v })) },
+        { nombre: 'nivelMaximo', etiqueta: 'Techo de sensibilidad', obligatorio: true, numero: true, valor: '2',
+          opciones: cat.niveles.map(n => ({ valor: String(n.nivel), texto: `N${n.nivel} · ${n.descripcion}` })) },
+        { nombre: 'descripcion', etiqueta: 'Para qué sirve', obligatorio: true },
+      ], 'Crear un rol');
+      if (!r) return;
+      try {
+        const x = await api.enviar('/api/v1/administracion/roles', r);
+        avisar(x.mensaje + ' Ahora marque lo que puede hacer.');
+        CAT = null; CAT = await catalogo();
+        cat.roles = CAT.roles; actual = r.codigo;
+        listar(''); detalle();
+      } catch (e) { avisar(e.message, 'roja'); }
+    });
+
+    listar(); detalle();
   },
 
   async recert(m) {
@@ -608,24 +976,119 @@ Object.assign(VISTAS, {
       ], 'Nada pendiente de revisar.')}`;
   },
 
+  /* ── Iglesias y sedes ──────────────────────────────────────────────
+     Pulsar una iglesia abre su ficha: cuánta gente tiene, qué módulos
+     ve, quién la pastorea y qué le falta. Desde ahí se entra a lo que
+     ella ve. */
   async iglesias(m) {
-    const [sed, pla] = await Promise.all([
-      api.obtener('/api/v1/organizacion/sedes').catch(() => []),
-      api.obtener('/api/v1/administracion/plantillas'),
+    const [sedes, pla] = await Promise.all([
+      sedesDe(), api.obtener('/api/v1/administracion/plantillas'),
     ]);
-    const sedes = Array.isArray(sed) ? sed : (sed?.sedes ?? []);
     m.innerHTML = `
       ${cabecera('Iglesias y sedes',
-        'Desplegar una iglesia es una sola operación: la sede, sus módulos según la plantilla, y su pastor.')}
+        'Desplegar una iglesia es una sola operación: la sede, sus módulos según la plantilla y su pastor. Pulse una fila para abrir su ficha.')}
       ${alerta(pla.aviso)}
-      <p style="margin-bottom:16px"><button class="ms-btn ms-btn--pri" id="b-desplegar">+ Desplegar una iglesia</button></p>
-      ${tablaMs(sedes, [
-        { t: 'Código', p: s => `<code>${esc(s.codigo)}</code>` },
-        { t: 'Iglesia', p: s => `<b>${esc(s.nombre)}</b>` },
-        { t: 'Ciudad', k: 'ciudad' },
-        { t: 'Tipo', p: s => `<span class="ms-chip">${esc(s.tipo ?? '')}</span>` },
-      ], 'Ninguna iglesia. Despliegue la primera.')}`;
+      <div class="ms-barra">
+        <button class="ms-btn ms-btn--primario" id="b-desplegar">+ Desplegar una iglesia</button>
+        <input class="ms-busca" id="q" placeholder="Buscar iglesia">
+        <span class="ms-barra__sp"></span>
+        <span style="color:var(--tin-dim);font-size:12px">${sedes.length} en la red</span>
+      </div>
+      <div id="tabla"></div>`;
+
+    const cols = [
+      { t: 'Código', p: x => `<code>${esc(x.codigo)}</code>` },
+      { t: 'Iglesia', p: x => `<b>${esc(x.nombre)}</b>` },
+      { t: 'Ciudad', p: x => esc([x.ciudad, x.pais].filter(Boolean).join(', ')) },
+      { t: 'Tipo', p: x => `<span class="ms-chip">${esc(x.tipo ?? '')}</span>` },
+      { t: 'Estado', p: x => x.activa === false
+          ? '<span class="ms-vig ms-vig--fin">inactiva</span>'
+          : '<span class="ms-vig ms-vig--ok">activa</span>' },
+      { t: '', p: x => `<button class="ms-btn ms-btn--peq" data-sede="${esc(x.id)}">Abrir ficha</button>` },
+    ];
+    const pintarTabla = (q = '') => {
+      const l = sedes.filter(x => !q || (x.codigo + x.nombre + (x.ciudad ?? '')).toLowerCase().includes(q.toLowerCase()));
+      m.querySelector('#tabla').innerHTML = tablaMs(l, cols, 'Ninguna iglesia coincide.');
+    };
+    pintarTabla();
+    m.querySelector('#q').addEventListener('input', ev => pintarTabla(ev.target.value));
+
+    m.addEventListener('click', async ev => {
+      const b = ev.target.closest('[data-sede]');
+      if (!b) return;
+      const id = b.dataset.sede;
+      const d = fichaAbrir('Cargando…', '', cargando);
+      try {
+        const [f, mods] = await Promise.all([
+          api.obtener('/api/v1/administracion/sedes/' + id),
+          api.obtener('/api/v1/administracion/sedes/' + id + '/modulos').catch(() => ({ modulos: [] })),
+        ]);
+        const on = mods.modulos.filter(x => x.activo);
+        d.remove();
+        const z = fichaAbrir(f.sede.nombre, f.sede.codigo + ' · ' + f.sede.tipo + ' · ' + (f.sede.ciudad ?? ''), `
+          ${alerta(f.aviso, 'roja')}
+          <div class="ms-kpis">
+            <div class="ms-kpi"><b>${esc(f.conteo.personas)}</b><span>personas</span></div>
+            <div class="ms-kpi"><b>${esc(f.conteo.grupos)}</b><span>grupos</span></div>
+            <div class="ms-kpi"><b>${esc(f.conteo.modulos_encendidos)}</b><span>módulos encendidos</span></div>
+          </div>
+          <div class="ms-acciones" style="margin:16px 0">
+            <button class="ms-btn ms-btn--primario" id="f-ver">Abrir lo que ve esta iglesia</button>
+            <button class="ms-btn" id="f-mod">Cambiar sus módulos</button>
+            <button class="ms-btn" id="f-pas">Asignar pastor</button>
+          </div>
+          <p class="ms-nota">«Abrir lo que ve» entra a la aplicación de los pastores, la misma que usa esta
+            iglesia. Entra con SU usuario, no con el del pastor: esta consola no suplanta a nadie, porque
+            cada cosa hecha en el sistema tiene que quedar a nombre de quien la hizo.</p>
+
+          <h2 class="ms-h2">Quién la pastorea</h2>
+          ${tablaMs(f.equipo ?? [], [
+            { t: 'Persona', p: x => `<b>${esc(x.persona ?? x.nombre_completo ?? '')}</b>` },
+            { t: 'Rol', p: x => `<span class="ms-chip">${esc(x.rol_nombre ?? x.rol ?? '')}</span>` },
+            { t: 'Techo', p: x => niv(x.nivel_max) },
+            { t: 'Desde', k: 'desde' },
+          ], 'Nadie con rol en esta sede. Asigne un pastor: una sede sin pastor no se opera sola.')}
+
+          <h2 class="ms-h2">Qué ve · ${on.length} módulos encendidos</h2>
+          <div class="ms-chips">${on.length
+            ? on.map(x => `<span class="ms-chip">${esc(x.nombre)}</span>`).join('')
+            : '<span class="ms-vacio">Ninguno.</span>'}</div>
+          ${mods.modulos.filter(x => !x.activo).length ? `
+            <h2 class="ms-h2">Apagados</h2>
+            <div class="ms-chips">${mods.modulos.filter(x => !x.activo)
+              .map(x => `<span class="ms-chip ms-chip--veda">${esc(x.nombre)}</span>`).join('')}</div>` : ''}
+
+          <h2 class="ms-h2">Unidades que la alcanzan</h2>
+          <div class="ms-chips">${(f.unidades ?? []).length
+            ? f.unidades.map(u => `<span class="ms-chip">${esc(u.nombre)}</span>`).join('')
+            : '<span class="ms-vacio">Ninguna.</span>'}</div>`);
+
+        z.querySelector('#f-ver').addEventListener('click', () => window.open('../index.html#/panel', '_blank', 'noopener'));
+        z.querySelector('#f-mod').addEventListener('click', () => { z.remove(); location.hash = '#/modulos/' + id; });
+        z.querySelector('#f-pas').addEventListener('click', async () => {
+          const personas = await opcPersonas();
+          const cat = await catalogo();
+          const r = await pedir([
+            { nombre: 'personaId', etiqueta: 'Persona', obligatorio: true, opciones: personas },
+            { nombre: 'rol', etiqueta: 'Rol', obligatorio: true, valor: 'PASTOR_CONGREGACIONAL',
+              opciones: cat.roles.filter(x => x.activo).map(x => ({ valor: x.codigo, texto: x.nombre })) },
+            { nombre: 'acta', etiqueta: 'Acta que lo autoriza', obligatorio: true },
+          ], 'Asignar pastor a ' + f.sede.nombre);
+          if (!r) return;
+          try {
+            await api.enviar('/api/v1/identidad/personas/' + r.personaId + '/otorgar',
+              { roles: [{ rol: r.rol, alcanceTipo: 'sede', alcanceId: id, acta: r.acta }] });
+            avisar('Rol otorgado en ' + f.sede.nombre + '.'); z.remove();
+          } catch (e) { avisar(e.message, 'roja'); }
+        });
+      } catch (e) {
+        d.remove();
+        fichaAbrir('No se pudo abrir', '', `<div class="ms-alerta ms-alerta--roja">${esc(e.message)}</div>`);
+      }
+    });
+
     m.querySelector('#b-desplegar').addEventListener('click', async () => {
+      const personas = await opcPersonas();
       const d = await pedir([
         { nombre: 'codigo', etiqueta: 'Código', obligatorio: true, ayuda: 'BOG-SUR' },
         { nombre: 'nombre', etiqueta: 'Nombre', obligatorio: true, ayuda: 'Bogotá Sur' },
@@ -635,90 +1098,232 @@ Object.assign(VISTAS, {
           { valor: 'filial_internacional', texto: 'Filial internacional' }] },
         { nombre: 'pais', etiqueta: 'País (2 letras)', obligatorio: true, valor: 'CO' },
         { nombre: 'ciudad', etiqueta: 'Ciudad', obligatorio: true },
-        { nombre: 'plantilla', etiqueta: 'Plantilla', obligatorio: true,
-          opciones: pla.plantillas.filter(p => p.codigo !== 'MAESTRA')
+        { nombre: 'plantilla', etiqueta: 'Plantilla · define con qué módulos nace', obligatorio: true, opciones:
+          pla.plantillas.filter(p => p.codigo !== 'MAESTRA')
             .map(p => ({ valor: p.codigo, texto: p.nombre + ' · ' + p.modulos + ' módulos' })) },
-        { nombre: 'pastorId', etiqueta: 'Identificador del pastor', obligatorio: true },
+        { nombre: 'pastorId', etiqueta: 'Pastor congregacional', obligatorio: true, opciones: personas },
       ], 'Desplegar una iglesia');
       if (!d) return;
-      try { const r = await api.enviar('/api/v1/administracion/iglesias', d); avisar(r.mensaje); pintar(); }
-      catch (e) { avisar(e.message, 'roja'); }
+      try {
+        const r = await api.enviar('/api/v1/administracion/iglesias', d);
+        SEDES = null; avisar(r.mensaje); pintar();
+      } catch (e) { avisar(e.message, 'roja'); }
     });
   },
 
+  /* ── Plantillas de iglesia ─────────────────────────────────────────
+     Una plantilla es la respuesta a «¿con qué nace una iglesia nueva?».
+     Se edita con casillas: marcar un módulo lo mete en la plantilla.
+     ⛔ Los de núcleo no se pueden quitar y la casilla lo dice en vez de
+        fallar cuando alguien lo intenta. */
   async plantillas(m) {
-    const d = await api.obtener('/api/v1/administracion/plantillas');
+    const [cat, d] = await Promise.all([catalogo(), api.obtener('/api/v1/administracion/plantillas')]);
+    let actual = d.plantillas[0]?.codigo;
+
     m.innerHTML = `
       ${cabecera('Plantillas de iglesia',
-        'Qué módulos trae una iglesia nueva según su tipo. Es lo que hace que las 36 tengan el mismo sistema inicial.')}
+        'Qué módulos trae una iglesia nueva según su tipo. Es lo que hace que las 36 nazcan con el mismo sistema.')}
       ${alerta(d.aviso)}
-      ${d.plantillas.map(p => `
+      <div class="ms-dos">
+        <aside class="ms-lateral">
+          <button class="ms-btn ms-btn--primario" id="b-nueva">+ Crear una plantilla</button>
+          <div class="ms-listilla" id="lista-pla"></div>
+        </aside>
+        <section id="det">${cargando}</section>
+      </div>`;
+
+    const listar = () => {
+      m.querySelector('#lista-pla').innerHTML = d.plantillas.map(p => `
+        <button class="ms-itemlista${p.codigo === actual ? ' is-on' : ''}" data-pla="${esc(p.codigo)}">
+          <b>${esc(p.nombre)}</b><span>${p.modulos} módulos · ${esc(p.tipo_sede)}</span>
+        </button>`).join('') || '<p class="ms-vacio">Ninguna.</p>';
+    };
+
+    const detalle = () => {
+      const p = d.plantillas.find(x => x.codigo === actual);
+      const z = m.querySelector('#det');
+      if (!p) { z.innerHTML = '<p class="ms-vacio">Elija una plantilla.</p>'; return; }
+      const dentro = new Set((p.lista ?? '').split(', ').filter(Boolean));
+      z.innerHTML = `
         <div class="ms-persona">
           <div class="ms-persona__cab">
             <div><b>${esc(p.nombre)}</b><span class="ms-doc">${esc(p.codigo)} · ${esc(p.tipo_sede)}</span></div>
-            <div><span class="num" style="font-size:18px">${p.modulos}</span>
-              <small style="color:var(--tin-dim)"> módulos</small></div>
+            <div style="display:flex;gap:8px">
+              <button class="ms-btn" id="b-ren">Renombrar</button>
+              ${p.codigo === 'MAESTRA' ? '' : '<button class="ms-btn ms-btn--peligro" id="b-bor">Borrar</button>'}
+            </div>
           </div>
           <div style="padding:12px 16px">
-            <p style="margin:0 0 8px;color:var(--tin-mid);font-size:13px">${esc(p.descripcion ?? '')}</p>
-            <div class="ms-chips">${(p.lista ?? '').split(', ').filter(Boolean)
-              .map(x => `<span class="ms-chip">${esc(x)}</span>`).join('')}</div>
-            ${p.con_compuerta_legal ? `<p class="ms-falta" style="margin-top:8px">
-              ${p.con_compuerta_legal} nacen APAGADOS: exigen evidencia jurídica.</p>` : ''}
+            <p style="margin:0 0 4px;color:var(--tin-mid);font-size:13px">${esc(p.descripcion ?? '')}</p>
+            ${p.con_compuerta_legal ? alerta(p.con_compuerta_legal + ' de estos módulos NACEN APAGADOS aunque estén en la plantilla: exigen evidencia jurídica antes de encenderse en una sede.', 'ambar') : ''}
           </div>
-        </div>`).join('')}`;
+        </div>
+        <h2 class="ms-h2">Módulos que trae <span class="num" id="cuantos">${p.modulos}</span> de ${cat.modulos.length}</h2>
+        <div class="ms-rejilla">${cat.modulos.map(mo => casilla({
+          titulo: mo.nombre,
+          sub: mo.es_nucleo ? 'De núcleo · siempre viene' : `N${mo.nivel_dato}${mo.exige_compuerta_legal ? ' · exige evidencia legal' : ''}`,
+          marcado: dentro.has(mo.nombre),
+          bloqueado: mo.es_nucleo,
+          motivo: 'De núcleo · no se puede quitar',
+          datos: { mod: mo.codigo },
+        })).join('')}</div>`;
+
+      z.querySelector('#b-ren').addEventListener('click', async () => {
+        const r = await pedir([
+          { nombre: 'nombre', etiqueta: 'Nombre', obligatorio: true, valor: p.nombre },
+          { nombre: 'descripcion', etiqueta: 'Para qué tipo de iglesia', valor: p.descripcion ?? '' },
+        ], 'Renombrar ' + p.codigo);
+        if (!r) return;
+        try {
+          await api.enviar('/api/v1/administracion/plantillas',
+            { codigo: p.codigo, tipoSede: p.tipo_sede, ...r });
+          Object.assign(p, r); avisar('Plantilla guardada.'); listar(); detalle();
+        } catch (e) { avisar(e.message, 'roja'); }
+      });
+
+      z.querySelector('#b-bor')?.addEventListener('click', async () => {
+        if (!confirm('Se borra la plantilla «' + p.nombre + '». Las iglesias ya desplegadas con ella NO cambian. ¿Seguir?')) return;
+        try {
+          const r = await api.enviar('/api/v1/administracion/plantillas/' + p.codigo + '/borrar', {});
+          avisar(r.mensaje); pintar();
+        } catch (e) { avisar(e.message, 'roja'); }
+      });
+    };
+
+    /* ⛔ UNA vez, sobre el contenedor de la vista: dentro de `detalle()`
+       se recolgaba en cada plantilla mirada y marcar un módulo mandaba
+       la misma orden varias veces. */
+    m.addEventListener('change', async ev => {
+      const inp = ev.target;
+      if (inp.type !== 'checkbox') return;
+      const mod = inp.closest('[data-mod]')?.dataset.mod;
+      if (!mod) return;
+      const p = d.plantillas.find(x => x.codigo === actual);
+      pintarEstado(inp);
+      try {
+        const r = await api.enviar('/api/v1/administracion/plantillas/' + actual + '/modulos',
+          { modulo: mod, marcado: inp.checked });
+        avisar(r.mensaje);
+        const nombre = cat.modulos.find(x => x.codigo === mod).nombre;
+        const lista = new Set((p.lista ?? '').split(', ').filter(Boolean));
+        inp.checked ? lista.add(nombre) : lista.delete(nombre);
+        p.lista = [...lista].join(', '); p.modulos = lista.size;
+        const c = m.querySelector('#cuantos');
+        if (c) c.textContent = p.modulos;
+        listar();
+      } catch (e) { revertir(inp, e); }
+    });
+
+    m.querySelector('#lista-pla').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-pla]');
+      if (!b) return;
+      actual = b.dataset.pla; listar(); detalle();
+    });
+    m.querySelector('#b-nueva').addEventListener('click', async () => {
+      const r = await pedir([
+        { nombre: 'codigo', etiqueta: 'Código', obligatorio: true, ayuda: 'PLANTA-CO' },
+        { nombre: 'nombre', etiqueta: 'Nombre', obligatorio: true },
+        { nombre: 'tipoSede', etiqueta: 'Para qué tipo de iglesia', obligatorio: true, opciones: [
+          { valor: 'plantacion', texto: 'Plantación' },
+          { valor: 'filial_nacional', texto: 'Filial nacional' },
+          { valor: 'filial_internacional', texto: 'Filial internacional' },
+          { valor: 'sede_madre', texto: 'Sede madre' }] },
+        { nombre: 'descripcion', etiqueta: 'Para qué sirve', obligatorio: true },
+      ], 'Crear una plantilla');
+      if (!r) return;
+      try { const x = await api.enviar('/api/v1/administracion/plantillas', r); avisar(x.mensaje); pintar(); }
+      catch (e) { avisar(e.message, 'roja'); }
+    });
+
+    listar(); detalle();
   },
 });
 
 Object.assign(VISTAS, {
 
+  /* ── Qué ve cada iglesia ───────────────────────────────────────────
+     Casillas, no botones: encender y apagar es un gesto, no un trámite.
+     Lo que manda es la base, y se ve en la casilla antes de intentarlo:
+     el núcleo sale deshabilitado, y lo que exige compuerta legal pide la
+     referencia del instrumento ANTES de encenderse. */
   async modulos(m) {
-    const sed = await api.obtener('/api/v1/organizacion/sedes').catch(() => []);
-    const sedes = Array.isArray(sed) ? sed : (sed?.sedes ?? []);
+    const [cat, sedes] = await Promise.all([catalogo(), sedesDe()]);
+    const pedida = location.hash.split('/')[1];
     m.innerHTML = `
       ${cabecera('Qué ve cada iglesia',
-        'Los módulos encendidos en una sede. La base impone las reglas: el núcleo no se apaga, y lo que tiene compuerta legal no se enciende sin evidencia.')}
-      <label class="ms-campo ms-campo--ancho"><span>Iglesia</span>
-        <select id="sel">${sedes.map(s => `<option value="${esc(s.id)}">${esc(s.codigo)} · ${esc(s.nombre)}</option>`).join('')}</select>
-      </label>
+        'Los módulos encendidos en una sede. El núcleo no se apaga, y lo que toca datos protegidos no se enciende sin evidencia jurídica.')}
+      <div class="ms-barra">
+        <label class="ms-campo ms-campo--ancho" style="margin:0"><span>Iglesia</span>
+          <select id="sel">${sedes.map(x => `<option value="${esc(x.id)}"
+            ${x.id === pedida ? 'selected' : ''}>${esc(x.codigo)} · ${esc(x.nombre)}</option>`).join('')}</select>
+        </label>
+        <span class="ms-barra__sp"></span>
+        <button class="ms-btn" id="b-ver">Abrir la aplicación de esta iglesia</button>
+      </div>
       <div id="lista">${cargando}</div>`;
+
     const sel = m.querySelector('#sel');
+    m.querySelector('#b-ver').addEventListener('click', () => {
+      window.open('../index.html#/panel', '_blank', 'noopener');
+    });
+
     const pintarLista = async () => {
       const z = m.querySelector('#lista');
       z.innerHTML = cargando;
       try {
         const d = await api.obtener('/api/v1/administracion/sedes/' + sel.value + '/modulos');
-        z.innerHTML = alerta(d.aviso, 'roja') + tablaMs(d.modulos, [
-          { t: 'Módulo', p: x => `<b>${esc(x.nombre)}</b>${x.es_nucleo ? ' <span class="ms-chip">núcleo</span>' : ''}` },
-          { t: 'Nivel', p: x => niv(x.nivel_dato) },
-          { t: 'Depende de', p: x => x.depende_de ? `<code>${esc(x.depende_de)}</code>` : '—' },
-          { t: 'Estado', p: x => x.activo
-              ? '<span class="ms-vig ms-vig--ok">encendido</span>'
-              : '<span class="ms-vig ms-vig--fin">apagado</span>' },
-          { t: 'Evidencia legal', p: x => x.evidencia_legal_ref
-              ? `<code>${esc(x.evidencia_legal_ref)}</code>`
-              : (x.exige_compuerta_legal && x.activo ? '<span class="ms-falta">FALTA</span>' : '—') },
-          { t: '', p: x => x.es_nucleo && x.activo ? '<span class="ms-vacio">no se apaga</span>'
-              : `<button class="ms-btn" data-mod="${esc(x.codigo)}" data-on="${x.activo ? '1' : '0'}"
-                   data-legal="${x.exige_compuerta_legal ? '1' : '0'}">${x.activo ? 'Apagar' : 'Encender'}</button>` },
-        ]);
-        z.querySelectorAll('[data-mod]').forEach(b => b.addEventListener('click', async () => {
-          const encender = b.dataset.on === '0';
+        const encendidos = d.modulos.filter(x => x.activo).length;
+        const falta = d.modulos.filter(x => x.activo && x.exige_compuerta_legal && !x.evidencia_legal_ref);
+        z.innerHTML = `
+          ${alerta(d.aviso, 'roja')}
+          ${falta.length ? alerta(falta.length + ' módulo(s) encendidos SIN la evidencia jurídica registrada: ' +
+             falta.map(x => x.nombre).join(', '), 'ambar') : ''}
+          <div class="ms-kpis">
+            <div class="ms-kpi"><b>${encendidos}</b><span>encendidos</span></div>
+            <div class="ms-kpi"><b>${d.modulos.length - encendidos}</b><span>apagados</span></div>
+            <div class="ms-kpi ${falta.length ? 'ms-kpi--ojo' : ''}"><b>${falta.length}</b><span>sin evidencia legal</span></div>
+          </div>
+          <div class="ms-rejilla">${d.modulos.map(x => casilla({
+            titulo: x.nombre,
+            sub: [
+              'N' + x.nivel_dato,
+              x.es_nucleo ? 'núcleo' : null,
+              x.depende_de ? 'necesita ' + x.depende_de : null,
+              x.evidencia_legal_ref ? 'evidencia ' + x.evidencia_legal_ref : null,
+              (x.exige_compuerta_legal && !x.evidencia_legal_ref) ? 'exige evidencia jurídica' : null,
+            ].filter(Boolean).join(' · '),
+            marcado: !!x.activo,
+            bloqueado: x.es_nucleo && x.activo,
+            motivo: 'De núcleo · no se apaga',
+            datos: { mod: x.codigo, legal: x.exige_compuerta_legal ? '1' : '0' },
+          })).join('')}</div>`;
+
+      } catch (e) { z.innerHTML = `<div class="ms-alerta ms-alerta--roja">${esc(e.message)}</div>`; }
+    };
+
+    /* ⛔ UNA vez, sobre el contenedor de la vista. Dentro de `pintarLista`
+       se volvía a colgar en cada repintado sobre el MISMO `#lista`, y a
+       la tercera vuelta un clic abría tres diálogos de compuerta legal. */
+    m.addEventListener('change', async ev => {
+          const inp = ev.target;
+          if (inp.type !== 'checkbox') return;
+          const lbl = inp.closest('[data-mod]');
+          if (!lbl) return;
+          pintarEstado(inp);
           let evidencia;
-          if (encender && b.dataset.legal === '1') {
-            const r = await pedir([{ nombre: 'evidencia', etiqueta: 'Referencia del instrumento jurídico', obligatorio: true }],
-                                  'Este módulo exige compuerta legal');
-            if (!r) return;
+          if (inp.checked && lbl.dataset.legal === '1') {
+            const r = await pedir([{ nombre: 'evidencia', obligatorio: true,
+              etiqueta: 'Referencia del instrumento jurídico que lo autoriza' }],
+              'Este módulo exige compuerta legal');
+            if (!r) { inp.checked = false; pintarEstado(inp); return; }
             evidencia = r.evidencia;
           }
           try {
             const r = await api.enviar('/api/v1/administracion/sedes/' + sel.value + '/modulos',
-              { modulo: b.dataset.mod, activo: encender, evidencia });
+              { modulo: lbl.dataset.mod, activo: inp.checked, evidencia });
             avisar(r.mensaje); pintarLista();
-          } catch (e) { avisar(e.message, 'roja'); }
-        }));
-      } catch (e) { z.innerHTML = `<div class="ms-alerta ms-alerta--roja">${esc(e.message)}</div>`; }
-    };
+          } catch (e) { revertir(inp, e); }
+    });
     sel.addEventListener('change', pintarLista);
     pintarLista();
   },
@@ -729,7 +1334,7 @@ Object.assign(VISTAS, {
       ${cabecera('Equipos corporativos',
         'Contabilidad, Tesorería, Pastoral. Lo que se le otorga al equipo lo hereda cada integrante mientras esté dentro, y se le cae al salir.')}
       ${alerta(d.aviso)}
-      <p style="margin-bottom:16px"><button class="ms-btn ms-btn--pri" id="b-eq">+ Crear un equipo</button></p>
+      <p style="margin-bottom:16px"><button class="ms-btn ms-btn--primario" id="b-eq">+ Crear un equipo</button></p>
       ${tablaMs(d.unidades, [
         { t: 'Unidad', p: u => `<b>${esc(u.nombre)}</b><span class="ms-doc">${esc(u.codigo)}</span>` },
         { t: 'Clase', p: u => `<span class="ms-chip">${esc(u.clase)}</span>` },
@@ -766,7 +1371,7 @@ Object.assign(VISTAS, {
             <div class="ms-persona__cab">
               <div><b>${esc(u.unidad.nombre)}</b><span class="ms-doc">${esc(u.unidad.codigo)} · ${esc(u.unidad.clase)}</span></div>
               <div style="display:flex;gap:8px">
-                <button class="ms-btn ms-btn--pri" data-rol="${esc(u.unidad.id)}">Otorgar rol</button>
+                <button class="ms-btn ms-btn--primario" data-rol="${esc(u.unidad.id)}">Otorgar rol</button>
                 <button class="ms-btn" data-mie="${esc(u.unidad.id)}">Meter a alguien</button>
               </div>
             </div>
@@ -808,10 +1413,13 @@ Object.assign(VISTAS, {
       try {
         if (rol) {
           const r = await pedir([
-            { nombre: 'rol', etiqueta: 'Código del rol', obligatorio: true, ayuda: 'TESORERIA' },
-            { nombre: 'alcanceTipo', etiqueta: 'Alcance', obligatorio: true, opciones:
+            { nombre: 'rol', etiqueta: 'Rol', obligatorio: true,
+              opciones: (await catalogo()).roles.filter(x => x.activo)
+                .map(x => ({ valor: x.codigo, texto: `${x.nombre} · techo N${x.nivel_maximo}` })) },
+            { nombre: 'alcanceTipo', etiqueta: 'Alcance', obligatorio: true, valor: 'organizacion', opciones:
               ['organizacion','sede','segmento','grupo','ministerio','unidad'].map(v => ({ valor: v, texto: v })) },
-            { nombre: 'alcanceId', etiqueta: 'Identificador del alcance (vacío si es toda la organización)' },
+            { nombre: 'alcanceId', etiqueta: 'Iglesia (solo si el alcance es «sede»)',
+              vacio: '— toda la organización —', opciones: opcSedes(await sedesDe()) },
             { nombre: 'nivelMax', etiqueta: 'Techo (1 a 4)', obligatorio: true, valor: '3', numero: true },
             { nombre: 'acta', etiqueta: 'Acta que lo autoriza', obligatorio: true },
           ], 'Otorgar un rol al equipo');
@@ -819,8 +1427,12 @@ Object.assign(VISTAS, {
           const x = await api.enviar('/api/v1/administracion/unidades/' + rol.dataset.rol + '/roles', r);
           avisar(x.mensaje);
         } else if (mie) {
-          const r = await pedir([{ nombre: 'personaId', etiqueta: 'Identificador de la persona', obligatorio: true }],
-                                'Meter a alguien en el equipo');
+          const r = await pedir([
+            { nombre: 'personaId', etiqueta: 'Persona', obligatorio: true, opciones: await opcPersonas() },
+            { nombre: 'rolEnUnidad', etiqueta: 'Qué hace en el equipo', valor: 'integrante',
+              opciones: [{ valor: 'integrante', texto: 'Integrante' }, { valor: 'lider', texto: 'Líder' },
+                         { valor: 'suplente', texto: 'Suplente' }] },
+          ], 'Meter a alguien en el equipo');
           if (!r) return;
           const x = await api.enviar('/api/v1/administracion/unidades/' + mie.dataset.mie + '/miembros', r);
           avisar(x.mensaje);
@@ -905,13 +1517,19 @@ Object.assign(VISTAS, {
 });
 
 /* ── Piezas compartidas de las cuentas ────────────────────────────── */
+/* La primera columna es el enlace a la ficha: la fila entera lleva a
+   algún lado, que era justo lo que faltaba.
+   ⛔ El estado y el bloqueo son dos cosas distintas, pero cuando una
+      cuenta está BLOQUEADA el estado ya lo dice: mostrar las dos daba
+      «bloqueada bloqueada» en la pantalla. */
 const COLS_CUENTA = [
-  { t: 'Persona', p: x => `<b>${esc(x.persona)}</b><span class="ms-doc">${esc(x.usuario)}</span>` },
+  { t: 'Persona', p: x => `<button class="ms-enlace" data-persona="${esc(x.persona_id)}">
+      <b>${esc(x.persona)}</b><span class="ms-doc">${esc(x.usuario)}</span></button>` },
   { t: 'Iglesia', p: x => esc(x.sede ?? '—') },
   { t: 'Estado', p: x => `
-      ${x.estado === 'activa' ? '<span class="ms-vig ms-vig--ok">activa</span>'
-        : `<span class="ms-vig ms-vig--fin">${esc(x.estado)}</span>`}
-      ${x.bloqueada ? '<span class="ms-vig ms-vig--porvencer">bloqueada</span>' : ''}
+      ${x.estado === 'activa' && !x.bloqueada ? '<span class="ms-vig ms-vig--ok">activa</span>' : ''}
+      ${x.bloqueada ? '<span class="ms-vig ms-vig--porvencer">bloqueada</span>'
+        : (x.estado !== 'activa' ? `<span class="ms-vig ms-vig--fin">${esc(x.estado)}</span>` : '')}
       ${x.debe_cambiar_clave ? '<span class="ms-chip">clave provisional</span>' : ''}` },
   { t: 'Segundo factor', p: x => !x.exige_segundo_factor ? '<span class="ms-vacio">no lo exige</span>'
       : x.segundo_factor_activo ? '<span class="ms-vig ms-vig--ok">activo</span>'
@@ -919,12 +1537,106 @@ const COLS_CUENTA = [
   { t: 'Último ingreso', p: x => x.ultimo_ingreso
       ? esc(new Date(x.ultimo_ingreso).toLocaleDateString('es-CO')) : '<span class="ms-vacio">nunca</span>' },
   { t: 'Roles', p: x => x.roles ? `<span style="color:var(--tin-mid)">${esc(x.roles)}</span>`
-      : '<span class="ms-vacio">ninguno</span>' },
-  { t: '', p: x => `
-      <button class="ms-btn" data-cl="${esc(x.cuenta_id)}">Clave</button>
-      ${x.bloqueada ? `<button class="ms-btn" data-db="${esc(x.cuenta_id)}">Desbloquear</button>` : ''}
-      <button class="ms-btn" data-mfa="${esc(x.cuenta_id)}">2FA</button>` },
+      : '<span class="ms-falta">ninguno</span>' },
 ];
+
+/* ── Ficha de una persona ───────────────────────────────────────────
+   Todo lo que se puede saber y hacer con alguien, en un solo sitio:
+   su cuenta, sus roles, sus equipos y las tres operaciones que el
+   equipo de la central hace a diario. */
+async function abrirPersona(id) {
+  const esperando = fichaAbrir('Cargando…', '', cargando);
+  try {
+    const f = await api.obtener('/api/v1/administracion/personas/' + id);
+    esperando.remove();
+    const p = f.persona, c = f.cuenta;
+    const z = fichaAbrir(p.nombre_completo,
+      [p.sede_nombre ?? p.sede, p.numero_documento ? p.tipo_documento + ' ' + p.numero_documento : null,
+       p.edad != null ? p.edad + ' años' : null].filter(Boolean).join(' · '), `
+      ${alerta(f.aviso)}
+      ${p.es_menor ? alerta('Es MENOR DE EDAD: su ficha es N4 y toda lectura queda registrada con nombre y fecha.', 'ambar') : ''}
+      <h2 class="ms-h2" style="margin-top:0">Su cuenta</h2>
+      ${c ? `
+        <div class="ms-modcard">
+          <div class="ms-modcard__fila"><span class="ms-lbl">Usuario</span><span class="ms-val mono">${esc(c.usuario)}</span></div>
+          <div class="ms-modcard__fila"><span class="ms-lbl">Estado</span><span class="ms-val">
+            ${c.bloqueada ? '<span class="ms-vig ms-vig--porvencer">bloqueada</span>'
+              : `<span class="ms-vig ms-vig--${c.estado === 'activa' ? 'ok' : 'fin'}">${esc(c.estado)}</span>`}</span></div>
+          <div class="ms-modcard__fila"><span class="ms-lbl">Segundo factor</span><span class="ms-val">
+            ${!c.exige_segundo_factor ? 'no se le exige'
+              : c.segundo_factor_activo ? '<span class="ms-vig ms-vig--ok">activo</span>'
+              : '<span class="ms-falta">SIN activar</span>'}</span></div>
+          <div class="ms-modcard__fila"><span class="ms-lbl">Contraseña</span><span class="ms-val">
+            ${c.debe_cambiar_clave ? '<span class="ms-falta">provisional · no la ha cambiado</span>' : 'suya'}</span></div>
+          <div class="ms-modcard__fila"><span class="ms-lbl">Último ingreso</span><span class="ms-val">
+            ${c.ultimo_ingreso ? esc(new Date(c.ultimo_ingreso).toLocaleString('es-CO')) : 'nunca ha entrado'}</span></div>
+        </div>
+        <div class="ms-acciones" style="margin:12px 0 4px">
+          <button class="ms-btn" data-cl="${esc(c.cuenta_id)}">Nueva contraseña</button>
+          ${c.bloqueada ? `<button class="ms-btn" data-db="${esc(c.cuenta_id)}">Desbloquear</button>` : ''}
+          <button class="ms-btn" data-mfa="${esc(c.cuenta_id)}">Reiniciar segundo factor</button>
+        </div>`
+      : `<p class="ms-vacio">No tiene cuenta: existe en el sistema pero no puede entrar.</p>
+         <button class="ms-btn ms-btn--primario" id="f-cuenta">Crearle una cuenta</button>`}
+
+      <h2 class="ms-h2">Roles vigentes</h2>
+      ${tablaMs(f.roles, [
+        { t: 'Rol', p: r => `<b>${esc(r.rol_nombre ?? r.rol)}</b><span class="ms-doc">${esc(r.rol)}</span>` },
+        { t: 'Alcance', p: r => esc(r.alcance_tipo) },
+        { t: 'Techo', p: r => niv(r.nivel_max) },
+        { t: 'Desde', k: 'desde' },
+        { t: 'Acta', p: r => r.acta_referencia ? `<code>${esc(r.acta_referencia)}</code>`
+            : '<span class="ms-falta">sin acta</span>' },
+        { t: '', p: r => `<button class="ms-btn ms-btn--peq" data-revp="${esc(r.id)}">Revocar</button>` },
+      ], 'Ninguno: entra al sistema y no ve nada.')}
+      <button class="ms-btn ms-btn--primario" id="f-otorgar" style="margin-top:8px">+ Otorgar un rol</button>
+
+      <h2 class="ms-h2">Equipos a los que pertenece</h2>
+      ${tablaMs(f.equipos ?? [], [
+        { t: 'Equipo', p: e => `<b>${esc(e.unidad ?? e.nombre)}</b>` },
+        { t: 'Qué hace', p: e => `<span class="ms-chip">${esc(e.rol_en_unidad ?? '')}</span>` },
+        { t: 'Desde', k: 'desde' },
+      ], 'Ninguno. Lo que herede de un equipo aparecería aquí.')}`);
+
+    engancharCuentas(z, () => { z.remove(); abrirPersona(id); });
+    z.querySelector('#f-otorgar').addEventListener('click', async () => {
+      const cat = await catalogo();
+      const r = await pedir([
+        { nombre: 'rol', etiqueta: 'Rol', obligatorio: true,
+          opciones: cat.roles.filter(x => x.activo)
+            .map(x => ({ valor: x.codigo, texto: `${x.nombre} · techo N${x.nivel_maximo} · ${x.alcance_maximo}` })) },
+        { nombre: 'alcanceTipo', etiqueta: 'Alcance', obligatorio: true, valor: 'sede',
+          opciones: ['persona_propia','grupo','ministerio','segmento','sede','unidad','organizacion']
+            .map(v => ({ valor: v, texto: v })) },
+        { nombre: 'alcanceId', etiqueta: 'Iglesia (solo si el alcance es «sede»)',
+          vacio: '— no aplica —', opciones: opcSedes(await sedesDe()) },
+        { nombre: 'acta', etiqueta: 'Acta que lo autoriza', obligatorio: true },
+      ], 'Otorgar un rol a ' + p.nombre_completo);
+      if (!r) return;
+      try {
+        await api.enviar('/api/v1/identidad/personas/' + id + '/otorgar', { roles: [r] });
+        avisar('Rol otorgado.'); z.remove(); abrirPersona(id);
+      } catch (e) { avisar(e.message, 'roja'); }
+    });
+    z.querySelectorAll('[data-revp]').forEach(b => b.addEventListener('click', async () => {
+      /* ⛔ El motivo se PIDE y se MANDA. Antes se preguntaba en algunas
+         pantallas y no viajaba en la petición: la auditoría se quedaba
+         sin la única respuesta que busca, «por qué se le quitó». */
+      const r = await pedir([{ nombre: 'motivo', obligatorio: true,
+        etiqueta: 'Motivo · queda en su ficha y en la auditoría' }],
+        'Quitarle el rol a ' + p.nombre_completo);
+      if (!r) return;
+      try {
+        const x = await api.borrar('/api/v1/identidad/asignaciones/' + b.dataset.revp, { motivo: r.motivo });
+        avisar(x.mensaje ?? 'Rol revocado.'); z.remove(); abrirPersona(id);
+      } catch (e) { avisar(e.message, 'roja'); }
+    }));
+    z.querySelector('#f-cuenta')?.addEventListener('click', () => { z.remove(); location.hash = '#/crear'; });
+  } catch (e) {
+    esperando.remove();
+    fichaAbrir('No se pudo abrir', '', `<div class="ms-alerta ms-alerta--roja">${esc(e.message)}</div>`);
+  }
+}
 
 function claveProvisional(clave, mensaje) {
   return `<div class="ms-alerta ms-alerta--verde" style="margin-top:12px">
@@ -943,16 +1655,20 @@ function engancharCopiar(m) {
   }));
 }
 
-function engancharCuentas(m) {
+function engancharCuentas(m, alTerminar) {
+  const refrescar = alTerminar ?? pintar;
   m.querySelectorAll('[data-cl],[data-db],[data-mfa]').forEach(b => b.addEventListener('click', async () => {
     try {
       if (b.dataset.cl) {
         if (!confirm('Se genera una contraseña provisional NUEVA y se cierran todas sus sesiones. ¿Seguir?')) return;
         const r = await api.enviar('/api/v1/administracion/cuentas/' + b.dataset.cl + '/reiniciar-clave', {});
+        /* ⛔ La contraseña se muestra UNA vez: se pinta donde el
+           administrador está mirando, no detrás de la ficha abierta. */
+        const destino = m.querySelector('.ms-ficha__cuerpo') ?? document.getElementById('ms-main');
         const z = document.createElement('div');
         z.innerHTML = claveProvisional(r.clave_provisional, r.mensaje);
-        document.getElementById('ms-main').prepend(z.firstElementChild);
-        engancharCopiar(document.getElementById('ms-main'));
+        destino.prepend(z.firstElementChild);
+        engancharCopiar(destino);
         return;
       }
       if (b.dataset.db) {
@@ -964,7 +1680,7 @@ function engancharCuentas(m) {
         const r = await api.enviar('/api/v1/administracion/cuentas/' + b.dataset.mfa + '/reiniciar-segundo-factor', {});
         avisar(r.mensaje);
       }
-      pintar();
+      refrescar();
     } catch (e) { avisar(e.message, 'roja'); }
   }));
 }

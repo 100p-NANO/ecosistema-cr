@@ -29,9 +29,11 @@ export class IdentidadController {
     return conSesion(this.db, r, c => this.id.otorgar(c, uuid(id, 'id'), d?.roles ?? d));
   }
 
+  /* ⛔ El motivo NO es opcional: revocar sin decir por qué deja un hueco
+     justo en la pregunta que hace una auditoría de accesos. */
   @Delete('asignaciones/:id')
   cerrar(@Req() r: Request, @Param('id') id: string, @Body() d: any) {
-    return conSesion(this.db, r, c => this.id.cerrar(c, uuid(id, 'id'), d?.hasta));
+    return conSesion(this.db, r, c => this.id.cerrar(c, uuid(id, 'id'), d?.motivo));
   }
 
   /* casillas */

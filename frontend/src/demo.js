@@ -39,6 +39,127 @@ const PERSONAS = [
   sede: SEDES[i % 3].codigo, sede_codigo: SEDES[i % 3].codigo, estado: 'activa',
 }));
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   GOBIERNO DE LA RED · el estado que SÍ cambia
+   Lo que se marca en la consola de demostración tiene que quedarse
+   marcado mientras dure la pestaña. No llega a ninguna base: vive aquí.
+   ═══════════════════════════════════════════════════════════════════ */
+const MODULOS_DEMO = [
+  { codigo: 'personas',   nombre: 'Personas',              esquema: 'nucleo',    nivel_dato: 2, es_nucleo: true,  exige_compuerta_legal: false, depende_de: null,       orden: 1 },
+  { codigo: 'organizacion', nombre: 'Organización y sedes', esquema: 'org',      nivel_dato: 1, es_nucleo: true,  exige_compuerta_legal: false, depende_de: null,       orden: 2 },
+  { codigo: 'identidad',  nombre: 'Identidad y accesos',   esquema: 'identidad', nivel_dato: 2, es_nucleo: true,  exige_compuerta_legal: false, depende_de: null,       orden: 3 },
+  { codigo: 'auditoria',  nombre: 'Auditoría y cumplimiento', esquema: 'plataforma', nivel_dato: 2, es_nucleo: true, exige_compuerta_legal: false, depende_de: null,   orden: 4 },
+  { codigo: 'crm',        nombre: 'CRM Pastoral · 4C',     esquema: 'crm',       nivel_dato: 2, es_nucleo: false, exige_compuerta_legal: false, depende_de: 'personas', orden: 5 },
+  { codigo: 'grupos',     nombre: 'Grupos y hogares',      esquema: 'grupos',    nivel_dato: 2, es_nucleo: false, exige_compuerta_legal: false, depende_de: 'personas', orden: 6 },
+  { codigo: 'asistencia', nombre: 'Asistencia',            esquema: 'asistencia',nivel_dato: 2, es_nucleo: false, exige_compuerta_legal: false, depende_de: 'personas', orden: 7 },
+  { codigo: 'formacion',  nombre: 'Formación e Instituto', esquema: 'formacion', nivel_dato: 2, es_nucleo: false, exige_compuerta_legal: false, depende_de: 'personas', orden: 8 },
+  { codigo: 'talento',    nombre: 'Talento y voluntariado',esquema: 'talento',   nivel_dato: 3, es_nucleo: false, exige_compuerta_legal: true,  depende_de: 'personas', orden: 9 },
+  { codigo: 'consejeria', nombre: 'Consejería',            esquema: 'consejeria',nivel_dato: 3, es_nucleo: false, exige_compuerta_legal: true,  depende_de: 'personas', orden: 10 },
+  { codigo: 'aportes',    nombre: 'Aportes',               esquema: 'aportes',   nivel_dato: 3, es_nucleo: false, exige_compuerta_legal: true,  depende_de: 'personas', orden: 11 },
+  { codigo: 'rocakids',   nombre: 'RocaKids',              esquema: 'rocakids',  nivel_dato: 4, es_nucleo: false, exige_compuerta_legal: true,  depende_de: 'personas', orden: 12 },
+  { codigo: 'analitica',  nombre: 'Analítica y tableros',  esquema: 'analitica', nivel_dato: 2, es_nucleo: false, exige_compuerta_legal: false, depende_de: null,       orden: 13 },
+  { codigo: 'tareas',     nombre: 'Tareas',                esquema: 'tareas',    nivel_dato: 1, es_nucleo: false, exige_compuerta_legal: false, depende_de: null,       orden: 14 },
+  { codigo: 'calendario', nombre: 'Calendario',            esquema: 'calendario',nivel_dato: 1, es_nucleo: false, exige_compuerta_legal: false, depende_de: null,       orden: 15 },
+  { codigo: 'oracion',    nombre: 'Peticiones de oración', esquema: 'oracion',   nivel_dato: 3, es_nucleo: false, exige_compuerta_legal: true,  depende_de: 'personas', orden: 16 },
+  { codigo: 'comunicaciones', nombre: 'Comunicaciones',    esquema: 'notificaciones', nivel_dato: 2, es_nucleo: false, exige_compuerta_legal: false, depende_de: null, orden: 17 },
+  { codigo: 'construccion', nombre: 'Construcción',        esquema: 'construccion', nivel_dato: 1, es_nucleo: false, exige_compuerta_legal: false, depende_de: null,   orden: 18 },
+];
+
+const ACCIONES_DEMO = [
+  { codigo: 'ver', nombre: 'Ver', orden: 1, es_sensible: false, modulo: null },
+  { codigo: 'crear', nombre: 'Crear', orden: 2, es_sensible: false, modulo: null },
+  { codigo: 'editar', nombre: 'Editar', orden: 3, es_sensible: false, modulo: null },
+  { codigo: 'anular', nombre: 'Anular', orden: 4, es_sensible: true, modulo: null },
+  { codigo: 'exportar', nombre: 'Exportar', orden: 5, es_sensible: true, modulo: null },
+  { codigo: 'administrar', nombre: 'Administrar', orden: 6, es_sensible: true, modulo: null },
+  { codigo: 'REGISTRAR_APORTE', nombre: 'Registrar un aporte', orden: 10, es_sensible: false, modulo: 'aportes' },
+  { codigo: 'EXPEDIR_CERTIFICADO', nombre: 'Expedir certificado', orden: 11, es_sensible: true, modulo: 'aportes' },
+  { codigo: 'VER_REPORTES_FINANCIEROS', nombre: 'Ver reportes financieros', orden: 12, es_sensible: true, modulo: 'aportes' },
+  { codigo: 'TOMAR_ASISTENCIA', nombre: 'Tomar asistencia', orden: 13, es_sensible: false, modulo: 'asistencia' },
+  { codigo: 'VER_NOTAS_CONFIDENCIALES', nombre: 'Ver notas de consejería', orden: 14, es_sensible: true, modulo: 'consejeria' },
+  { codigo: 'ENTREGAR_MENOR', nombre: 'Entregar un menor', orden: 15, es_sensible: true, modulo: 'rocakids' },
+  { codigo: 'REGISTRAR_CONTACTO', nombre: 'Registrar contacto', orden: 16, es_sensible: false, modulo: 'crm' },
+];
+
+const ROLES_DEMO = [
+  { codigo: 'PASTOR_DIRECTOR_GENERAL', nombre: 'Pastor Director General', alcance_maximo: 'organizacion', nivel_maximo: 4, descripcion: 'Dirige la red entera: despliega iglesias y otorga accesos.', activo: true },
+  { codigo: 'PASTOR_CONGREGACIONAL', nombre: 'Pastor congregacional', alcance_maximo: 'sede', nivel_maximo: 3, descripcion: 'Pastorea una iglesia y responde por su gente.', activo: true },
+  { codigo: 'TESORERIA', nombre: 'Tesorería', alcance_maximo: 'organizacion', nivel_maximo: 3, descripcion: 'Diezmos, ofrendas y certificados de toda la red.', activo: true },
+  { codigo: 'CONTABILIDAD', nombre: 'Contabilidad', alcance_maximo: 'organizacion', nivel_maximo: 3, descripcion: 'Contabilidad consolidada de las 36 sedes.', activo: true },
+  { codigo: 'SECRETARIA', nombre: 'Secretaría de sede', alcance_maximo: 'sede', nivel_maximo: 2, descripcion: 'Registra personas y lleva la agenda de la sede.', activo: true },
+  { codigo: 'MAESTRO_ROCAKIDS', nombre: 'Maestro de RocaKids', alcance_maximo: 'ministerio', nivel_maximo: 4, descripcion: 'Atiende a los menores en su sala.', activo: true },
+  { codigo: 'CONSEJERO', nombre: 'Consejero', alcance_maximo: 'caso_propio', nivel_maximo: 3, descripcion: 'Acompaña casos de consejería, solo los suyos.', activo: true },
+  { codigo: 'AUDITOR', nombre: 'Auditor', alcance_maximo: 'organizacion', nivel_maximo: 3, descripcion: 'Mira y no toca: revisa sin poder cambiar nada.', activo: true },
+];
+
+const NIVELES_DEMO = [
+  { nivel: 0, codigo: 'N0', descripcion: 'Público. Puede salir del sistema sin control.', exige_cifrado: false, exige_bitacora_lect: false },
+  { nivel: 1, codigo: 'N1', descripcion: 'Interno. Lo ve quien trabaja en la iglesia.', exige_cifrado: false, exige_bitacora_lect: false },
+  { nivel: 2, codigo: 'N2', descripcion: 'Personal. Datos de identificación de una persona.', exige_cifrado: false, exige_bitacora_lect: false },
+  { nivel: 3, codigo: 'N3', descripcion: 'Sensible. Salud, finanzas, consejería.', exige_cifrado: true, exige_bitacora_lect: true },
+  { nivel: 4, codigo: 'N4', descripcion: 'Menores y lo más delicado. Toda lectura queda registrada.', exige_cifrado: true, exige_bitacora_lect: true },
+];
+
+const TIPOS_DOC_DEMO = [
+  { codigo: 'CC', etiqueta: 'Cédula de ciudadanía', descripcion: 'Mayores de edad colombianos.' },
+  { codigo: 'TI', etiqueta: 'Tarjeta de identidad', descripcion: 'De 7 a 17 años.' },
+  { codigo: 'RC', etiqueta: 'Registro civil', descripcion: 'Menores de 7 años.' },
+  { codigo: 'CE', etiqueta: 'Cédula de extranjería', descripcion: 'Extranjeros residentes.' },
+  { codigo: 'PA', etiqueta: 'Pasaporte', descripcion: 'Extranjeros sin cédula de extranjería.' },
+];
+
+/* Lo que cambia mientras la pestaña esté abierta. */
+const G = {
+  roles: ROLES_DEMO.map(r => ({ ...r })),
+  /* «ROL|modulo|accion» de lo que está marcado. */
+  matriz: new Set([
+    'PASTOR_DIRECTOR_GENERAL|personas|ver', 'PASTOR_DIRECTOR_GENERAL|personas|crear',
+    'PASTOR_DIRECTOR_GENERAL|personas|editar', 'PASTOR_DIRECTOR_GENERAL|identidad|administrar',
+    'PASTOR_CONGREGACIONAL|personas|ver', 'PASTOR_CONGREGACIONAL|personas|crear',
+    'PASTOR_CONGREGACIONAL|grupos|ver', 'PASTOR_CONGREGACIONAL|asistencia|ver',
+    'PASTOR_CONGREGACIONAL|asistencia|TOMAR_ASISTENCIA',
+    'TESORERIA|aportes|ver', 'TESORERIA|aportes|REGISTRAR_APORTE',
+    'TESORERIA|aportes|EXPEDIR_CERTIFICADO', 'TESORERIA|aportes|VER_REPORTES_FINANCIEROS',
+    'TESORERIA|personas|ver',
+    'CONTABILIDAD|aportes|ver', 'CONTABILIDAD|aportes|VER_REPORTES_FINANCIEROS',
+    'SECRETARIA|personas|ver', 'SECRETARIA|personas|crear', 'SECRETARIA|calendario|ver',
+    'MAESTRO_ROCAKIDS|rocakids|ver', 'MAESTRO_ROCAKIDS|rocakids|ENTREGAR_MENOR',
+    'CONSEJERO|consejeria|ver', 'CONSEJERO|consejeria|VER_NOTAS_CONFIDENCIALES',
+    'AUDITOR|auditoria|ver', 'AUDITOR|personas|ver', 'AUDITOR|aportes|ver',
+  ]),
+  plantillas: [
+    { codigo: 'PLANTACION', nombre: 'Plantación', tipo_sede: 'plantacion',
+      descripcion: 'Lo mínimo para arrancar una iglesia nueva.',
+      modulos: new Set(['personas','organizacion','identidad','auditoria','crm','grupos','asistencia','calendario','tareas','comunicaciones']) },
+    { codigo: 'FILIAL', nombre: 'Filial nacional', tipo_sede: 'filial_nacional',
+      descripcion: 'Una iglesia completa, con aportes y RocaKids.',
+      modulos: new Set(MODULOS_DEMO.filter(m => m.codigo !== 'construccion').map(m => m.codigo)) },
+  ],
+  /* sedeId → { modulo: { activo, evidencia } } */
+  modulosSede: {},
+  /* Roles otorgados a personas: personaId → [{ id, rol, ... }] */
+  asignaciones: {},
+};
+
+/* La primera sede nace completa y las otras con la plantilla de plantación. */
+for (const [i, sede] of SEDES.entries()) {
+  const trae = i === 0 ? G.plantillas[1].modulos : G.plantillas[0].modulos;
+  G.modulosSede[sede.id] = {};
+  for (const m of MODULOS_DEMO) {
+    const dentro = trae.has(m.codigo);
+    G.modulosSede[sede.id][m.codigo] = {
+      activo: dentro && !m.exige_compuerta_legal,
+      evidencia: null,
+    };
+  }
+}
+G.modulosSede[SEDES[0].id].aportes = { activo: true, evidencia: 'ACTA-DIAN-2026-03' };
+
+const rolDe = (c) => G.roles.find(r => r.codigo === c);
+const accionesDe = (mod) => ACCIONES_DEMO.filter(a => !a.modulo || a.modulo === mod);
+const noEnDemo = (m) => { const e = new Error(m); e.demo = true; throw e; };
+
 const SERVICIOS = [
   { id: id(200), sede: 'BOG-NORTE', fecha: d(0), hora: '09:00', tipo: 'dominical', nombre: 'Primera reunión', marcados: 3, contados: 412, adultos: 280, jovenes: 70, ninos: 62, primera_vez: 9 },
   { id: id(201), sede: 'BOG-NORTE', fecha: d(-7), hora: '09:00', tipo: 'dominical', nombre: 'Primera reunión', marcados: 5, contados: 398, adultos: 270, jovenes: 66, ninos: 62, primera_vez: 6 },
@@ -69,7 +190,7 @@ const VOLUNTARIADOS = [
 
 /** Respuestas por ruta. La clave es «MÉTODO ruta» con los identificadores
     sustituidos por `:id`, igual que las declara el servidor. */
-function responder(metodo, ruta) {
+function responder(metodo, ruta, cuerpo = null) {
   const u = new URL(ruta, 'http://demo');
   const p = u.pathname.replace(/\/api\/v1/, '');
   const trozos = p.split('/').filter(Boolean);
@@ -176,10 +297,176 @@ function responder(metodo, ruta) {
     'GET /rocakids/salas': () => ({ total_filas: 2, salas: [
       { id: id(960), nombre: 'Cuna (0 a 2)', sede: 'BOG-NORTE', dentro: 12, adultos: 3, cumple_dos_adultos: true },
       { id: id(961), nombre: 'Exploradores (6 a 8)', sede: 'BOG-NORTE', dentro: 21, adultos: 1, cumple_dos_adultos: false }] }),
-    'GET /administracion/plantillas': () => ({ total_filas: 2, plantillas: [
-      { codigo: 'PLANTACION', nombre: 'Plantación', tipo_sede: 'plantacion', descripcion: 'Lo mínimo para arrancar.', modulos: 10, con_compuerta_legal: 2, lista: 'Personas, Asistencia, Grupos…' },
-      { codigo: 'FILIAL', nombre: 'Filial nacional', tipo_sede: 'filial_nacional', descripcion: 'Una iglesia completa.', modulos: 20, con_compuerta_legal: 3, lista: 'Personas, Aportes, RocaKids…' }],
+    /* ── Gobierno de la red · TODO esto reacciona de verdad ───────── */
+    'GET /administracion/catalogo': () => ({
+      modulos: MODULOS_DEMO, acciones: ACCIONES_DEMO, roles: G.roles,
+      niveles: NIVELES_DEMO, tiposDocumento: TIPOS_DOC_DEMO }),
+
+    'GET /administracion/matriz': () => {
+      const codigo = q.get('rol') ?? G.roles[0].codigo;
+      const r = rolDe(codigo) ?? G.roles[0];
+      const filas = [];
+      for (const m of MODULOS_DEMO) for (const a of accionesDe(m.codigo)) {
+        filas.push({
+          rol: r.codigo, rol_nombre: r.nombre, rol_techo: r.nivel_maximo,
+          modulo: m.codigo, modulo_nombre: m.nombre, modulo_nivel: m.nivel_dato,
+          accion: a.codigo, accion_nombre: a.nombre,
+          marcado: G.matriz.has(`${r.codigo}|${m.codigo}|${a.codigo}`),
+          nivel_max: null, acta_ref: null,
+          /* Un permiso que engaña: el módulo guarda datos más sensibles
+             que el techo del rol, así que existe y no deja ver nada. */
+          por_encima: m.nivel_dato > r.nivel_maximo,
+        });
+      }
+      return { total_filas: filas.length, matriz: filas, aviso: null };
+    },
+
+    'POST /administracion/matriz': () => {
+      const { rol, modulo, accion, marcado } = cuerpo ?? {};
+      const llave = `${rol}|${modulo}|${accion}`;
+      if (marcado) G.matriz.add(llave); else G.matriz.delete(llave);
+      return { marcado: !!marcado, mensaje: marcado ? 'Permiso otorgado.' : 'Permiso quitado.' };
+    },
+
+    'POST /administracion/roles': () => {
+      const b = cuerpo ?? {};
+      const y = rolDe(b.codigo);
+      if (!y && String(b.descripcion ?? '').trim().length < 10) {
+        noEnDemo('Escriba para qué sirve el rol: al menos diez caracteres. Un rol sin propósito escrito no se puede auditar.');
+      }
+      const fila = {
+        codigo: b.codigo, nombre: b.nombre,
+        alcance_maximo: b.alcanceMaximo, nivel_maximo: Number(b.nivelMaximo),
+        /* Lo que no se manda NO SE TOCA, igual que en la base. */
+        descripcion: String(b.descripcion ?? '').trim() || y?.descripcion || '',
+        activo: typeof b.activo === 'boolean' ? b.activo : (y?.activo ?? true),
+      };
+      if (y) Object.assign(y, fila); else G.roles.push(fila);
+      return { mensaje: 'Rol guardado. Los permisos que le sobren por encima del techo dejan de servir.' };
+    },
+
+    'GET /administracion/plantillas': () => ({
+      total_filas: G.plantillas.length,
+      plantillas: G.plantillas.map(p => ({
+        codigo: p.codigo, nombre: p.nombre, tipo_sede: p.tipo_sede, descripcion: p.descripcion,
+        modulos: p.modulos.size,
+        lista: MODULOS_DEMO.filter(m => p.modulos.has(m.codigo)).map(m => m.nombre).join(', '),
+        con_compuerta_legal: MODULOS_DEMO.filter(m => p.modulos.has(m.codigo) && m.exige_compuerta_legal).length,
+      })),
       aviso: 'Los módulos con compuerta legal nacen APAGADOS: se encienden cuando exista la evidencia jurídica.' }),
+
+    'POST /administracion/plantillas': () => {
+      const b = cuerpo ?? {};
+      const y = G.plantillas.find(p => p.codigo === b.codigo);
+      if (y) { Object.assign(y, { nombre: b.nombre, descripcion: b.descripcion ?? y.descripcion }); }
+      else G.plantillas.push({ codigo: b.codigo, nombre: b.nombre, tipo_sede: b.tipoSede,
+        descripcion: b.descripcion ?? '',
+        modulos: new Set(MODULOS_DEMO.filter(m => m.es_nucleo).map(m => m.codigo)) });
+      return { mensaje: 'Plantilla guardada. Marque los módulos que debe traer una iglesia nueva.' };
+    },
+
+    'POST /administracion/plantillas/:id/modulos': () => {
+      const p = G.plantillas.find(x => x.codigo === trozos[2]);
+      if (!p) noEnDemo('Esa plantilla no existe.');
+      const m = MODULOS_DEMO.find(x => x.codigo === cuerpo?.modulo);
+      if (m?.es_nucleo && !cuerpo?.marcado) {
+        noEnDemo(`El módulo «${m.codigo}» es de núcleo: no se puede quitar de una plantilla`);
+      }
+      if (cuerpo?.marcado) p.modulos.add(cuerpo.modulo); else p.modulos.delete(cuerpo.modulo);
+      return { marcado: !!cuerpo?.marcado,
+               mensaje: cuerpo?.marcado ? 'Módulo añadido a la plantilla.' : 'Módulo quitado.' };
+    },
+
+    'POST /administracion/plantillas/:id/borrar': () => {
+      const i = G.plantillas.findIndex(x => x.codigo === trozos[2]);
+      if (i < 0) noEnDemo('Esa plantilla no existe.');
+      G.plantillas.splice(i, 1);
+      return { mensaje: 'Plantilla borrada.' };
+    },
+
+    'POST /administracion/sedes/:id/modulos': () => {
+      const sede = G.modulosSede[trozos[2]] ?? G.modulosSede[SEDES[0].id];
+      const m = MODULOS_DEMO.find(x => x.codigo === cuerpo?.modulo);
+      if (!m) noEnDemo('Ese módulo no existe.');
+      if (m.es_nucleo && !cuerpo?.activo) {
+        noEnDemo(`«${m.nombre}» es de núcleo: sin él la iglesia no puede ni registrar personas.`);
+      }
+      if (cuerpo?.activo && m.exige_compuerta_legal && !cuerpo?.evidencia
+          && !sede[m.codigo]?.evidencia) {
+        noEnDemo(`«${m.nombre}» toca datos protegidos: no se enciende sin la referencia del instrumento jurídico que lo autoriza.`);
+      }
+      sede[m.codigo] = { activo: !!cuerpo?.activo,
+                         evidencia: cuerpo?.evidencia ?? sede[m.codigo]?.evidencia ?? null };
+      return { mensaje: cuerpo?.activo ? 'Módulo encendido en esa sede.' : 'Módulo apagado en esa sede.' };
+    },
+
+    'GET /administracion/personas/:id': () => {
+      const p = PERSONAS.find(x => x.id === trozos[2]) ?? PERSONAS[0];
+      const roles = G.asignaciones[p.id] ?? [];
+      return {
+        persona: { id: p.id, nombre_completo: p.nombre, numero_documento: p.numero_documento,
+          tipo_documento: 'CC', email_principal: null, telefono_movil: null, estado: 'activa',
+          edad: 34, es_menor: false, sede: p.sede, sede_nombre: p.sede },
+        cuenta: { cuenta_id: id(980), persona_id: p.id, persona: p.nombre,
+          usuario: p.nombre.split(' ')[0].toLowerCase() + '@casaroca.org', estado: 'activa',
+          segundo_factor_activo: true, exige_segundo_factor: true, debe_cambiar_clave: false,
+          ultimo_ingreso: new Date().toISOString(), bloqueada: false },
+        roles, equipos: [],
+        aviso: roles.length ? null : 'Esta persona no tiene ningún rol: puede entrar y no ve nada.' };
+    },
+
+    'GET /administracion/sedes/:id': () => {
+      const sede = SEDES.find(x => x.id === trozos[2]) ?? SEDES[0];
+      const mods = G.modulosSede[sede.id] ?? {};
+      const on = Object.values(mods).filter(x => x.activo).length;
+      return {
+        sede: { id: sede.id, codigo: sede.codigo, nombre: sede.nombre, tipo: 'plantacion',
+                pais: 'CO', ciudad: sede.nombre.replace(' (demo)', ''), activa: true,
+                sede_padre: null, ola_migracion: 1 },
+        conteo: { personas: String(PERSONAS.filter(p => p.sede === sede.codigo).length),
+                  grupos: '3', modulos_encendidos: String(on) },
+        equipo: [{ persona: 'Andrés Beltrán Ruiz', rol: 'PASTOR_CONGREGACIONAL',
+                   rol_nombre: 'Pastor congregacional', nivel_max: 3, desde: d(-400) }],
+        unidades: [{ id: id(700), nombre: 'Casa Sobre la Roca · Central', clase: 'central' }],
+        aviso: null };
+    },
+
+    'POST /identidad/personas/:id/otorgar': () => {
+      const lista = cuerpo?.roles ?? (Array.isArray(cuerpo) ? cuerpo : [cuerpo]);
+      const persona = PERSONAS.find(x => x.id === trozos[2])?.id ?? PERSONAS[0].id;
+      G.asignaciones[persona] = G.asignaciones[persona] ?? [];
+      for (const a of lista) {
+        if (!a?.rol) noEnDemo('Falta el código del rol.');
+        const acta = String(a.acta ?? a.actaReferencia ?? '').trim();
+        if (acta.length < 4) {
+          noEnDemo('Falta el acta que autoriza el rol. Un permiso sin constancia de quién lo autorizó no se otorga.');
+        }
+        const r = rolDe(a.rol);
+        G.asignaciones[persona].push({
+          id: id(8000 + G.asignaciones[persona].length), rol: a.rol,
+          rol_nombre: r?.nombre ?? a.rol, alcance_tipo: a.alcanceTipo ?? 'sede',
+          alcance_id: a.alcanceId ?? null, nivel_max: r?.nivel_maximo ?? 2,
+          desde: d(0), hasta: null, acta_referencia: acta });
+      }
+      return { ok: true, otorgados: G.asignaciones[persona] };
+    },
+
+    'DELETE /identidad/asignaciones/:id': () => {
+      const motivo = String(cuerpo?.motivo ?? '').trim();
+      if (motivo.length < 5) {
+        noEnDemo('Revocar un permiso exige un motivo escrito: quedará en la ficha de la persona y en la auditoría.');
+      }
+      for (const [persona, lista] of Object.entries(G.asignaciones)) {
+        const i = lista.findIndex(x => x.id === trozos[2]);
+        if (i >= 0) {
+          lista.splice(i, 1);
+          return { id: trozos[2], motivo,
+                   mensaje: 'Rol revocado. Queda en la ficha de la persona y en la auditoría.' };
+        }
+      }
+      noEnDemo('No existe esa asignación.');
+    },
+
     'POST /administracion/iglesias': () => ({ id: id(970), mensaje: 'En la demostración nada se guarda.' }),
     'POST /administracion/personas': () => ({ id: id(971), mensaje: 'En la demostración nada se guarda.' }),
     'GET /administracion/unidades': () => ({ total_filas: 4, unidades: [
@@ -209,11 +496,15 @@ function responder(metodo, ruta) {
     'POST /administracion/cuentas': () => ({ id: id(989), usuario: 'nueva@casaroca.org',
       clave_provisional: 'cedro brisa faro lazo 47',
       mensaje: 'En la demostración nada se guarda. Así se vería la contraseña provisional.' }),
-    'GET /administracion/sedes/:id/modulos': () => ({ total_filas: 4, modulos: [
-      { codigo: 'personas', nombre: 'Personas', nivel_dato: 2, es_nucleo: true, exige_compuerta_legal: false, depende_de: null, activo: true, evidencia_legal_ref: null },
-      { codigo: 'aportes', nombre: 'Aportes', nivel_dato: 3, es_nucleo: false, exige_compuerta_legal: true, depende_de: 'personas', activo: true, evidencia_legal_ref: 'ACTA-DIAN-2026-03' },
-      { codigo: 'rocakids', nombre: 'RocaKids', nivel_dato: 4, es_nucleo: false, exige_compuerta_legal: true, depende_de: 'personas', activo: false, evidencia_legal_ref: null },
-      { codigo: 'grupos', nombre: 'Grupos y hogares', nivel_dato: 2, es_nucleo: false, exige_compuerta_legal: false, depende_de: 'personas', activo: true, evidencia_legal_ref: null }], aviso: null }),
+    'GET /administracion/sedes/:id/modulos': () => {
+      const sede = G.modulosSede[trozos[2]] ?? G.modulosSede[SEDES[0].id];
+      const modulos = MODULOS_DEMO.map(m => ({
+        ...m, activo: !!sede[m.codigo]?.activo,
+        evidencia_legal_ref: sede[m.codigo]?.evidencia ?? null }));
+      const falta = modulos.filter(x => x.activo && x.exige_compuerta_legal && !x.evidencia_legal_ref);
+      return { total_filas: modulos.length, modulos,
+        aviso: falta.length ? `${falta.length} módulo(s) encendidos sin la evidencia jurídica registrada.` : null };
+    },
     'GET /administracion/organigrama': () => ({ total_filas: 4, unidades: [
       { id: id(700), codigo: 'CENTRAL', nombre: 'Casa Sobre la Roca · Central', clase: 'central', nivel: 0, integrantes: 6, sedes_que_alcanza: 3 },
       { id: id(703), codigo: 'REG-ANDINA', nombre: 'Región Andina', clase: 'region', nivel: 1, integrantes: 1, sedes_que_alcanza: 2 },
@@ -245,12 +536,21 @@ function responder(metodo, ruta) {
     'GET /salud/detalle': () => ({ estado: 'demostración', base: { estado: 'sin base', ms: 0 }, particiones: [], fugasDeLectura: 0 }),
   };
 
-  /* Se busca la clave exacta y, si no, la genérica con `:id`. */
+  /* Se busca la clave exacta y, si no, la genérica con `:id`.
+     ⛔ Antes solo se sustituía lo que tuviera pinta de uuid. Una plantilla
+        se identifica por su código («PLANTACION»), no por un uuid: la
+        ruta no casaba con ningún patrón y la consola de demostración
+        contestaba «esta pantalla todavía no trae datos de ejemplo» al
+        marcar un módulo. Ahora se prueba sustituyendo CADA segmento. */
   const exacta = `${metodo} ${p}`;
   if (M[exacta]) return M[exacta]();
-  const generica = `${metodo} /` + trozos.map((t, i) =>
+  const generica = `${metodo} /` + trozos.map(t =>
     /^[0-9a-f-]{16,}$/i.test(t) ? ':id' : t).join('/');
   if (M[generica]) return M[generica]();
+  for (let i = 0; i < trozos.length; i++) {
+    const clave = `${metodo} /` + trozos.map((t, j) => (j === i ? ':id' : t)).join('/');
+    if (M[clave]) return M[clave]();
+  }
   return { demo: true, ruta: p, mensaje: 'En la demostración esta pantalla todavía no trae datos de ejemplo.' };
 }
 
@@ -259,5 +559,15 @@ export const demoActivo = () =>
 
 export function responderDemo(ruta, opciones = {}) {
   const metodo = (opciones.method ?? 'GET').toUpperCase();
-  return new Promise(r => setTimeout(() => r(responder(metodo, ruta)), 120));
+  /* ⛔ Sin el cuerpo, la demostración solo sabía contestar «aquí no se
+     guarda nada» y cada casilla que se marcaba volvía sola a su sitio al
+     cambiar de pestaña. Una demostración en la que nada reacciona no
+     enseña el sistema: enseña una foto. Lo que se marca aquí vive en la
+     memoria de ESTA pestaña y muere al cerrarla. */
+  let cuerpo = null;
+  try { cuerpo = opciones.body ? JSON.parse(opciones.body) : null; } catch { cuerpo = null; }
+  return new Promise((resolver, rechazar) => setTimeout(() => {
+    try { resolver(responder(metodo, ruta, cuerpo)); }
+    catch (e) { rechazar(e); }
+  }, 120));
 }

@@ -148,7 +148,7 @@ kbd{
 /* El ancho lo fija la PESTAÑA, no una caja global. Una matriz de 18x12
    necesita toda la pantalla; un formulario de 5 pasos leído a 1600px es
    ilegible. Por eso hay tres anchuras y cada vista elige la suya. */
-.ms-main{padding:var(--e6) var(--e6) var(--e7); width:100%}
+.ms-main{min-width:0; padding:var(--e6) var(--e6) var(--e7); width:100%}
 .ms-ancho{max-width:none}                       /* tablas densas: todo el ancho */
 .ms-ancho--lectura{max-width:920px}             /* fichas y texto */
 .ms-ancho--forma{max-width:720px}               /* formularios */
@@ -209,6 +209,16 @@ kbd{
 .ms-fila--cerrada td b{font-weight:400}
 .ms-vacio{color:var(--tin-dim); font-style:italic}
 .ms-scroll{overflow-x:auto; border-radius:var(--r-lg); scrollbar-width:thin}
+/* ⛔ 20 sep 2026 · ESTE ERROR ROMPIA TODAS LAS TABLAS DE LA CONSOLA.
+   `.ms-scroll` tiene `overflow-x:auto`, y eso convierte la caja en un
+   contenedor de desplazamiento propio. Dentro de el, el `position:sticky`
+   de la cabecera deja de medirse contra la ventana y se mide contra esa
+   caja: la cabecera se empujaba 52 px hacia abajo, aparecia una banda
+   blanca fantasma encima, y las primeras filas quedaban tapadas o fuera.
+   En las tablas cortas (sesiones, intentos fallidos, roles de un equipo)
+   el resultado era una tabla que parecia VACIA teniendo datos.
+   Dentro del contenedor de desplazamiento, la cabecera no se pega. */
+.ms-scroll .ms-tabla th{position:static; top:auto; box-shadow:none}
 .num,.ms-kpi b{font-variant-numeric:tabular-nums}
 
 /* ---------------- nivel de sensibilidad ---------------- */
@@ -395,9 +405,15 @@ kbd{
   .ms-main{padding:var(--e5)}
 }
 @media (max-width:768px){
-  .ms-shell{grid-template-columns:1fr}
+  /* ⛔ `1fr` no impide que la columna CREZCA: una rejilla se ancha hasta
+     el contenido más grande, y la tira de pestañas mide 977px. Toda la
+     página se estiraba a 977px en un teléfono de 375, así que los
+     títulos, los botones y las tarjetas se salían por la derecha y el
+     `overflow-x:auto` de la tira no llegaba a usarse nunca.
+     `minmax(0,1fr)` es lo que sí la ata al ancho de la pantalla. */
+  .ms-shell{grid-template-columns:minmax(0,1fr)}
   .ms-nav{
-    position:static; max-height:none; display:flex; gap:var(--e1);
+    position:static; max-height:none; display:flex; gap:var(--e1); min-width:0;
     overflow-x:auto; border-right:0; border-bottom:1px solid var(--fil); padding:var(--e2);
   }
   .ms-navit{width:auto; padding:0 var(--e3); flex:none}
@@ -409,6 +425,17 @@ kbd{
   .ms-tabla th{top:0}
   .ms-main{padding:var(--e4) var(--e3) var(--e7)}
   .ms-head h1{font-size:19px; line-height:25px}
+
+  /* ⛔ En el teléfono el nombre del sistema no cabe en una línea, se
+     partía en dos y la barra, con 52px clavados, lo cortaba por la
+     mitad: la primera línea se metía debajo de la banda de aviso. El
+     nombre se acorta con puntos suspensivos y la barra deja de tener
+     una altura fija que no puede cumplir. */
+  .ms-top{height:auto; min-height:52px; padding:var(--e2) var(--e3); gap:var(--e2)}
+  .ms-marca>div:last-child{min-width:0}
+  .ms-marca b{display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px}
+  .ms-marca small{display:none}
+  .ms-yo small{display:none}
 }
 @media (prefers-reduced-motion:reduce){ *{transition:none !important} }
 
@@ -469,6 +496,13 @@ kbd{
 }
 .ms-opt input:focus-visible{outline:2px solid var(--ac); outline-offset:2px}
 .ms-opt input:disabled{background:var(--pa-alt); border-color:var(--fil)}
+/* ⛔ Una casilla MARCADA y a la vez deshabilitada (un módulo de núcleo:
+   siempre va y no se puede quitar) perdía el relleno azul por esta
+   regla y el visto blanco quedaba invisible sobre gris claro. En la
+   pantalla parecía que el módulo NO estaba en la plantilla, cuando sí
+   está y además es obligatorio: la pantalla mentía. */
+.ms-opt input:checked:disabled{background:var(--tin-dim); border-color:var(--tin-dim)}
+.ms-opt.is-off{opacity:.62}
 .ms-opt>div{min-width:0; line-height:17px}
 .ms-opt b{display:block; font-size:12.5px; font-weight:500}
 .ms-opt small{display:block; font-size:10.5px; color:var(--tin-dim); line-height:15px}
@@ -780,3 +814,123 @@ kbd{
   background:var(--ac-suave); border:1px solid #ccd8ee; border-radius:var(--r-lg);
 }
 .ms-comprobar__b{display:flex; flex-wrap:wrap; gap:var(--e2)}
+
+/* ═══════════════════════════════════════════════════════════════════
+   AÑADIDO 20 sep 2026 · LO QUE LE FALTABA A LA CONSOLA PARA SER USABLE
+   La consola tenía tablas y botones, pero no tenía dónde ENTRAR ni con
+   qué MARCAR. Esto es lo que pone la interacción: la ficha que se abre
+   al pulsar una fila, la columna de una lista con su detalle al lado,
+   y la rejilla de casillas que se usa en módulos y plantillas.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ⛔ Alias. El código pedía `ms-btn--pri` y el CSS solo definía
+   `ms-btn--primario`: los 11 botones de acción principal se veían
+   grises, como si no hicieran nada. Se corrigió el código y se deja el
+   alias para que un descuido no vuelva a apagar una acción. */
+.ms-btn--pri{
+  background:var(--ac); border-color:var(--ac); color:#fff;
+}
+.ms-btn--pri:hover{background:var(--ac-hov); border-color:var(--ac-hov)}
+
+/* ---------------- dos columnas: lista + detalle ---------------- */
+.ms-dos{display:grid; grid-template-columns:260px minmax(0,1fr); gap:var(--e5); align-items:start}
+.ms-lateral{display:grid; gap:var(--e2); position:sticky; top:var(--e4)}
+.ms-listilla{display:grid; gap:2px; max-height:64dvh; overflow:auto; padding-right:2px}
+.ms-itemlista{
+  display:block; width:100%; text-align:left; cursor:pointer;
+  padding:var(--e2) var(--e3); border:1px solid transparent; border-radius:var(--r);
+  background:none; color:var(--tin); font:inherit; line-height:16px;
+}
+.ms-itemlista:hover{background:var(--pa)}
+.ms-itemlista.is-on{background:var(--ac-suave); border-color:var(--ac)}
+.ms-itemlista b{display:block; font-size:12.5px; font-weight:500}
+/* ⛔ El selector tiene que ser DIRECTO: con `.ms-itemlista span` el
+   distintivo de nivel (que es un span dentro de ese span) se estiraba a
+   todo el ancho y la lista quedaba llena de bloques de color. */
+.ms-itemlista>span{display:block; font-size:10.5px; color:var(--tin-dim);
+  display:flex; align-items:center; gap:4px; margin-top:2px}
+.ms-itemlista:focus-visible{outline:2px solid var(--ac); outline-offset:1px}
+
+/* ---------------- rejilla de casillas ---------------- */
+.ms-rejilla{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:var(--e2)}
+.ms-rejilla--apretada{grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:4px; min-width:400px}
+
+/* ---------------- filtro de una lista larga ---------------- */
+.ms-filtro{
+  width:100%; font:inherit; font-size:12.5px; height:30px; padding:0 var(--e3);
+  border:1px solid var(--fil); border-radius:var(--r); background:var(--sup); color:var(--tin);
+}
+.ms-filtro:focus{outline:2px solid var(--ac); outline-offset:1px; border-color:var(--ac)}
+.ms-sel-ancho{
+  flex:1; min-width:0; font:inherit; font-size:13px; height:32px; padding:0 var(--e3);
+  border:1px solid var(--fil); border-radius:var(--r); background:var(--sup); color:var(--tin); cursor:pointer;
+}
+
+/* ---------------- la celda de la matriz, ahora marcable ----------------
+   ⛔ Una casilla vacía SIN recuadro parece una celda muerta: el
+      administrador no sabe que ahí se puede pulsar. Se dibuja siempre
+      el cuadro, marcado o no. */
+.ms-matriz td.ms-cel{padding:0; width:52px; min-width:52px}
+.ms-matriz th{min-width:52px}
+.ms-matriz th:first-child,.ms-matriz td:first-child{min-width:200px}
+.ms-matriz th:last-child,.ms-matriz td:last-child{min-width:420px; width:auto}
+.ms-cel--na{background:repeating-linear-gradient(45deg,var(--pa),var(--pa) 4px,var(--pa-alt) 4px,var(--pa-alt) 8px)}
+.ms-cel label{display:block; cursor:pointer}
+.ms-cel input{
+  appearance:none; -webkit-appearance:none; margin:0 auto; display:block;
+  width:15px; height:15px; border:1px solid var(--fil-duro); border-radius:3px;
+  background:var(--sup); cursor:pointer; position:relative;
+}
+.ms-cel{padding:5px 0 !important}
+.ms-cel input:checked{background:var(--ac); border-color:var(--ac)}
+.ms-cel input:checked::after{
+  content:""; position:absolute; left:4px; top:1px; width:4px; height:8px;
+  border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg);
+}
+.ms-cel input:hover{border-color:var(--ac)}
+.ms-cel input:focus-visible{outline:2px solid var(--ac); outline-offset:2px}
+/* Marcado por encima del techo: existe y no sirve. Se ve en rojo. */
+.ms-cel--veda input{border-color:var(--pel)}
+.ms-cel--veda input:checked{background:var(--pel); border-color:var(--pel)}
+
+/* ---------------- la persona como enlace ---------------- */
+.ms-enlace{
+  background:none; border:0; padding:0; font:inherit; text-align:left; cursor:pointer; color:var(--ac);
+}
+.ms-enlace b{font-weight:500; border-bottom:1px solid transparent}
+.ms-enlace:hover b{border-bottom-color:currentColor}
+.ms-enlace .ms-doc{color:var(--tin-dim)}
+.ms-enlace:focus-visible{outline:2px solid var(--ac); outline-offset:2px; border-radius:3px}
+
+/* ---------------- ficha: lo que se abre al pulsar una fila ---------------- */
+.ms-ficha{
+  position:fixed; inset:0; z-index:95; display:flex; justify-content:flex-end;
+  background:rgba(20,20,24,.35);
+}
+.ms-ficha__caja{
+  width:min(720px,94vw); height:100dvh; overflow:auto; background:var(--sup);
+  border-left:1px solid var(--fil); display:flex; flex-direction:column;
+}
+.ms-ficha__cab{
+  position:sticky; top:0; z-index:2; display:flex; align-items:center; justify-content:space-between;
+  gap:var(--e3); padding:var(--e3) var(--e5); background:var(--sup-alt); border-bottom:1px solid var(--fil);
+}
+.ms-ficha__cab b{font-size:15px}
+.ms-ficha__cuerpo{padding:var(--e4) var(--e5) var(--e6)}
+.ms-ficha__cuerpo .ms-h2:first-child{margin-top:0}
+
+@media (max-width:900px){
+  /* ⛔ Otra vez lo mismo que con la tira de pestañas: `1fr` deja que la
+     columna crezca hasta el contenido más ancho. Aquí el contenido más
+     ancho es la matriz de permisos, que mide casi mil píxeles a
+     propósito y por eso vive dentro de un marco con desplazamiento.
+     Sin `minmax(0,...)`, esa anchura se la comía la rejilla y arrastraba
+     con ella la lista de roles, los botones y los títulos. */
+  .ms-dos{grid-template-columns:minmax(0,1fr)}
+  .ms-lateral{position:static; min-width:0}
+  .ms-dos>section{min-width:0}
+  .ms-listilla{max-height:none}
+  .ms-ficha__caja{width:100vw; border-left:0}
+  .ms-rejilla{grid-template-columns:1fr}
+  .ms-rejilla--apretada{min-width:0}
+}

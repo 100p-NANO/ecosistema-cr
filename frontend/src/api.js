@@ -83,6 +83,11 @@ export const api = {
   obtener: (ruta) => crudo(ruta),
   enviar:  (ruta, datos) => crudo(ruta, { method: 'POST', body: JSON.stringify(datos ?? {}) }),
   cambiar: (ruta, datos) => crudo(ruta, { method: 'PUT',  body: JSON.stringify(datos ?? {}) }),
-  borrar:  (ruta) => crudo(ruta, { method: 'DELETE' }),
+  /* ⛔ Un DELETE con cuerpo. No es un capricho: revocar un rol exige el
+     MOTIVO por escrito, y sin esto la consola no tenía por dónde
+     mandarlo (el motivo se pedía en pantalla y se tiraba a la basura). */
+  borrar:  (ruta, datos) => crudo(ruta,
+    datos === undefined ? { method: 'DELETE' }
+                        : { method: 'DELETE', body: JSON.stringify(datos) }),
   base: BASE,
 };
