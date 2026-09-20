@@ -84,6 +84,7 @@ function responder(metodo, ruta) {
       asignaciones: [{ rol: 'PASTOR_DIRECTOR_GENERAL', rol_nombre: 'Pastor Director General',
                        alcance_tipo: 'organizacion', nivel_max: 4, vigente_desde: d(-900), vigente_hasta: null }],
       modulos: ['personas','asistencia','grupos','rocakids','consejeria','formacion','talento','sistemas','aportes','crm']
+        .concat(['identidad'])
         .map(m => ({ modulo: m, nombre: m, nivel_dato: m === 'consejeria' || m === 'talento' ? 3 : m === 'rocakids' ? 4 : 2 })),
     }),
     'GET /organizacion/sedes': () => SEDES,
@@ -175,6 +176,72 @@ function responder(metodo, ruta) {
     'GET /rocakids/salas': () => ({ total_filas: 2, salas: [
       { id: id(960), nombre: 'Cuna (0 a 2)', sede: 'BOG-NORTE', dentro: 12, adultos: 3, cumple_dos_adultos: true },
       { id: id(961), nombre: 'Exploradores (6 a 8)', sede: 'BOG-NORTE', dentro: 21, adultos: 1, cumple_dos_adultos: false }] }),
+    'GET /administracion/plantillas': () => ({ total_filas: 2, plantillas: [
+      { codigo: 'PLANTACION', nombre: 'Plantación', tipo_sede: 'plantacion', descripcion: 'Lo mínimo para arrancar.', modulos: 10, con_compuerta_legal: 2, lista: 'Personas, Asistencia, Grupos…' },
+      { codigo: 'FILIAL', nombre: 'Filial nacional', tipo_sede: 'filial_nacional', descripcion: 'Una iglesia completa.', modulos: 20, con_compuerta_legal: 3, lista: 'Personas, Aportes, RocaKids…' }],
+      aviso: 'Los módulos con compuerta legal nacen APAGADOS: se encienden cuando exista la evidencia jurídica.' }),
+    'POST /administracion/iglesias': () => ({ id: id(970), mensaje: 'En la demostración nada se guarda.' }),
+    'POST /administracion/personas': () => ({ id: id(971), mensaje: 'En la demostración nada se guarda.' }),
+    'GET /administracion/unidades': () => ({ total_filas: 4, unidades: [
+      { id: id(700), codigo: 'CENTRAL', nombre: 'Casa Sobre la Roca · Central', clase: 'central', proposito: 'Administra la red completa: da servicios a las sedes y no las reemplaza.', integrantes: 6, roles: 2, activa: true },
+      { id: id(701), codigo: 'TESORERIA', nombre: 'Tesorería de la red', clase: 'equipo', proposito: 'Administra diezmos, ofrendas y certificados de toda la red.', integrantes: 3, roles: 1, activa: true },
+      { id: id(702), codigo: 'CONTA', nombre: 'Contabilidad', clase: 'equipo', proposito: 'Lleva la contabilidad consolidada de las 36 sedes.', integrantes: 2, roles: 1, activa: true },
+      { id: id(703), codigo: 'REG-ANDINA', nombre: 'Región Andina', clase: 'region', proposito: 'Acompaña a las sedes de la región.', integrantes: 1, roles: 0, activa: true }],
+      aviso: '1 equipo(s) sin ningún rol otorgado: existen pero no pueden hacer nada.' }),
+    'GET /administracion/unidades/:id': () => ({
+      unidad: { id: id(701), codigo: 'TESORERIA', nombre: 'Tesorería de la red', clase: 'equipo',
+                proposito: 'Administra diezmos, ofrendas y certificados de toda la red.', activa: true, lider: 'Rosa Cifuentes Lara' },
+      miembros: { activos: 3, lista: PERSONAS.slice(0, 3).map((p, i) => ({
+        id: i, persona_id: p.id, nombre_completo: p.nombre, rol_en_unidad: i === 0 ? 'lider' : 'integrante',
+        desde: d(-200), hasta: null })) },
+      roles: [{ id: id(704), rol: 'TESORERIA', alcance_tipo: 'organizacion', nivel_max: 3,
+                desde: d(-200), hasta: null, acta_referencia: 'Acta 2026-014 de la Junta' }],
+      alcanza: SEDES.map(s => ({ codigo: s.codigo, nombre: s.nombre })), aviso: null }),
+    'GET /administracion/cuentas': () => ({ total_filas: 3, cuentas: PERSONAS.slice(0, 3).map((p, i) => ({
+      cuenta_id: id(980 + i), persona_id: p.id, persona: p.nombre,
+      usuario: p.nombre.split(' ')[0].toLowerCase() + '@casaroca.org',
+      estado: i === 2 ? 'bloqueada' : 'activa', segundo_factor_activo: i === 0,
+      exige_segundo_factor: i < 2, debe_cambiar_clave: i === 1,
+      ultimo_ingreso: i === 0 ? new Date().toISOString() : null,
+      intentos_fallidos: i === 2 ? 5 : 0, bloqueada: i === 2, sede: SEDES[i].codigo,
+      roles: ['PASTOR_DIRECTOR_GENERAL','TESORERIA','SECRETARIA'][i] })),
+      aviso: '2 cuenta(s) necesitan atención: bloqueadas, suspendidas o con el segundo factor sin activar.' }),
+    'POST /administracion/cuentas': () => ({ id: id(989), usuario: 'nueva@casaroca.org',
+      clave_provisional: 'cedro brisa faro lazo 47',
+      mensaje: 'En la demostración nada se guarda. Así se vería la contraseña provisional.' }),
+    'GET /administracion/sedes/:id/modulos': () => ({ total_filas: 4, modulos: [
+      { codigo: 'personas', nombre: 'Personas', nivel_dato: 2, es_nucleo: true, exige_compuerta_legal: false, depende_de: null, activo: true, evidencia_legal_ref: null },
+      { codigo: 'aportes', nombre: 'Aportes', nivel_dato: 3, es_nucleo: false, exige_compuerta_legal: true, depende_de: 'personas', activo: true, evidencia_legal_ref: 'ACTA-DIAN-2026-03' },
+      { codigo: 'rocakids', nombre: 'RocaKids', nivel_dato: 4, es_nucleo: false, exige_compuerta_legal: true, depende_de: 'personas', activo: false, evidencia_legal_ref: null },
+      { codigo: 'grupos', nombre: 'Grupos y hogares', nivel_dato: 2, es_nucleo: false, exige_compuerta_legal: false, depende_de: 'personas', activo: true, evidencia_legal_ref: null }], aviso: null }),
+    'GET /administracion/organigrama': () => ({ total_filas: 4, unidades: [
+      { id: id(700), codigo: 'CENTRAL', nombre: 'Casa Sobre la Roca · Central', clase: 'central', nivel: 0, integrantes: 6, sedes_que_alcanza: 3 },
+      { id: id(703), codigo: 'REG-ANDINA', nombre: 'Región Andina', clase: 'region', nivel: 1, integrantes: 1, sedes_que_alcanza: 2 },
+      { id: id(701), codigo: 'TESORERIA', nombre: 'Tesorería de la red', clase: 'equipo', nivel: 1, integrantes: 3, sedes_que_alcanza: 3 },
+      { id: id(702), codigo: 'CONTA', nombre: 'Contabilidad', clase: 'equipo', nivel: 1, integrantes: 2, sedes_que_alcanza: 3 }] }),
+    'GET /administracion/sesiones': () => ({ total_filas: 1, sesiones: [
+      { sesion: id(990), usuario: 'marta@casaroca.org', persona: 'Marta Quiroga Peña',
+        emitida_en: new Date().toISOString(), expira_en: new Date(Date.now()+18e5).toISOString(),
+        ip: '190.0.0.1', le_queda: '00:28:00' }] }),
+    'GET /administracion/alertas': () => ({ total_filas: 1, alertas: [
+      { usuario: 'desconocido@x.org', ip: '45.12.9.3', intentos_fallidos: 14, desde: d(0), hasta: d(0) }],
+      aviso: '1 usuario(s) o dirección(es) con intentos fallidos agrupados.' }),
+    'GET /administracion/recertificar': () => ({ total_filas: 2, accesos: [
+      { persona: 'Andrés Beltrán Ruiz', rol: 'PASTOR_CONGREGACIONAL', nivel_max: 2, dias_sin_revisar: 412, tope_dias: 180 },
+      { persona: 'Rosa Cifuentes Lara', rol: 'TESORERIA', nivel_max: 3, dias_sin_revisar: 201, tope_dias: 180 }],
+      aviso: '2 acceso(s) llevan más del plazo sin revisarse. Un permiso que nadie revisa es un permiso que nadie quitó.' }),
+    'GET /administracion/auditoria': () => ({ total_filas: 2, movimientos: [
+      { ocurrido_en: new Date().toISOString(), esquema: 'aportes', tabla: 'aportes', operacion: 'I', actor: 'Rosa Cifuentes Lara', actor_ip: '190.0.0.4' },
+      { ocurrido_en: new Date(Date.now()-36e5).toISOString(), esquema: 'identidad', tabla: 'asignaciones', operacion: 'U', actor: 'Marta Quiroga Peña', actor_ip: '190.0.0.1' }] }),
+    'GET /administracion/lecturas': () => ({ total_filas: 1, lecturas: [
+      { ocurrido_en: new Date().toISOString(), esquema: 'consejeria', tabla: 'casos', nivel: 3,
+        motivo: 'ficha completa del caso, con notas', filas_leidas: 1, actor: 'Rosa Cifuentes Lara', actor_ip: '190.0.0.4' }],
+      aviso: 'Esta bitácora existe para que mirar por curiosidad tenga nombre y hora.' }),
+    'GET /identidad/roles': () => [
+      { codigo: 'PASTOR_DIRECTOR_GENERAL', nombre: 'Pastor Director General', activo: true },
+      { codigo: 'TESORERIA', nombre: 'Tesorería', activo: true },
+      { codigo: 'CONTABILIDAD', nombre: 'Contabilidad', activo: true },
+      { codigo: 'PASTOR_CONGREGACIONAL', nombre: 'Pastor congregacional', activo: true }],
     'GET /salud/detalle': () => ({ estado: 'demostración', base: { estado: 'sin base', ms: 0 }, particiones: [], fugasDeLectura: 0 }),
   };
 

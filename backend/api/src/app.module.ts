@@ -18,6 +18,7 @@ import { GruposModule } from './grupos/grupos';
 import { ConsejeriaModule } from './consejeria/consejeria';
 import { FormacionModule } from './formacion/formacion';
 import { TalentoModule } from './talento/talento';
+import { AdministracionModule } from './administracion/administracion';
 import { trazaYRegistro, cabecerasDeSeguridad } from './comun/peticion';
 
 /**
@@ -42,7 +43,11 @@ import { trazaYRegistro, cabecerasDeSeguridad } from './comun/peticion';
                modulo existia en `sistema.modulos`, la sede lo tenia
                encendido y no se podia usar desde ninguna parte. */
             AsistenciaModule, GruposModule, ConsejeriaModule,
-            FormacionModule, TalentoModule],
+            FormacionModule, TalentoModule,
+            /* ⛔ 20 sep 2026 · No habia panel de administracion: el primer
+               Pastor Director General se creaba con un comando en la
+               terminal y los roles de las 36 sedes se otorgaban por SQL. */
+            AdministracionModule],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

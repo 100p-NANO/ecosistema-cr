@@ -9,6 +9,7 @@ import { pintarGrupos, pintarGrupo } from './vistas/grupos.js';
 import { pintarConsejeria, pintarCaso } from './vistas/consejeria.js';
 import { pintarFormacion, pintarCohorte } from './vistas/formacion.js';
 import { pintarTalento, pintarAntecedentes } from './vistas/talento.js';
+import { pintarAdministracion } from './vistas/administracion.js';
 import { esc, cargando, error, engancharReintentar, avisar } from './ui.js';
 import { cola } from './offline.js';
 import { demoActivo } from './demo.js';
@@ -35,7 +36,16 @@ const VISTAS = {
   consejeria: { titulo: 'Consejería', icono: '🕊', modulo: 'consejeria', pintar: pintarConsejeria, ficha: pintarCaso },
   formacion:  { titulo: 'Formación',  icono: '✎', modulo: 'formacion',   pintar: pintarFormacion, ficha: pintarCohorte },
   talento:    { titulo: 'Talento',    icono: '⚑', modulo: 'talento',     pintar: pintarTalento,  ficha: pintarAntecedentes },
-  catalogos:  { titulo: 'Catálogos',  icono: '☰', modulo: 'sistemas',    pintar: pintarCatalogos },
+  /* ⛔ 20 sep 2026 · Catálogos declaraba el módulo «sistemas», que NO
+     EXISTE en `sistema.modulos` (el que existe es «identidad»). Resultado:
+     a quien no tuviera alcance de toda la red, la pantalla no le aparecía
+     nunca, y nadie lo había notado porque se probó siempre con el Pastor
+     Director General. Una lista escrita a mano que nadie contrasta con la
+     base se equivoca en silencio. */
+  catalogos:  { titulo: 'Catálogos',  icono: '☰', modulo: 'identidad',   pintar: pintarCatalogos },
+  /* La administración es del comando central: aquí se despliegan iglesias,
+     personas, roles, módulos y los equipos que después administran lo suyo. */
+  admin:      { titulo: 'Administración', icono: '⚙', modulo: 'identidad', pintar: pintarAdministracion },
 };
 
 const alcanza = (modulo) =>

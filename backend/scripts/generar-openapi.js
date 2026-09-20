@@ -93,6 +93,34 @@ const DESCRIPCIONES = {
   'GET /api/v1/rocakids/menores/:id/acudientes': ['Quien puede entregar y retirar a este menor', 'La pantalla ofrece esta lista, no un campo de texto libre: un texto libre convierte la salvaguarda en una formalidad.'],
   'POST /api/v1/rocakids/checkin': ['Registrar la entrada de un menor', 'Devuelve el codigo UNA vez; despues solo existe cifrado. IDEMPOTENTE por menor, sala y dia: la cola sin conexion puede reintentar sin duplicar el ingreso.'],
   'POST /api/v1/rocakids/entregar': ['Entregar al menor', 'La base verifica acudiente autorizado Y codigo. Un intento fallido queda registrado con hora y nombre.'],
+  // ⛔ 20 sep 2026 · EL COMANDO CENTRAL. Hasta hoy no habia panel de
+  //    administracion: el primer Pastor Director General se creaba con un
+  //    comando en la terminal y los roles de las 36 sedes se otorgaban por
+  //    SQL o con curl. Una red de 36 iglesias no se administra asi.
+  'GET /api/v1/administracion/cuentas': ['Las cuentas que uno alcanza', 'Con su estado, su segundo factor, su ultimo ingreso y sus roles. Avisa de las bloqueadas y de las que tienen el segundo factor sin activar.'],
+  'POST /api/v1/administracion/cuentas': ['Crear una cuenta', 'Devuelve una contrasena provisional UNA vez y no se vuelve a mostrar: se entrega en persona o por canal seguro, y el sistema obliga a cambiarla al entrar.'],
+  'POST /api/v1/administracion/cuentas/:id/reiniciar-clave': ['Reiniciar la contrasena', 'Genera una provisional nueva y CIERRA todas sus sesiones: si no, quien tuviera la sesion abierta con la clave vieja seguiria dentro.'],
+  'POST /api/v1/administracion/cuentas/:id/desbloquear': ['Desbloquear una cuenta', 'Para quien se equivoco cinco veces.'],
+  'POST /api/v1/administracion/cuentas/:id/reiniciar-segundo-factor': ['Reiniciar el segundo factor', 'Para quien perdio el telefono. ⛔ NO le quita la exigencia: su rol lo sigue necesitando.'],
+  'GET /api/v1/administracion/sesiones': ['Quien esta dentro ahora', 'Sesiones abiertas, desde cuando, desde que direccion y cuanto les queda.'],
+  'GET /api/v1/administracion/alertas': ['Quien esta probando contrasenas', 'Intentos fallidos agrupados por usuario y direccion.'],
+  'GET /api/v1/administracion/recertificar': ['Accesos por recertificar', 'Un permiso que nadie revisa es un permiso que nadie quito.'],
+  'GET /api/v1/administracion/organigrama': ['El organigrama', 'La central, sus regiones, sus direcciones y sus equipos, con cuantas sedes alcanza cada uno.'],
+  'GET /api/v1/administracion/sedes/:id/modulos': ['Los modulos de una sede', 'Cuales estan encendidos y cual es su evidencia legal. Avisa de los encendidos con compuerta legal y sin referencia juridica.'],
+  'POST /api/v1/administracion/sedes/:id/modulos': ['Encender o apagar un modulo', 'La base impone las reglas: un modulo de nucleo no se apaga, uno con compuerta legal no se enciende sin evidencia, y uno no se enciende si su dependencia esta apagada.'],
+  'GET /api/v1/administracion/auditoria': ['Quien hizo que', 'La auditoria. ⛔ Se lee por funcion, no por permiso de tabla: conceder SELECT sobre la auditoria a la aplicacion la haria legible por cualquier sesion.'],
+  'GET /api/v1/administracion/lecturas': ['Quien MIRO los datos sensibles', 'La bitacora de lectura existe para que mirar por curiosidad tenga nombre y hora.'],
+  'GET /api/v1/administracion/plantillas': ['Las plantillas de iglesia', 'Que modulos trae una iglesia nueva segun su tipo. Los de compuerta legal nacen apagados.'],
+  'POST /api/v1/administracion/iglesias': ['Desplegar una iglesia', 'Una sola operacion crea la sede colgada de la maestra, le aplica los modulos de su plantilla, deja apagados los de compuerta legal y le asigna su pastor. Exige alcance de organizacion: una sede no crea otra sede.'],
+  'POST /api/v1/administracion/personas': ['Registrar a una persona', 'El otro despliegue del comando central. Despues se le crea cuenta y se le otorgan roles.'],
+  'GET /api/v1/administracion/unidades': ['Los equipos de la central', 'Contabilidad, Tesoreria, Pastoral, regiones. Avisa de los equipos sin ningun rol: existen pero no pueden hacer nada.'],
+  'POST /api/v1/administracion/unidades': ['Crear un equipo', 'El proposito es obligatorio: un equipo sin proposito escrito es un equipo que nadie sabe por que tiene los permisos que tiene.'],
+  'GET /api/v1/administracion/unidades/:id': ['La ficha de un equipo', 'Sus integrantes, sus roles y las sedes que alcanza por esa via.'],
+  'POST /api/v1/administracion/unidades/:id/roles': ['Otorgar un rol AL EQUIPO', 'Es la pieza que convierte «un grupo de personas» en «Tesoreria»: lo heredan sus integrantes mientras esten dentro y se les cae al salir. Exige el acta que lo autoriza.'],
+  'POST /api/v1/administracion/unidades/roles/:asignacionId/revocar': ['Quitarle el rol al equipo', 'Se corta para todos sus integrantes en el instante.'],
+  'POST /api/v1/administracion/unidades/:id/miembros': ['Meter a alguien en un equipo', 'Hereda los roles del equipo desde ese instante.'],
+  'POST /api/v1/administracion/unidades/:id/miembros/:personaId/salir': ['Sacar a alguien de un equipo', 'Surte efecto ya, sin esperar a manana, y exige motivo.'],
+
   // ⛔ 20 sep 2026 · Cinco modulos que tenian TABLAS y ninguna ruta: el
   //    modulo existia en `sistema.modulos`, la sede lo tenia encendido y no
   //    se podia usar desde ninguna parte.
