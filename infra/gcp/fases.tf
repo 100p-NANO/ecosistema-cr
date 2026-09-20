@@ -26,6 +26,15 @@ locals {
       api_min = 1 # «1 instancia»: encendida para no esperar el arranque en frío
       api_max = 1
 
+      # ⛔ Conexiones por instancia. Suman contra `max_connections` de la
+      #    base, y por eso viven en la MISMA tabla que el número de
+      #    instancias: es la única forma de que no se contradigan.
+      #    db-f1-micro tiene 0,6 GB: su `max_connections` de fábrica es 25
+      #    y subirlo lo mata. Por eso aquí los pozos son pequeños.
+      pozo_negocio       = 8
+      pozo_auth          = 4
+      sql_max_conexiones = 0 # 0 = se deja el valor de fábrica
+
       front_cpu = 0.25
       front_mem = "512Mi"
       front_min = 0
@@ -58,6 +67,12 @@ locals {
       api_mem = "2Gi"
       api_min = 2
       api_max = 4 # ⚠️ el plan fija el mínimo (2), no el máximo
+
+      pozo_negocio = 20
+      pozo_auth    = 8
+      # 4 instancias x (20 + 8 + 2) = 120, más 30 de margen para el
+      # migrador, las copias y una sesión de mantenimiento.
+      sql_max_conexiones = 150
 
       front_cpu = 0.5
       front_mem = "1Gi"
@@ -101,6 +116,11 @@ locals {
       api_mem = "2Gi"
       api_min = 2
       api_max = 5
+
+      pozo_negocio = 25
+      pozo_auth    = 10
+      # 5 instancias x (25 + 10 + 2) = 185, más 40 de margen.
+      sql_max_conexiones = 225
 
       front_cpu = 1
       front_mem = "2Gi"

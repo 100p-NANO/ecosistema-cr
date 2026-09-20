@@ -4,6 +4,7 @@ import { derivarClave, verificarClave, revisarPolitica } from './clave';
 import { firmarToken, verificarToken, nuevoJti } from './jwt';
 import { nuevoSecreto, verificarCodigo, uriDeAprovisionamiento, cifrarSecreto, descifrarSecreto } from './totp';
 import { secretoObligatorio } from '../comun/secretos';
+import { MAX_AUTH } from '../db/pozos';
 
 const MINUTOS_ACCESO   = Number(process.env.APP_MINUTOS_ACCESO   ?? 30);
 const MINUTOS_REFRESCO = Number(process.env.APP_MINUTOS_REFRESCO ?? 720); // 12 horas
@@ -25,7 +26,10 @@ export class AuthService {
     database: process.env.PGDATABASE ?? 'casaroca_dev',
     user: process.env.PGUSER ?? 'casaroca_app',
     password: process.env.PGPASSWORD || undefined,
-    max: 5,
+    max: MAX_AUTH,
+    // ⛔ Faltaba. Una transaccion de autenticacion colgada se quedaba
+    //    con una de las cinco conexiones para siempre.
+    idle_in_transaction_session_timeout: 10_000,
   } as any);
 
   private get secreto() { return secretoObligatorio('APP_JWT_SECRETO'); }

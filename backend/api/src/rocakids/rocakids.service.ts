@@ -65,19 +65,29 @@ export class RocakidsService {
    * base, y ni el administrador puede leerlo.
    */
   async checkin(c: PoolClient, d: {
-    menorId: string; salaId: string; entregadoPor: string; recibidoPor: string; servicioId?: string | null;
+    menorId: string; salaId: string; entregadoPor: string; recibidoPor: string;
+    servicioId?: string | null; anulacionDosAdultos?: string | null;
   }) {
+    /* ⛔ 19 sep 2026 · Esto llamaba con CINCO argumentos y resolvía a la
+       versión vieja de la función, la de antes de la salvaguarda: sin
+       verificar que quien entrega sea acudiente vigente y sin la regla de
+       los dos adultos. El banco probaba la versión de seis y el producto
+       usaba la de cinco. La vieja se tumbó en la migración 0057. */
     const { rows } = await c.query(
-      `SELECT * FROM rocakids.registrar_checkin($1,$2,$3,$4,$5)`,
-      [d.menorId, d.salaId, d.entregadoPor, d.recibidoPor, d.servicioId ?? null]);
+      `SELECT * FROM rocakids.registrar_checkin($1,$2,$3,$4,$5,$6)`,
+      [d.menorId, d.salaId, d.entregadoPor, d.recibidoPor, d.servicioId ?? null,
+       d.anulacionDosAdultos ?? null]);
     const r = rows[0];
     if (r?.repetido) {
       /* Es la cola sin conexión reintentando. No es un error: es el mismo
          ingreso. Se dice claro para que la pantalla no pinte otro código. */
-      return { checkinId: r.checkin_id, repetido: true,
-               aviso: 'Ese menor ya estaba registrado hoy en esa sala. Se conserva el ingreso y el código original.' };
+      return { checkinId: r.checkin_id, repetido: true, aviso: r.aviso ??
+               'Ese menor ya estaba registrado hoy en esa sala. Se conserva el ingreso y el código original.' };
     }
-    return { checkinId: r.checkin_id, codigo: r.codigo, repetido: false };
+    /* `aviso` puede traer el cambio de sala, el ingreso que se quedó sin
+       salida la semana pasada o la anulación de los dos adultos. La
+       pantalla lo muestra: un aviso que no se ve es un aviso que no existe. */
+    return { checkinId: r.checkin_id, codigo: r.codigo, repetido: false, aviso: r.aviso ?? null };
   }
 
   /**

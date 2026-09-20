@@ -8,6 +8,29 @@
 #    puede hacer desde Terraform. Por eso el disparador nace apagado
 #    (var.crear_disparador_github = false).
 # =====================================================================
+# ⛔ 19 sep 2026 · LO QUE ESTE DISPARADOR NO PUEDE COMPROBAR SOLO.
+#
+#    Cloud Build se entera del push, no de si la compuerta paso. Es decir:
+#    un `git push` a main llega a produccion aunque `verificar.sh` este en
+#    rojo, porque son dos sistemas distintos mirando el mismo commit.
+#
+#    Lo que SI protege hoy, dentro de `cloudbuild.yaml`:
+#      · freno de domingo (el dia de mas uso), con escape explicito;
+#      · copia de la base ANTES de migrar, etiquetada con el build;
+#      · el despliegue de la API espera a que el migrador termine bien.
+#
+#    Lo que falta, y es una decision de Daniel porque toca la cuenta de
+#    GitHub, no el codigo:
+#      · Activar «Require status checks to pass before merging» en la rama
+#        main de 100p-NANO/ecosistema-cr, exigiendo el flujo `verificar`.
+#        Con eso, a main solo llega lo que ya paso la compuerta, y este
+#        disparador hereda esa garantia sin necesitar ninguna credencial.
+#      · Y, mientras no este activado: nadie empuja a main directamente.
+#        Se trabaja por rama y se fusiona con la comprobacion en verde.
+#
+#    Esta escrito aqui, y no solo en un documento, porque quien lea este
+#    archivo para cambiar el despliegue es exactamente quien tiene que
+#    saberlo.
 resource "google_cloudbuild_trigger" "main" {
   count       = var.crear_disparador_github ? 1 : 0
   name        = "${var.prefijo}-main"

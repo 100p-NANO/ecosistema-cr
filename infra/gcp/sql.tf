@@ -72,6 +72,20 @@ resource "google_sql_database_instance" "principal" {
     # ⛔ NO poner log_statement = 'ddl' ni 'all': el migrador fija la
     #    contraseña de la API con ALTER ROLE ... PASSWORD, y esas opciones
     #    la escribirían en claro en Cloud Logging.
+    # ⛔ Cuántas conexiones admite la base. Sale de la tabla de fases, con
+    #    la misma cuenta que los pozos de la API: instancias x (negocio +
+    #    auth + salud) + margen para el migrador y el mantenimiento.
+    #    Sin esto se dependía del valor de fábrica, y en la fase 2 (hasta 5
+    #    instancias) las peticiones se habrían quedado esperando conexión
+    #    justo en el pico del domingo, sin un solo error que lo explicara.
+    dynamic "database_flags" {
+      for_each = local.f.sql_max_conexiones > 0 ? [1] : []
+      content {
+        name  = "max_connections"
+        value = tostring(local.f.sql_max_conexiones)
+      }
+    }
+
     database_flags {
       name  = "log_min_duration_statement"
       value = "1000" # consultas de más de 1 s

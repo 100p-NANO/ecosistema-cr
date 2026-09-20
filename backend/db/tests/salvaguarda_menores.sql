@@ -16,7 +16,16 @@ BEGIN
   SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-CHICO';
   INSERT INTO nucleo.personas (sede_id, primer_nombre, primer_apellido, fecha_nacimiento)
   VALUES (v_sede,'Maestra','DePrueba','1995-04-04') RETURNING id INTO v_p;
-  SELECT id INTO v_sala FROM rocakids.salas LIMIT 1;
+  -- ⛔ Antes esto era `SELECT id FROM rocakids.salas LIMIT 1`, sin orden y
+  --    sobre una sala SEMBRADA que comparten todos. Dos consecuencias: el
+  --    «LIMIT 1» podia devolver otra sala en otra corrida, y la prueba V7
+  --    («una sala con UN adulto avisa») contaba los adultos que hubieran
+  --    quedado de corridas anteriores. Pasaba en base nueva y fallaba en
+  --    base usada, que es la peor clase de prueba. La sala es SUYA.
+  INSERT INTO rocakids.salas (sede_id, codigo, nombre, edad_min, edad_max, capacidad, activa)
+  VALUES (v_sede,'LAB-SALV-'||substr(md5(clock_timestamp()::text),1,6),
+          'Sala de laboratorio · salvaguarda', 0, 17, 30, true)
+  RETURNING id INTO v_sala;
   INSERT INTO vlab VALUES ('sede',v_sede),('persona',v_p),('sala',v_sala);
 END $$;
 
@@ -158,9 +167,124 @@ BEGIN
   PERFORM pg_temp.rg(10,'Un antecedente de menores vale para siempre','0', eternos||'', eternos = 0);
 END $$;
 
+-- =====================================================================
+-- V11 a V13 · EL CHECK-IN NO REVIENTA POR UNA SALIDA DE LA SEMANA PASADA
+--             (migración 0057)
+--
+-- ⛔ `checkin_abierto_uq UNIQUE (menor_id) WHERE salida_en IS NULL` dice
+--    que un menor no puede estar en dos salas a la vez. Correcto. Pero la
+--    idempotencia buscaba por (menor, SALA, dia), asi que un ingreso
+--    abierto en OTRA sala llegaba al INSERT y reventaba con un 23505 en
+--    crudo, en la pantalla, un domingo a las nueve, y por culpa de una
+--    salida que nadie registro el domingo ANTERIOR.
+-- =====================================================================
+DO $$
+DECLARE v_sede uuid; v_menor uuid; v_acu uuid; v_s1 uuid; v_s2 uuid; v_maestro uuid;
+        sx text := substr(md5(clock_timestamp()::text),1,8);
+BEGIN
+  SELECT v INTO v_sede FROM vlab WHERE k='sede';
+  INSERT INTO nucleo.personas (sede_id, primer_nombre, primer_apellido, fecha_nacimiento)
+  VALUES (v_sede,'MenorCheckin','DePrueba', CURRENT_DATE - interval '7 years')
+  RETURNING id INTO v_menor;
+  INSERT INTO nucleo.personas (sede_id, primer_nombre, primer_apellido, fecha_nacimiento)
+  VALUES (v_sede,'AcudienteCheckin','DePrueba','1988-02-02') RETURNING id INTO v_acu;
+  INSERT INTO nucleo.personas (sede_id, primer_nombre, primer_apellido, fecha_nacimiento)
+  VALUES (v_sede,'MaestroCheckin','DePrueba','1990-02-02') RETURNING id INTO v_maestro;
+  SET CONSTRAINTS ALL DEFERRED;
+  INSERT INTO nucleo.acudientes (menor_id, acudiente_id, parentesco, autoriza_retiro)
+  VALUES (v_menor, v_acu, 'MADRE', true);
+  SET CONSTRAINTS ALL IMMEDIATE;
+
+  -- Dos salas de laboratorio que cubran la edad del menor, en esta sede.
+  INSERT INTO rocakids.salas (sede_id, codigo, nombre, edad_min, edad_max, capacidad, activa)
+  VALUES (v_sede,'LABA-'||sx,'Sala Lab A '||sx, 0, 17, 30, true) RETURNING id INTO v_s1;
+  INSERT INTO rocakids.salas (sede_id, codigo, nombre, edad_min, edad_max, capacidad, activa)
+  VALUES (v_sede,'LABB-'||sx,'Sala Lab B '||sx, 0, 17, 30, true) RETURNING id INTO v_s2;
+
+  -- Dos adultos en cada sala: la regla de los dos adultos no es lo que se
+  -- esta probando aqui y no debe enturbiar el resultado. Pero la
+  -- salvaguarda SI aplica (y bien: el banco lo demostro al escribirla),
+  -- asi que los dos llevan antecedentes vigentes de laboratorio.
+  INSERT INTO talento.antecedentes (persona_id, tipo, resultado, expedido_en, vence_en, sede_id)
+  SELECT p.id, t.codigo, 'apto', CURRENT_DATE - 30, CURRENT_DATE + 300, v_sede
+  FROM (VALUES (v_maestro),(v_acu)) AS p(id), talento.tipos_antecedente t
+  WHERE t.exigido_para_menores;
+
+  INSERT INTO rocakids.servidores_sala (sala_id, persona_id, sede_id, fecha)
+  VALUES (v_s1, v_maestro, v_sede, CURRENT_DATE), (v_s1, v_acu, v_sede, CURRENT_DATE),
+         (v_s2, v_maestro, v_sede, CURRENT_DATE), (v_s2, v_acu, v_sede, CURRENT_DATE);
+
+  INSERT INTO vlab VALUES ('menor_ck',v_menor),('acu_ck',v_acu),('maestro_ck',v_maestro),
+                          ('sala1_ck',v_s1),('sala2_ck',v_s2);
+END $$;
+
+-- V11 · Se quedo un ingreso ABIERTO del domingo pasado. El de hoy pasa.
+DO $$
+DECLARE v_menor uuid; v_s1 uuid; v_s2 uuid; v_acu uuid; v_m uuid;
+        v_viejo uuid; ok boolean := false; v_aviso text; err text;
+BEGIN
+  SELECT v INTO v_menor FROM vlab WHERE k='menor_ck';
+  SELECT v INTO v_s1 FROM vlab WHERE k='sala1_ck';
+  SELECT v INTO v_s2 FROM vlab WHERE k='sala2_ck';
+  SELECT v INTO v_acu FROM vlab WHERE k='acu_ck';
+  SELECT v INTO v_m FROM vlab WHERE k='maestro_ck';
+
+  PERFORM set_config('app.llave_n4','llave-dev',true);
+
+  INSERT INTO rocakids.checkins (menor_id, sala_id, sede_id, entregado_por, recibido_por,
+                                 ingreso_en, codigo_cifrado)
+  VALUES (v_menor, v_s1, (SELECT v FROM vlab WHERE k='sede'), v_acu, v_m,
+          now() - interval '7 days', pgp_sym_encrypt('LAB1','llave-dev'))
+  RETURNING id INTO v_viejo;
+
+  BEGIN
+    SELECT aviso INTO v_aviso FROM rocakids.registrar_checkin(v_menor, v_s2, v_acu, v_m);
+    ok := true;
+  EXCEPTION WHEN others THEN err := SQLERRM;
+  END;
+
+  PERFORM pg_temp.rg(11,'Un ingreso sin salida de otro dia revienta el check-in de hoy',
+    'se registra igual',
+    CASE WHEN ok THEN 'se registra igual' ELSE 'REVENTO: '||COALESCE(err,'?') END, ok);
+
+  PERFORM pg_temp.rg(12,'El ingreso viejo queda cerrado en SU dia, no en el de hoy',
+    'cerrado el dia que fue',
+    COALESCE((SELECT CASE WHEN salida_en::date = (now() - interval '7 days')::date
+                          THEN 'cerrado el dia que fue'
+                          ELSE 'cerrado el '||salida_en::date::text END
+              FROM rocakids.checkins WHERE id = v_viejo), 'sigue abierto'),
+    (SELECT salida_en::date = (now() - interval '7 days')::date
+       FROM rocakids.checkins WHERE id = v_viejo));
+END $$;
+
+-- V13 · Y el cambio de sala el MISMO dia tampoco revienta.
+DO $$
+DECLARE v_menor uuid; v_s1 uuid; v_acu uuid; v_m uuid; ok boolean := false; err text;
+BEGIN
+  SELECT v INTO v_menor FROM vlab WHERE k='menor_ck';
+  SELECT v INTO v_s1 FROM vlab WHERE k='sala1_ck';
+  SELECT v INTO v_acu FROM vlab WHERE k='acu_ck';
+  SELECT v INTO v_m FROM vlab WHERE k='maestro_ck';
+  PERFORM set_config('app.llave_n4','llave-dev',true);
+  BEGIN
+    PERFORM rocakids.registrar_checkin(v_menor, v_s1, v_acu, v_m);
+    ok := true;
+  EXCEPTION WHEN others THEN err := SQLERRM;
+  END;
+  PERFORM pg_temp.rg(13,'Cambiar de sala el mismo dia revienta',
+    'se registra igual',
+    CASE WHEN ok THEN 'se registra igual' ELSE 'REVENTO: '||COALESCE(err,'?') END, ok);
+END $$;
+
 -- Limpieza.
 DELETE FROM plataforma.peticiones_titular WHERE titular_nombre='Titular DePrueba';
+DELETE FROM rocakids.checkins WHERE menor_id IN (SELECT v FROM vlab WHERE k='menor_ck');
 DELETE FROM rocakids.servidores_sala WHERE persona_id IN (SELECT v FROM vlab);
+DELETE FROM rocakids.servidores_sala WHERE sala_id IN (SELECT v FROM vlab WHERE k IN ('sala','sala1_ck','sala2_ck'));
+DELETE FROM rocakids.salas WHERE id IN (SELECT v FROM vlab WHERE k IN ('sala','sala1_ck','sala2_ck'));
+-- ⛔ El vinculo con el acudiente NO se borra: `tg_no_dejar_menor_sin_acudiente`
+--    lo impide, y tiene razon. Un menor no se queda sin acudiente ni en una
+--    prueba. El menor se da de baja como todos los demas, marcandolo.
 DELETE FROM identidad.asignaciones WHERE persona_id IN (SELECT v FROM vlab);
 DELETE FROM talento.antecedentes WHERE persona_id IN (SELECT v FROM vlab);
 -- ⛔ `nucleo.personas` tiene la regla `personas_no_delete`: un DELETE se
@@ -170,9 +294,10 @@ DELETE FROM talento.antecedentes WHERE persona_id IN (SELECT v FROM vlab);
 --    banco 1 se ponia rojo dos bancos despues. Aqui se borra como manda el
 --    modelo: marcando.
 UPDATE nucleo.membresias_sede SET hasta = CURRENT_DATE, es_principal = false
- WHERE persona_id IN (SELECT v FROM vlab WHERE k='persona') AND hasta IS NULL;
+ WHERE persona_id IN (SELECT v FROM vlab WHERE k IN ('persona','menor_ck','acu_ck','maestro_ck'))
+   AND hasta IS NULL;
 UPDATE nucleo.personas SET eliminado_en = now(), estado = 'inactiva'
- WHERE id IN (SELECT v FROM vlab WHERE k='persona');
+ WHERE id IN (SELECT v FROM vlab WHERE k IN ('persona','menor_ck','acu_ck','maestro_ck'));
 
 \echo ''
 \echo '===== SALVAGUARDA DE MENORES Y DERECHOS DEL TITULAR ====='

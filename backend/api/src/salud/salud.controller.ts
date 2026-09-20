@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { Pool } from 'pg';
 import { estadoDelLimite } from '../comun/limite';
+import { MAX_SALUD } from '../db/pozos';
 
 /**
  * Salud del servicio.
@@ -18,7 +19,7 @@ export class SaludController {
     database: process.env.PGDATABASE ?? 'casaroca_dev',
     user: process.env.PGUSER ?? 'casaroca_app',
     password: process.env.PGPASSWORD || undefined,
-    max: 2,
+    max: MAX_SALUD,
   } as any);
 
   /** Para el balanceador: rápido y binario. */

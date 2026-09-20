@@ -39,31 +39,32 @@ DG=$(psql_admin -d "$PGDATABASE" -qAt -c "SELECT persona_id FROM identidad.asign
 psql_admin -d "$PGDATABASE" -qAt >/dev/null <<'SQL'
 DO $lab$
 DECLARE v_grupo uuid; v_sede uuid; v_persona uuid;
+        sx text := substr(md5(clock_timestamp()::text),1,8);
 BEGIN
-  SELECT g.id, g.sede_id INTO v_grupo, v_sede FROM grupos.grupos g
-   WHERE g.sede_id IS NOT NULL ORDER BY g.id LIMIT 1;
-  IF v_grupo IS NULL THEN
-    RAISE EXCEPTION 'No hay grupos sembrados: el banco no puede probar el alcance de un lider';
-  END IF;
-  SELECT p.id INTO v_persona FROM nucleo.personas p
-   WHERE p.sede_id = v_sede AND p.eliminado_en IS NULL
-     AND NOT EXISTS (SELECT 1 FROM identidad.asignaciones a
-                      WHERE a.persona_id = p.id AND a.alcance_tipo = 'organizacion')
-   ORDER BY p.id LIMIT 1;
-  IF v_persona IS NULL THEN
-    RAISE EXCEPTION 'No hay una persona sin alcance de red en la sede del grupo';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM identidad.asignaciones
-                  WHERE persona_id = v_persona AND rol = 'LIDER_GRUPO'
-                    AND alcance_id = v_grupo AND revocada_en IS NULL) THEN
-    INSERT INTO identidad.asignaciones
-      (persona_id, rol, alcance_tipo, alcance_id, nivel_max, acta_referencia)
-    VALUES (v_persona,'LIDER_GRUPO','grupo',v_grupo,2,'laboratorio: banco probar-api.sh');
-  END IF;
+  -- ⛔ La primera version buscaba «un grupo cualquiera» y «una persona
+  --    cualquiera de esa sede», las dos con LIMIT 1 sin orden. Dos
+  --    corridas seguidas elegian cosas distintas, y la persona elegida
+  --    podia tener ya asignaciones en OTRA sede: la comprobacion «un
+  --    lider ve UNA iglesia» daba 2 y parecia una fuga de permisos.
+  --    El sujeto de la prueba se CREA entero, y es solo suyo.
+  SELECT id INTO v_sede FROM org.sedes WHERE codigo='BOG-CHICO';
+  IF v_sede IS NULL THEN SELECT id INTO v_sede FROM org.sedes ORDER BY codigo LIMIT 1; END IF;
+
+  INSERT INTO grupos.grupos (sede_id, tipo, nombre)
+  VALUES (v_sede,'pequeno','Grupo de laboratorio banco-api '||sx)
+  RETURNING id INTO v_grupo;
+
+  INSERT INTO nucleo.personas (sede_id, primer_nombre, primer_apellido, fecha_nacimiento)
+  VALUES (v_sede,'Lider','BancoApi '||sx,'1990-05-05')
+  RETURNING id INTO v_persona;
+
+  INSERT INTO identidad.asignaciones
+    (persona_id, rol, alcance_tipo, alcance_id, nivel_max, acta_referencia)
+  VALUES (v_persona,'LIDER_GRUPO','grupo',v_grupo,2,'laboratorio: banco probar-api.sh');
 END $lab$;
 SQL
 
-LID=$(psql_admin -d "$PGDATABASE" -qAt -c "SELECT persona_id FROM identidad.asignaciones WHERE rol='LIDER_GRUPO' AND revocada_en IS NULL AND (vigente_hasta IS NULL OR vigente_hasta>=CURRENT_DATE) LIMIT 1")
+LID=$(psql_admin -d "$PGDATABASE" -qAt -c "SELECT persona_id FROM identidad.asignaciones WHERE acta_referencia='laboratorio: banco probar-api.sh' AND revocada_en IS NULL ORDER BY creado_en DESC LIMIT 1")
 if [ -z "$LID" ]; then echo "⛔ sin lider de laboratorio: el banco NO puede probar el alcance restringido"; exit 1; fi
 
 # Un token por persona de prueba (DESPUES de resolver las personas).

@@ -89,6 +89,12 @@ resource "google_cloud_run_v2_service" "api" {
           NODE_ENV         = "production"
           CORS_ORIGENES    = join(",", var.cors_origenes)
           CORREO_REMITENTE = var.correo_remitente
+          # ⛔ El tamaño de los pozos lo manda la TABLA DE FASES, no un valor
+          #    por omisión dentro del código. Es la única forma de que el
+          #    número de conexiones por instancia y el número de instancias
+          #    no se contradigan: los dos salen de la misma fila.
+          PG_POZO_NEGOCIO = tostring(local.f.pozo_negocio)
+          PG_POZO_AUTH    = tostring(local.f.pozo_auth)
         })
         content {
           name  = env.key

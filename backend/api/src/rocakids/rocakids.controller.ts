@@ -58,6 +58,11 @@ export class RocakidsController {
       entregadoPor: uuid(b?.entregadoPor, 'entregadoPor'),
       recibidoPor: s.personaId,
       servicioId: uuidOpcional(b?.servicioId, 'servicioId'),
+      /* La regla de los dos adultos se puede anular, pero solo por escrito
+         y con el motivo, que queda en la bitácora con nombre y hora. */
+      anulacionDosAdultos: b?.anulacionDosAdultos
+        ? texto(b.anulacionDosAdultos, 'anulacionDosAdultos', { min: 10, max: 300 })
+        : null,
     }));
   }
 

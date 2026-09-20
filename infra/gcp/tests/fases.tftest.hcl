@@ -119,6 +119,16 @@ run "fase_1_pruebas" {
     condition     = length(google_monitoring_uptime_check_config.api) == 1 && google_monitoring_uptime_check_config.api[0].http_check[0].path == "/salud"
     error_message = "Con dominio tiene que existir la sonda externa contra /salud."
   }
+  # ⭐ Las conexiones tienen que CABER: instancias x pozos + margen. Si
+  #    alguien sube `api_max` sin tocar `sql_max_conexiones`, el domingo
+  #    las peticiones se encolan sin un solo error que lo explique.
+  assert {
+    condition = (
+      local.f.api_max * (local.f.pozo_negocio + local.f.pozo_auth + 2) + 25
+      <= local.f.sql_max_conexiones
+    )
+    error_message = "Los pozos de todas las instancias no caben en max_connections de esta fase."
+  }
   # Cloud Armor BLOQUEA por omisión. Si vuelve a nacer en modo vista previa,
   # el inventario contaría como protección algo que solo mira.
   # ⛔ No se puede mirar `google_compute_security_policy.armor[0].rule`: en

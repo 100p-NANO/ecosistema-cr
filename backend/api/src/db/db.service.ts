@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { almacen, type Contexto } from '../contexto/contexto';
+import { MAX_NEGOCIO, TOTAL_POR_INSTANCIA } from './pozos';
 
 /**
  * Acceso a datos. Una petición = una transacción = un contexto.
@@ -20,7 +21,7 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
     database: process.env.PGDATABASE ?? 'casaroca_dev',
     user: process.env.PGUSER ?? 'casaroca_app',
     password: process.env.PGPASSWORD || undefined,
-    max: 10,
+    max: MAX_NEGOCIO,
     idle_in_transaction_session_timeout: 10_000,
   } as any);
 
@@ -49,6 +50,23 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
         'Use casaroca_app (o casaroca_api_dev en desarrollo) y vuelva a arrancar.');
     }
     this.log.log(`base conectada como ${r.usuario} · sin privilegio para saltar RLS`);
+
+    /* ⛔ Cuántas conexiones caben. El auditor de rendimiento lo midió para
+       el domingo de 9 a 11: si (pozos x instancias) se acerca a
+       `max_connections`, las peticiones no fallan, se ENCOLAN, y lo hacen
+       justo en la pantalla de check-in con la fila de niños delante.
+       Un aviso al arrancar cuesta nada; enterarse el domingo, mucho. */
+    try {
+      const { rows: [c] } = await this.pool.query(`SHOW max_connections`);
+      const tope = Number(c?.max_connections);
+      if (Number.isFinite(tope)) {
+        const caben = Math.floor((tope - 10) / TOTAL_POR_INSTANCIA);
+        const msg = `pozos: ${TOTAL_POR_INSTANCIA} conexiones por instancia · `
+          + `max_connections=${tope} · caben ${caben} instancia(s) con 10 de margen`;
+        if (caben < 2) this.log.warn(`${msg} ⚠️ menos de dos: no se puede escalar para el domingo`);
+        else this.log.log(msg);
+      }
+    } catch { /* si no se puede leer, no es motivo para no arrancar */ }
   }
 
   async onModuleDestroy() { await this.pool.end(); }
