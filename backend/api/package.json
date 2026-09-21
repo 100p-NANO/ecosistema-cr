@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/main.js",
     "dev": "npm run build && node dist/src/main.js",
-    "probar": "npm run build && node dist/test/e2e.js"
+    "probar": "npm run build && node dist/test/e2e.js",
+    "probar:saliente": "npm run build && CORTACIRCUITOS_UMBRAL=3 CORTACIRCUITOS_MS=500 node dist/test/saliente.prueba.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.22",

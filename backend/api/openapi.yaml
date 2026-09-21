@@ -61,6 +61,24 @@ paths:
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "429": { description: "demasiadas peticiones" }
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/avisos/:id/reprocesar:
+    post:
+      summary: "Reprocesar un aviso muerto"
+      description: "Lo devuelve a la cola desde cero. Exige `motivo`, que queda en la auditoria: si murio tras cinco intentos, algo tuvo que cambiar."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/avisos:
+    get:
+      summary: "La bandeja de salida"
+      description: "Sus cuatro numeros (pendientes, en espera, muertos y ultimo envio) y los avisos de un estado, por omision los muertos, con el destinatario enmascarado."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /api/v1/administracion/catalogo:
     get:
       summary: "Catalogo de gobierno"
@@ -118,6 +136,15 @@ paths:
     post:
       summary: "Desplegar una iglesia"
       description: "Crea la sede colgada de la maestra, le aplica la plantilla (que debe ser de su tipo o la MAESTRA), deja apagado lo de compuerta legal y asigna el pastor con `nivelPastor` (N2 a N4, por omision N3, nunca por encima del techo del rol)."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/integraciones:
+    get:
+      summary: "Estado de las integraciones"
+      description: "Por cada tercero (SendGrid, reCAPTCHA, PayU): si esta configurado (solo si o no, nunca la llave), su ultimo intento, su cortacircuitos y su modo degradado."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }

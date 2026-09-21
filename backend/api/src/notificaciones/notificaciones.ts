@@ -4,6 +4,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { DbModule } from '../db/db.module';
 import { DbService } from '../db/db.service';
 import { PLANTILLAS } from './plantillas';
+import { circuitoAbierto, llamarTercero } from '../comun/saliente';
 
 /**
  * El trabajador de la bandeja de salida (`plataforma.notificaciones`).
@@ -35,15 +36,23 @@ export class NotificacionesService {
     const lote = await this.db.enTransaccion(ctx, async (c) =>
       (await c.query(`SELECT * FROM plataforma.tomar_notificaciones($1)`, [limite])).rows);
 
-    let enviadas = 0, fallidas = 0;
+    let enviadas = 0, fallidas = 0, devueltas = 0;
     for (const n of lote) {
       let ok = false, error: string | null = null, proveedorId: string | null = null;
-      try {
-        if (n.canal !== 'email') throw new Error(`Canal ${n.canal} sin proveedor configurado`);
-        const plantilla = PLANTILLAS[n.plantilla];
-        if (!plantilla) throw new Error(`Plantilla desconocida: ${n.plantilla}`);
-        const { asunto, html } = plantilla(n.datos ?? {});
-        const r = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      let definitivo = false, esperar: number | null = null;
+      if (n.canal !== 'email') {
+        error = `Canal ${n.canal} sin proveedor configurado`; definitivo = true;
+      } else if (!PLANTILLAS[n.plantilla]) {
+        error = `Plantilla desconocida: ${n.plantilla}`; definitivo = true;
+      } else if (circuitoAbierto('sendgrid')) {
+        /* ⛔ Modo degradado: con el proveedor caído no se gasta un intento
+           por aviso. Lo que queda del lote vuelve a la cola con espera. */
+        error = 'SendGrid en cortacircuitos: se reintenta más tarde';
+        esperar = 120;
+        devueltas++;
+      } else {
+        const { asunto, html } = PLANTILLAS[n.plantilla](n.datos ?? {});
+        const r = await llamarTercero('sendgrid', 'https://api.sendgrid.com/v3/mail/send', {
           method: 'POST',
           headers: { Authorization: `Bearer ${clave}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -52,19 +61,26 @@ export class NotificacionesService {
             subject: asunto,
             content: [{ type: 'text/html', value: html }],
           }),
-        });
-        ok = r.status === 202;
-        proveedorId = r.headers.get('x-message-id');
-        if (!ok) error = `SendGrid respondió ${r.status}: ${(await r.text()).slice(0, 300)}`;
-      } catch (e: any) {
-        error = String(e?.message ?? e);
+        }, { esperaMs: 10_000 });
+        if (r.ok) {
+          ok = r.estado === 202;
+          proveedorId = r.respuesta.headers.get('x-message-id');
+          if (!ok) { error = `SendGrid respondió ${r.estado} (se esperaba 202)`; }
+        } else {
+          error = r.error;
+          /* Un 4xx que no es 429 (dirección inválida, remitente no
+             verificado) no se arregla repitiéndolo: muere de una vez. */
+          definitivo = !r.pasajero;
+          esperar = r.esperarSegundos;
+        }
       }
       await this.db.enTransaccion(ctx, (c) => c.query(
-        `SELECT plataforma.marcar_notificacion($1, $2, $3, $4)`, [n.id, ok, error, proveedorId]));
+        `SELECT plataforma.marcar_notificacion($1, $2, $3, $4, $5, $6)`,
+        [n.id, ok, error, proveedorId, definitivo, esperar]));
       ok ? enviadas++ : fallidas++;
-      if (!ok) this.log.warn(`Aviso ${n.id} (${n.plantilla}) no salió: ${error}`);
+      if (!ok) this.log.warn(`Aviso ${n.id} (${n.plantilla}) no salió${definitivo ? ' (definitivo)' : ''}: ${error}`);
     }
-    return { enviadas, fallidas, tomadas: lote.length };
+    return { enviadas, fallidas, devueltas_por_cortacircuitos: devueltas, tomadas: lote.length };
   }
 }
 

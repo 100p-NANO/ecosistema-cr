@@ -60,6 +60,14 @@ if "$RAIZ/api/test/conectores.sh" >/tmp/cr-conectores.log 2>&1; then
   ok "conectores: $(grep -o 'CONECTORES: [0-9]* de [0-9]*' /tmp/cr-conectores.log | tail -1)"
 else mal "hay conectores rotos entre la consola y la base (ver /tmp/cr-conectores.log)"; fi
 
+echo "══ 4e · Las llamadas a terceros aguantan (tiempo, clase y cortacircuitos)"
+# ⛔ 21 sep 2026 · Cada fetch a un tercero salía sin tiempo de espera ni
+#    cortacircuitos. Esta prueba levanta un proveedor falso que tarda, se
+#    cae, pide esperar o rechaza, y exige que cada caso se trate bien.
+if ( cd "$RAIZ/api" && npm run probar:saliente >/tmp/cr-saliente.log 2>&1 ); then
+  ok "$(grep -E 'pasan:' /tmp/cr-saliente.log | tail -1 | sed 's/^ *//')"
+else mal "las llamadas a terceros no aguantan (ver /tmp/cr-saliente.log)"; fi
+
 echo "══ 4c · Ningun cast de la API apunta a un tipo que ya no existe"
 # ⛔ El 19 de septiembre TODA donacion devolvia 500 porque el codigo seguia
 #    escribiendo `$4::aportes.tipo_aporte`, un enum que la migracion 0046

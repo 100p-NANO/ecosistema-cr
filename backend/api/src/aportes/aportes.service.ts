@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { exigir } from '../comun/permiso';
 import { DbService } from '../db/db.service';
@@ -51,7 +51,11 @@ export class AportesService {
     if (!referencia) throw new BadRequestException('El aviso no trae referencia.');
 
     const recibida = String(cuerpo?.sign ?? cuerpo?.signature ?? '').toLowerCase();
-    const valida = !!process.env.PAYU_API_KEY && recibida === this.firmaEsperada(cuerpo);
+    /* ⛔ Comparación en tiempo constante: con `===`, el tiempo de respuesta
+       dice cuántos caracteres de la firma acertó quien prueba. */
+    const esperada = Buffer.from(this.firmaEsperada(cuerpo));
+    const dada = Buffer.from(recibida);
+    const valida = !!process.env.PAYU_API_KEY && dada.length === esperada.length && timingSafeEqual(dada, esperada);
     /* Huella del aviso completo: el MISMO reenviado no entra dos veces. */
     const huella = createHash('sha256').update(JSON.stringify(cuerpo)).digest('hex');
 

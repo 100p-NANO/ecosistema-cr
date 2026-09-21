@@ -8,6 +8,7 @@ import { conSesion, exigirNivel, sesionDe } from '../comun/identidad.helper';
 import { uuid, texto, textoOpcional, booleano, entero, fecha } from '../comun/validar';
 import { derivarClave } from '../auth/clave';
 import { JERGA } from '../comun/errores';
+import { estadoDeTerceros } from '../comun/saliente';
 
 /**
  * Administración de la solución.
@@ -1007,6 +1008,66 @@ export class AdministracionController {
           : '⛔ Esta iglesia NO tiene pastor congregacional asignado. Una sede sin pastor no se opera sola.',
       };
     });
+  }
+
+  /**
+   * La bandeja de salida: sus cuatro números y los avisos que murieron.
+   * ⛔ Antes no había forma de ver un aviso muerto sin entrar a la base.
+   */
+  @Get('avisos')
+  avisos(@Req() req: Request, @Query('estado') estado?: string) {
+    exigirNivel(req, 4, 'ver la bandeja de salida');
+    return conSesion(this.db, req, async (c) => {
+      const { rows: [salud] } = await c.query(`SELECT * FROM plataforma.salud_avisos()`);
+      const { rows } = await c.query(`SELECT * FROM plataforma.ver_avisos($1, 200)`,
+        [estado && ['fallida', 'pendiente', 'enviando', 'enviada', 'descartada'].includes(estado) ? estado : 'fallida']);
+      return {
+        salud, avisos: rows, total_filas: rows.length,
+        aviso: Number(salud?.muertos ?? 0) > 0
+          ? `${salud.muertos} aviso(s) murieron tras sus intentos. Revise el error de cada uno antes de reprocesar.`
+          : null,
+      };
+    });
+  }
+
+  @Post('avisos/:id/reprocesar')
+  reprocesarAviso(@Req() req: Request, @Param('id') id: string, @Body() b: any) {
+    exigirNivel(req, 4, 'reprocesar un aviso');
+    return conSesion(this.db, req, async (c) => {
+      try {
+        await c.query(`SELECT plataforma.reprocesar_aviso($1, $2)`,
+          [uuid(id, 'id'), texto(b?.motivo, 'motivo', { min: 5, max: 300 })]);
+        return { mensaje: 'Aviso devuelto a la cola. Sale en la próxima vuelta del trabajador.' };
+      } catch (e: any) { traducir(e); }
+    });
+  }
+
+  /**
+   * Cómo están los terceros: si están configurados, su último intento y su
+   * cortacircuitos (estación 23 del manual). Sin secretos: solo SÍ o NO.
+   */
+  @Get('integraciones')
+  integraciones(@Req() req: Request) {
+    exigirNivel(req, 4, 'ver el estado de las integraciones');
+    const estado = estadoDeTerceros();
+    const fila = (clave: string, nombre: string, variable: string, degradado: string) => ({
+      clave, nombre, configurada: Boolean(process.env[variable]), variable,
+      modo_degradado: degradado,
+      ultimo: estado[clave]?.ultimo ?? null,
+      circuito_abierto: estado[clave]?.circuitoAbierto ?? false,
+      fallos_seguidos: estado[clave]?.fallosSeguidos ?? 0,
+    });
+    return {
+      integraciones: [
+        fila('sendgrid', 'Correo (SendGrid)', 'SENDGRID_API_KEY',
+          'Sin llave o con el proveedor caído, los avisos esperan en la cola: no se pierden ni gastan intentos.'),
+        fila('recaptcha', 'Formulario público (reCAPTCHA)', 'RECAPTCHA_SECRET',
+          'Si Google no responde, el formulario de «soy nuevo» sigue abierto; el límite por IP frena a los robots.'),
+        fila('payu', 'Pagos (PayU)', 'PAYU_API_KEY',
+          'Sin llave, los avisos de pago se guardan como no verificados y NO se convierten en aportes.'),
+      ],
+      nota: 'El estado de «último intento» es de esta instancia de la API y se reinicia al desplegar.',
+    };
   }
 
   /** La auditoría: quién hizo qué. */
