@@ -194,4 +194,117 @@ $$;
 REVOKE ALL ON FUNCTION org.sedes_que_alcanza_el_equipo(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION org.sedes_que_alcanza_el_equipo(uuid) TO casaroca_app;
 
+-- ── g · «Lo que alcanza de verdad», con la fuente que decide ─────────
+/* ⛔ La ruta contaba asignaciones REVOCADAS, ignoraba las heredadas de un
+   equipo y devolvía módulos en vez de acciones; la pantalla, además, leía
+   campos con otros nombres y se pintaba en blanco. Justo la tabla que una
+   auditoría de accesos abre primero. */
+CREATE OR REPLACE FUNCTION identidad.efectivo_de(p_persona uuid)
+RETURNS TABLE(modulo text, modulo_nombre text, accion text, accion_nombre text,
+              nivel_dato smallint, nivel_efectivo smallint, via text)
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = identidad, sistema, nucleo, org, plataforma, pg_temp AS $$
+DECLARE v_sede uuid;
+BEGIN
+  SELECT sede_id INTO v_sede FROM nucleo.personas WHERE id = p_persona;
+  IF v_sede IS NULL THEN
+    RAISE EXCEPTION 'No se encuentra a esa persona.' USING ERRCODE = 'no_data_found';
+  END IF;
+  IF NOT (plataforma.sede_visible(v_sede)
+          OR EXISTS (SELECT 1 FROM nucleo.membresias_sede m
+                      WHERE m.persona_id = p_persona AND plataforma.sede_visible(m.sede_id))) THEN
+    RAISE EXCEPTION 'Esa persona no está en su alcance.' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN QUERY
+  SELECT m.codigo, m.nombre, a.codigo, a.nombre, m.nivel_dato,
+         max(pe.nivel_efectivo)::smallint,
+         string_agg(DISTINCT CASE WHEN pe.origen = 'equipo'
+                                  THEN 'equipo ' || COALESCE(u.nombre, '?') || ' (' || pe.rol || ')'
+                                  ELSE pe.rol END, ', ')
+    FROM identidad.v_permiso_efectivo pe
+    JOIN identidad.roles r         ON r.codigo = pe.rol AND r.activo
+    JOIN sistema.matriz_permisos p ON p.rol = pe.rol
+    JOIN sistema.modulos m         ON m.codigo = p.modulo
+    JOIN sistema.acciones a        ON a.codigo = p.accion
+    LEFT JOIN org.unidades u       ON u.id = pe.unidad_id
+   WHERE pe.persona_id = p_persona AND pe.vigente
+     AND m.nivel_dato <= pe.nivel_efectivo
+   GROUP BY m.codigo, m.nombre, a.codigo, a.nombre, m.nivel_dato, m.orden, a.orden
+   ORDER BY m.orden, a.orden;
+END $$;
+REVOKE ALL ON FUNCTION identidad.efectivo_de(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION identidad.efectivo_de(uuid) TO casaroca_app;
+
+-- ── h · La bitácora se busca, se filtra y se pagina ──────────────────
+/* ⛔ «Quién hizo y quién miró» traía los últimos 100 movimientos, sin un
+   solo control: con 542, lo anterior no se podía ver, y «¿quién encendió
+   RocaKids en Medellín?» no tenía cómo responderse. Ahora se busca por
+   texto (quién, qué fila, motivo), se filtra por tabla y se pagina, y cada
+   fila dice QUÉ CAMPOS cambiaron (los nombres, no los valores: la
+   bitácora la leen más ojos que las tablas). */
+CREATE OR REPLACE FUNCTION plataforma.buscar_auditoria(
+  p_texto text DEFAULT NULL, p_tabla text DEFAULT NULL,
+  p_limite integer DEFAULT 50, p_saltar integer DEFAULT 0)
+RETURNS TABLE(id bigint, ocurrido_en timestamptz, esquema text, tabla text, operacion text,
+              fila_id text, actor text, actor_ip inet, motivo text, campos text, total bigint)
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = plataforma, nucleo, identidad, public, pg_temp AS $$
+DECLARE v_patron text;
+BEGIN
+  PERFORM identidad.exigir_admin_de(NULL);
+  v_patron := CASE WHEN p_texto IS NULL OR btrim(p_texto) = '' THEN NULL
+                   ELSE '%' || replace(replace(replace(btrim(p_texto), '\', '\\'), '%', '\%'), '_', '\_') || '%' END;
+  RETURN QUERY
+  WITH f AS (
+    SELECT a.*, p.nombre_completo AS actor_nombre
+      FROM plataforma.auditoria a
+      LEFT JOIN nucleo.v_personas p ON p.id = a.actor_id
+     WHERE (p_tabla IS NULL OR a.tabla = p_tabla)
+       AND (v_patron IS NULL
+            OR a.fila_id ILIKE v_patron ESCAPE '\'
+            OR a.motivo ILIKE v_patron ESCAPE '\'
+            OR p.nombre_completo ILIKE v_patron ESCAPE '\'
+            OR (a.esquema || '.' || a.tabla) ILIKE v_patron ESCAPE '\'))
+  SELECT f.id, f.ocurrido_en, f.esquema, f.tabla, f.operacion::text, f.fila_id,
+         f.actor_nombre::text, f.actor_ip, f.motivo,
+         (SELECT string_agg(k, ', ' ORDER BY k)
+            FROM jsonb_object_keys(COALESCE(f.valor_nuevo, f.valor_anterior, '{}'::jsonb)) k
+           WHERE f.operacion <> 'U'
+              OR (f.valor_nuevo -> k) IS DISTINCT FROM (f.valor_anterior -> k)),
+         count(*) OVER ()
+    FROM f
+   ORDER BY f.ocurrido_en DESC, f.id DESC
+   LIMIT GREATEST(1, LEAST(p_limite, 200)) OFFSET GREATEST(0, p_saltar);
+END $$;
+REVOKE ALL ON FUNCTION plataforma.buscar_auditoria(text, text, integer, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION plataforma.buscar_auditoria(text, text, integer, integer) TO casaroca_app;
+
+CREATE OR REPLACE FUNCTION plataforma.buscar_lecturas(
+  p_texto text DEFAULT NULL, p_nivel smallint DEFAULT NULL,
+  p_limite integer DEFAULT 50, p_saltar integer DEFAULT 0)
+RETURNS TABLE(ocurrido_en timestamptz, esquema text, tabla text, fila_id text, nivel smallint,
+              motivo text, filas_leidas integer, actor text, actor_ip inet, total bigint)
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = plataforma, nucleo, identidad, public, pg_temp AS $$
+DECLARE v_patron text;
+BEGIN
+  PERFORM identidad.exigir_admin_de(NULL);
+  v_patron := CASE WHEN p_texto IS NULL OR btrim(p_texto) = '' THEN NULL
+                   ELSE '%' || replace(replace(replace(btrim(p_texto), '\', '\\'), '%', '\%'), '_', '\_') || '%' END;
+  RETURN QUERY
+  SELECT b.ocurrido_en, b.esquema, b.tabla, b.fila_id, b.nivel, b.motivo, b.filas_leidas,
+         p.nombre_completo::text, b.actor_ip, count(*) OVER ()
+    FROM plataforma.bitacora_lectura b
+    LEFT JOIN nucleo.v_personas p ON p.id = b.actor_id
+   WHERE (p_nivel IS NULL OR b.nivel = p_nivel)
+     AND (v_patron IS NULL OR b.motivo ILIKE v_patron ESCAPE '\'
+          OR p.nombre_completo ILIKE v_patron ESCAPE '\'
+          OR (b.esquema || '.' || b.tabla) ILIKE v_patron ESCAPE '\'
+          OR b.fila_id ILIKE v_patron ESCAPE '\')
+   ORDER BY b.ocurrido_en DESC
+   LIMIT GREATEST(1, LEAST(p_limite, 200)) OFFSET GREATEST(0, p_saltar);
+END $$;
+REVOKE ALL ON FUNCTION plataforma.buscar_lecturas(text, smallint, integer, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION plataforma.buscar_lecturas(text, smallint, integer, integer) TO casaroca_app;
+
 COMMIT;

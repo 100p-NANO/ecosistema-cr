@@ -1070,29 +1070,36 @@ export class AdministracionController {
     };
   }
 
-  /** La auditoría: quién hizo qué. */
+  /**
+   * La auditoría: quién hizo qué. Se busca, se filtra por tabla y se pagina.
+   * ⛔ Antes: los últimos 100, sin un control, y `offset` ignorado.
+   */
   @Get('auditoria')
-  auditoria(@Req() req: Request, @Query('limite') limite?: string) {
+  auditoria(@Req() req: Request, @Query() q: any) {
     exigirNivel(req, 4, 'ver la auditoría');
+    const limite = q?.limite ? entero(q.limite, 'limite', { min: 1, max: 200 }) : 50;
+    const desde = q?.desde ? entero(q.desde, 'desde', { min: 0, max: 10_000_000 }) : 0;
     return conSesion(this.db, req, async (c) => {
       /* ⛔ Conceder SELECT sobre la auditoría a la aplicación la haría
-         legible por cualquier sesión, que es justo lo que existe para
-         impedir. Se lee por función, con el mismo guardia. */
-      const { rows } = await c.query(`SELECT * FROM plataforma.ver_auditoria($1)`,
-        [limite ? entero(limite, 'limite', { min: 1, max: 500 }) : 100]);
-      return { total_filas: rows.length, movimientos: rows };
+         legible por cualquier sesión. Se lee por función, con guardia. */
+      const { rows } = await c.query(`SELECT * FROM plataforma.buscar_auditoria($1,$2,$3,$4)`,
+        [textoOpcional(q?.q, 'q', { max: 80 }), textoOpcional(q?.tabla, 'tabla', { max: 60 }), limite, desde]);
+      return { total: Number(rows[0]?.total ?? 0), desde, limite, movimientos: rows };
     });
   }
 
   /** La bitácora de lectura: quién MIRÓ los datos sensibles. */
   @Get('lecturas')
-  lecturas(@Req() req: Request, @Query('limite') limite?: string) {
+  lecturas(@Req() req: Request, @Query() q: any) {
     exigirNivel(req, 4, 'ver la bitácora de lectura');
+    const limite = q?.limite ? entero(q.limite, 'limite', { min: 1, max: 200 }) : 50;
+    const desde = q?.desde ? entero(q.desde, 'desde', { min: 0, max: 10_000_000 }) : 0;
     return conSesion(this.db, req, async (c) => {
-      const { rows } = await c.query(`SELECT * FROM plataforma.ver_bitacora_lectura($1)`,
-        [limite ? entero(limite, 'limite', { min: 1, max: 500 }) : 100]);
+      const { rows } = await c.query(`SELECT * FROM plataforma.buscar_lecturas($1,$2::smallint,$3,$4)`,
+        [textoOpcional(q?.q, 'q', { max: 80 }),
+         q?.nivel ? entero(q.nivel, 'nivel', { min: 0, max: 4 }) : null, limite, desde]);
       return {
-        total_filas: rows.length, lecturas: rows,
+        total: Number(rows[0]?.total ?? 0), desde, limite, lecturas: rows,
         aviso: 'Esta bitácora existe para que mirar por curiosidad tenga nombre y hora.',
       };
     });

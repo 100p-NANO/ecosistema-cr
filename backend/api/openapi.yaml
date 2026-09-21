@@ -55,7 +55,7 @@ paths:
   /api/v1/administracion/auditoria:
     get:
       summary: "Quien hizo que"
-      description: "La auditoria. ⛔ Se lee por funcion, no por permiso de tabla: conceder SELECT sobre la auditoria a la aplicacion la haria legible por cualquier sesion."
+      description: "Busca por texto (quien, que fila, motivo, tabla), filtra por `tabla` y pagina con `limite` y `desde`. Cada fila dice que CAMPOS cambiaron, no sus valores. Devuelve el total."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -152,8 +152,8 @@ paths:
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /api/v1/administracion/lecturas:
     get:
-      summary: "Quien MIRO los datos sensibles"
-      description: "La bitacora de lectura existe para que mirar por curiosidad tenga nombre y hora."
+      summary: "Quien miro que"
+      description: "La bitacora de lectura de datos N3 y N4: busca por texto, filtra por `nivel` y pagina. Devuelve el total."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }

@@ -35,33 +35,36 @@ export class IdentidadService {
   }
 
   async asignacionesDe(c: PoolClient, personaId: string) {
+    /* ⛔ Las revocadas se pintaban como VIGENTES: revocar pone la fecha de
+       fin en HOY, y «vigente» solo miraba esa fecha. Ahora cada fila dice
+       su estado de verdad. */
     const { rows } = await c.query(
       `SELECT a.id, a.rol, r.nombre AS rol_nombre, a.alcance_tipo, a.alcance_id,
               s.nombre AS sede_nombre, a.nivel_max, a.vigente_desde, a.vigente_hasta,
-              a.acta_referencia,
-              (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE) AS vigente
+              a.acta_referencia, a.revocada_en, a.motivo_revocacion,
+              (a.revocada_en IS NULL AND a.vigente_desde <= CURRENT_DATE
+                 AND (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE)) AS vigente,
+              CASE WHEN a.revocada_en IS NOT NULL THEN 'revocada'
+                   WHEN a.vigente_hasta < CURRENT_DATE THEN 'vencida'
+                   WHEN a.vigente_desde > CURRENT_DATE THEN 'futura'
+                   ELSE 'vigente' END AS estado
          FROM identidad.asignaciones a
          LEFT JOIN identidad.roles r ON r.codigo = a.rol
-         LEFT JOIN org.sedes s ON s.id = a.alcance_id
+         LEFT JOIN org.sedes s ON a.alcance_tipo = 'sede' AND s.id = a.alcance_id
         WHERE a.persona_id = $1
-        ORDER BY vigente DESC, a.vigente_desde DESC`, [personaId]);
+        ORDER BY (a.revocada_en IS NULL AND (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE)) DESC,
+                 a.vigente_desde DESC`, [personaId]);
     return rows;
+  }
+  async efectivo(c: PoolClient, personaId: string) {
+    /* Lo que la persona puede hacer, acción por acción, con la MISMA fuente
+       que decide el permiso real (personal y heredado, sin revocados), y
+       cuántos accesos tiene en total aunque quien mira no los alcance. */
+    const { rows: permisos } = await c.query(`SELECT * FROM identidad.efectivo_de($1)`, [personaId]);
+    const { rows: [t] } = await c.query(`SELECT identidad.accesos_vigentes_de($1) AS n`, [personaId]);
+    return { permisos, accesos_vigentes_total: Number(t?.n ?? 0) };
   }
 
-  /** ⭐ Qué módulos alcanza REALMENTE una persona hoy. */
-  async efectivo(c: PoolClient, personaId: string) {
-    const { rows } = await c.query(
-      `SELECT DISTINCT m.codigo, m.nombre, m.nivel_dato,
-              min(a.nivel_max) OVER (PARTITION BY m.codigo) AS por_debajo_de
-         FROM identidad.asignaciones a
-         JOIN sistema.matriz_permisos p ON p.rol = a.rol
-         JOIN sistema.modulos m ON m.codigo = p.modulo
-        WHERE a.persona_id = $1
-          AND (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE)
-          AND m.nivel_dato <= a.nivel_max
-        ORDER BY m.codigo`, [personaId]);
-    return rows;
-  }
 
   /**
    * Otorgar uno o varios roles EN UN SOLO ACTO.

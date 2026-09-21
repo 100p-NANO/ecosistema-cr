@@ -286,6 +286,11 @@ kbd{
   background:var(--sup); color:var(--tin);
 }
 .ms-campo select{cursor:pointer}
+/* ⛔ Un selector con `size` (lista visible) quedaba aplastado a 32 px por
+   la regla de arriba: se veía una sola fila y parecía un desplegable roto. */
+.ms-campo select[size]{height:auto; padding:var(--e1) 0}
+.ms-campo select[size] option{padding:4px var(--e3)}
+.ms-nota-campo{display:block; margin-top:4px; font-size:11.5px; line-height:16px; color:var(--tin-dim)}
 .ms-campo input:hover,.ms-campo select:hover{border-color:var(--fil-duro)}
 .ms-campo input:focus,.ms-campo select:focus{outline:2px solid var(--ac); outline-offset:1px; border-color:var(--ac)}
 .ms-campo--ancho{max-width:340px}
@@ -977,3 +982,17 @@ kbd{
   .ms-fila-abre:hover td:first-child{background:var(--ac-suave)}
   .ms-tabla thead th:first-child{background:var(--sup-alt)}
 }
+
+/* ---------------- sección plegable (roles pasados, detalle secundario) ---------------- */
+.ms-plegable{margin:var(--e3) 0; border:1px solid var(--fil); border-radius:var(--r-lg); background:var(--sup)}
+.ms-plegable>summary{
+  cursor:pointer; padding:var(--e2) var(--e3); font-size:12.5px; color:var(--tin-mid);
+  list-style:none; display:flex; align-items:center; gap:var(--e2);
+}
+.ms-plegable>summary::-webkit-details-marker{display:none}
+.ms-plegable>summary::before{content:'+'; width:14px; color:var(--tin-dim)}
+.ms-plegable[open]>summary::before{content:'−'}
+.ms-plegable>summary:focus-visible{outline:2px solid var(--ac); outline-offset:-2px}
+.ms-plegable>.ms-scroll,.ms-plegable>p{margin:0 var(--e3) var(--e3)}
+.ms-solo-movil{display:none}
+@media (max-width: 720px){ .ms-solo-movil{display:block} }
