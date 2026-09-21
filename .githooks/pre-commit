@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# =====================================================================
+# Antes de cada commit, lo que se escapa sin querer:
+#   1. un secreto con pinta de real (llaves, tokens, contraseñas);
+#   2. un archivo .env o una copia de la base;
+#   3. un .js o un .sh que ni siquiera se deja leer.
+# Se instala UNA vez por clon:  git config core.hooksPath .githooks
+# (docs/README.md lo dice). Saltárselo es `git commit --no-verify`, y eso
+# queda a la vista de quien revise.
+# =====================================================================
+set -uo pipefail
+RAIZ="$(git rev-parse --show-toplevel)"
+PREPARADOS=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$PREPARADOS" ] && exit 0
+fallos=0
+
+while IFS= read -r f; do
+  case "$f" in
+    *.env|.env|*/.env|*.env.*|*.dump|*.dump.enc|*.pem|*.p12|*.key)
+      [[ "$f" == *.env.example ]] && continue
+      echo "⛔ $f no se versiona: es un secreto o una copia de la base."; fallos=1 ;;
+  esac
+done <<< "$PREPARADOS"
+
+if [ -f "$RAIZ/backend/scripts/buscar-secretos.py" ]; then
+  if ! python3 "$RAIZ/backend/scripts/buscar-secretos.py" "$RAIZ" >/tmp/cr-precommit-secretos.log 2>&1; then
+    echo "⛔ buscar-secretos encontró algo con pinta de secreto real:"; tail -15 /tmp/cr-precommit-secretos.log; fallos=1
+  fi
+fi
+
+while IFS= read -r f; do
+  [ -f "$RAIZ/$f" ] || continue
+  case "$f" in
+    *.js|*.mjs) node --check "$RAIZ/$f" 2>/tmp/cr-precommit-js.log || { echo "⛔ $f no se deja leer:"; cat /tmp/cr-precommit-js.log; fallos=1; } ;;
+    *.sh) bash -n "$RAIZ/$f" 2>/tmp/cr-precommit-sh.log || { echo "⛔ $f tiene un error de sintaxis:"; cat /tmp/cr-precommit-sh.log; fallos=1; } ;;
+  esac
+done <<< "$PREPARADOS"
+
+[ "$fallos" -eq 0 ] || { echo; echo "El commit NO se hizo. Corrija lo de arriba y vuelva a intentarlo."; exit 1; }
+exit 0

@@ -50,6 +50,8 @@ Nueve compuertas. **Una en rojo y no se despliega.** Lo mismo que corre la integ
 
 `restaurar.sh` nunca toca la base viva: restaura en `casaroca_restaurada`, cuenta filas, comprueba que no haya fugas de lectura y la borra.
 
+**Cuánto tarda, medido con el volumen de la red** (21 sep 2026, base de ensayo con 25.000 personas de 99-o en dos pasadas, 365 MB en disco): copia de 30 MB en 4 s y restauración verificada en 6 s. En Cloud SQL la copia automática diaria y la recuperación a un punto en el tiempo cubren lo mismo; esta prueba es la que demuestra que la copia sirve.
+
 ## 4 · Rotar la llave de cifrado (N4)
 
 > ⛔ **Este punto estaba MAL escrito hasta el 19 de septiembre de 2026 y seguirlo destruía datos.**
@@ -199,7 +201,7 @@ SELECT * FROM plataforma.v_salud_particiones;   -- todo en BIEN
 > | Turno | Nombre | Teléfono | Suplente |
 > |---|---|---|---|
 > | Guardia dominical | _(por definir)_ | _(por definir)_ | _(por definir)_ |
-> | Segunda persona que sabe operar el sistema | _(por definir)_ | _(por definir)_ | — |
+> | Segunda persona que sabe operar el sistema | _(por definir)_ | _(por definir)_ | _(por definir)_ |
 >
 > La segunda persona es la que quita el riesgo de que todo dependa de uno solo. Mientras esa
 > casilla esté vacía, el sistema tiene un punto único de fallo que ninguna nube arregla.
@@ -232,7 +234,39 @@ SELECT * FROM plataforma.v_peticiones_titular_vencidas;
 ```
 **Una sola fila aquí es un incumplimiento de la Ley 1581, no un pendiente.** Consulta: 10 días hábiles. Reclamo: 15. Los plazos los calcula la base al radicar.
 
-## 13 · Lo que NO se hace nunca
+## 13 · Alertas y qué hacer con cada una
+
+Llegan al correo de `correos_alertas` (Terraform, fase 2). Cada alerta trae el enlace a esta sección.
+
+| Alerta | Qué pasa | Qué hacer |
+|---|---|---|
+| La API responde errores 5xx | Algo falla por dentro | Buscar el `peticionId` en los registros de Cloud Run; si empezó con un despliegue, **revertir** (sección 14). |
+| La API no responde (sonda externa) | Nadie puede entrar | `/salud/detalle` dice si es la base; si es la revisión, revertir. |
+| Cloud SQL con CPU alta o disco casi lleno | La base se queda corta | Sección 8. Disco: ampliar en la consola (no requiere corte). |
+| Falló una migración | El despliegue se detuvo antes de pasar tráfico | Nada quedó a medias: leer el error del migrador, corregir la migración y volver a desplegar. |
+| **Cortacircuitos abierto** | SendGrid o reCAPTCHA están caídos; la API dejó de llamarlos un rato | Los avisos se quedan en la cola y salen solos cuando el proveedor vuelve. Revisar el estado del proveedor; si pasa de una hora, avisar a las sedes que el correo viene demorado. |
+| **Avisos rechazados de forma definitiva** | El proveedor rechaza correos (dirección inválida, dominio sin verificar) | Consola del Sistema Master, pestaña **Avisos**: ver el error, corregir el dato y reprocesar. |
+| **Muchos intentos de entrada fallidos** | Alguien prueba contraseñas | El límite por dirección ya frena cada intento; revisar si hay una cuenta concreta atacada y, si hace falta, bloquearla desde la consola (sección 7). |
+| **Muchas escrituras fuera de alcance** | Una pantalla o un usuario insiste en escribir sobre otra sede | La base lo rechaza siempre; ver en los registros quién es y por qué. Puede ser un error de pantalla (reportarlo) o un intento indebido (sección 11). |
+
+## 14 · Reversión
+
+```bash
+backend/scripts/revertir-despliegue.sh produccion --plan   # dice a qué revisión volvería
+backend/scripts/revertir-despliegue.sh produccion          # lo hace, comprueba /salud y lo anota
+```
+
+Menos de cinco minutos, y queda escrito en `backend/docs/EVIDENCIA-reversiones.txt`. **Lo que no revierte es el esquema**: las migraciones van hacia adelante y se escriben compatibles con la versión anterior del código (primero se agrega, después se usa, al final se quita). Si una migración rompió esa regla, la reversión del código no basta: se escribe una migración correctiva y se abre un incidente.
+
+## 15 · Migración desde 99-o
+
+Todo el procedimiento, las reglas de rechazo y la reversión de una ola están en `backend/db/migracion/MAPA-99o.md`. Tres cosas que no se negocian:
+
+- ninguna ola se enciende sin la conciliación en verde;
+- 99-o sigue siendo la verdad de cada sede hasta que su ola se firma;
+- una ola que la sede ya usó no se revierte sin una decisión escrita.
+
+## 16 · Lo que NO se hace nunca
 
 - Conectarse a la base como propietario o superusuario desde la aplicación: la seguridad por fila no se aplica al dueño y se anularía sin un solo aviso.
 - Restaurar una copia encima de la base viva «para probar».

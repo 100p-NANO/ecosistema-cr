@@ -81,6 +81,17 @@ if "$RAIZ/api/test/modulos.sh" >/tmp/cr-modulos.log 2>&1; then
   ok "modulos: $(grep -o 'MÓDULOS: [0-9]* de [0-9]*' /tmp/cr-modulos.log | tail -1)"
 else mal "hay conectores rotos en los modulos nuevos (ver /tmp/cr-modulos.log)"; fi
 
+echo "══ 4g · La salida de 99-o se ensaya entera (2.000 personas sintéticas)"
+# ⛔ 21 sep 2026 · El primer ensayo destapo cuatro cosas que habrian roto la
+#    migracion real: dias con tilde que la base no acepta, salidas de grupo
+#    anteriores a la entrada, una reversion que chocaba con la regla de no
+#    borrar personas, y un paso que fallaba sin detener el script. Corre
+#    sobre casaroca_test: valida, aplica, reaplica sin duplicar, concilia
+#    por sede, revierte sin dejar a nadie activo y reintenta.
+if PGDATABASE=casaroca_test "$RAIZ/scripts/migrar-99o.sh" ensayo 2000 >/tmp/cr-ensayo-99o.log 2>&1; then
+  ok "ensayo de migracion: $(grep -c '✔' /tmp/cr-ensayo-99o.log) comprobaciones en verde, conciliacion cuadrada"
+else mal "el ensayo de migracion desde 99-o esta en rojo (ver /tmp/cr-ensayo-99o.log)"; fi
+
 echo "══ 4e · Las llamadas a terceros aguantan (tiempo, clase y cortacircuitos)"
 # ⛔ 21 sep 2026 · Cada fetch a un tercero salía sin tiempo de espera ni
 #    cortacircuitos. Esta prueba levanta un proveedor falso que tarda, se

@@ -154,6 +154,12 @@ run "fase_2_produccion" {
     condition     = google_sql_database_instance.principal.settings[0].tier == "db-n1-standard-2"
     error_message = "La fase 2 es Cloud SQL de 2 vCPU y 7,5 GB."
   }
+  # ⭐ 21 sep 2026 · Las señales del negocio también avisan: cortacircuitos,
+  #    avisos rechazados, fuerza bruta y escrituras fuera de alcance.
+  assert {
+    condition     = length(google_logging_metric.senal) == 4 && length(google_monitoring_alert_policy.senal) == 4
+    error_message = "En la fase 2 con correos de alerta tienen que existir las cuatro señales del registro con su alerta."
+  }
   assert {
     condition     = google_sql_database_instance.principal.settings[0].backup_configuration[0].point_in_time_recovery_enabled && google_sql_database_instance.principal.settings[0].backup_configuration[0].backup_retention_settings[0].retained_backups == 35
     error_message = "La fase 2 lleva PITR y 35 días de respaldos."

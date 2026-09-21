@@ -12,3 +12,14 @@ RESTAURACION EJECUTADA · 2026-09-19 23:49:52 -05
   conteos:   personas=62 sedes=6 membresias=64 aportes=12 auditoria=234
   fugas RLS: 0
   veredicto: OK
+════════════════════════════════════════════════════
+RESTAURACION EJECUTADA · 2026-09-21 13:23:13 -05
+  archivo:   casaroca-20260921-132303.dump
+  duracion:  6s
+  conteos:   personas=45252 sedes=6 membresias=22629 aportes=0 auditoria=209326
+  fugas RLS: 0
+  veredicto: OK
+  contexto:  base de ENSAYO casaroca_test, cargada con la exportación sintética de 25.000
+             personas de 99-o (scripts/migrar-99o.sh ensayo 25000): dos pasadas de la ola
+             (22.623 activas + 22.623 de la ola revertida, dadas de baja), 365 MB en disco,
+             copia de 30 MB en 4 s y restauración verificada en 6 s. Es el volumen de la red.

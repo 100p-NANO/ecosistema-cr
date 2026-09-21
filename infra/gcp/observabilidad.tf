@@ -121,6 +121,80 @@ resource "google_monitoring_alert_policy" "migrador_fallo" {
   }
 }
 
+# ── Alertas sobre lo que la API escribe en su registro (21 sep 2026) ──
+# Las métricas de la plataforma no ven lo que pasa DENTRO del negocio: que
+# el proveedor de correo cayó y el cortacircuitos se abrió, que alguien
+# está probando contraseñas, que una pantalla insiste en escribir fuera de
+# su alcance. La API ya escribe cada una de esas cosas en una línea de
+# registro con un texto fijo; aquí se cuentan y se avisa.
+locals {
+  filtro_api = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${google_cloud_run_v2_service.api.name}\""
+  senales = {
+    cortacircuitos = {
+      filtro  = "textPayload:\"cortacircuitos ABIERTO\""
+      umbral  = 0
+      ventana = "300s"
+      titulo  = "un proveedor externo (correo o reCAPTCHA) está caído: el cortacircuitos se abrió"
+    }
+    avisos_rechazados = {
+      filtro  = "textPayload:\"no salió (definitivo)\""
+      umbral  = 10
+      ventana = "3600s"
+      titulo  = "el proveedor de correo rechazó avisos de forma definitiva"
+    }
+    fuerza_bruta = {
+      filtro  = "textPayload=~\"POST /api/v1/auth/entrar (401|429)\""
+      umbral  = 30
+      ventana = "300s"
+      titulo  = "muchos intentos de entrada fallidos: posible ataque de contraseñas"
+    }
+    fuera_de_alcance = {
+      filtro  = "textPayload:\"escritura fuera de alcance\""
+      umbral  = 20
+      ventana = "600s"
+      titulo  = "muchas escrituras rechazadas por estar fuera de alcance"
+    }
+  }
+}
+
+resource "google_logging_metric" "senal" {
+  for_each = local.hay_alertas ? local.senales : {}
+  name     = "casaroca_${each.key}"
+  filter   = "${local.filtro_api} AND ${each.value.filtro}"
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+  }
+}
+
+resource "google_monitoring_alert_policy" "senal" {
+  for_each              = local.hay_alertas ? local.senales : {}
+  display_name          = "CasaRoca · ${each.value.titulo}"
+  combiner              = "OR"
+  notification_channels = local.canales
+
+  conditions {
+    display_name = "Más de ${each.value.umbral} en ${each.value.ventana}"
+    condition_threshold {
+      filter          = "resource.type = \"cloud_run_revision\" AND metric.type = \"logging.googleapis.com/user/${google_logging_metric.senal[each.key].name}\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = each.value.umbral
+      duration        = "0s"
+      aggregations {
+        alignment_period     = each.value.ventana
+        per_series_aligner   = "ALIGN_SUM"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+    }
+  }
+
+  documentation {
+    content   = "Qué hacer: docs/RUNBOOK.md, sección «Alertas y qué hacer con cada una»."
+    mime_type = "text/markdown"
+  }
+}
+
 # ── Presupuesto: la cifra del plan, con avisos al 50, 90 y 100 % ───────
 # Es la forma de cumplir la regla del modelo financiero («ningún
 # componente se enciende si no está en la tabla») sin depender de que
