@@ -15,3 +15,6 @@ dist/
 # Ruido del sistema
 *.log
 .DS_Store
+
+# Paquete del sitio de demostración (lo genera backend/scripts/empaquetar-sitio-demo.sh)
+sitio-demo.zip

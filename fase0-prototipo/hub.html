@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0E367A" />
-  <title>Casa Roca · Mapa del sistema — Todas las páginas</title>
+  <title>Casa Roca · Mapa del sistema · Todas las páginas</title>
   <meta name="description" content="Acceso rápido a todas las páginas y apps del prototipo Casa Roca AI System: landings públicos, apps por rol y RocaKids." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -97,7 +97,7 @@
       <h1>Mapa del sistema</h1>
       <p>Acceso rápido a todas las páginas y apps del prototipo. Toca cualquier tarjeta para abrirla.</p>
       <div class="hero__meta">
-        <span class="pill">12 páginas</span>
+        <span class="pill">15 páginas</span>
         <span class="pill">Fase 0 · prototipo</span>
         <span class="pill">Mobile-first</span>
       </div>
@@ -105,6 +105,48 @@
   </header>
 
   <main id="main">
+
+    <!-- ============ EL SISTEMA CONSTRUIDO · 21 SEP 2026 ============
+         Va antes que todo lo demás porque es el sistema de verdad: base,
+         API y pantallas de los 22 módulos, la consola de la central y el
+         portal del congregante. Aquí corre en DEMOSTRACIÓN (datos
+         inventados, sin servidor detrás) hasta que la infraestructura se
+         aplique. Lo de abajo es el prototipo de la fase 0, que se conserva
+         como referencia. ⛔ Sin estas tarjetas, lo construido estaba
+         publicado y era invisible: publicar sin enlazar es no publicar. -->
+    <section class="section">
+      <div class="section__head">
+        <h2>El sistema construido</h2>
+        <span>Demostración con datos inventados: así se ve lo que ya está construido</span>
+      </div>
+      <div class="grid">
+        <a class='card a-azul' href='/sistema/'>
+          <span class="card__go" aria-hidden="true">→</span>
+          <div class="card__top"><div class="ico">⛪</div><span class="tag">Las 36 sedes</span></div>
+          <h3>Aplicación de las sedes</h3>
+          <p>Lo que usan pastores, secretaría, tesorería y RocaKids: personas, grupos, asistencia,
+             niños, consejería, formación, aportes y los diez módulos nuevos, con su aislamiento
+             por sede.</p>
+          <span class="card__file">sistema/index.html</span>
+        </a>
+        <a class='card a-azul' href='/sistema/master/'>
+          <span class="card__go" aria-hidden="true">→</span>
+          <div class="card__top"><div class="ico">🛰️</div><span class="tag">Dirección General</span></div>
+          <h3>Consola de la central</h3>
+          <p>Iglesias, accesos, roles y permisos con acta, recertificación, avisos e integraciones,
+             y la bitácora de quién hizo qué. Es el Sistema Master conectado al servidor.</p>
+          <span class="card__file">sistema/master/index.html</span>
+        </a>
+        <a class='card a-mostaza' href='/sistema/portal/'>
+          <span class="card__go" aria-hidden="true">→</span>
+          <div class="card__top"><div class="ico">🙋</div><span class="tag">Cada congregante</span></div>
+          <h3>Mi iglesia</h3>
+          <p>El portal de la persona: sus datos, sus permisos de contacto, sus aportes y
+             certificados, y sus derechos de Habeas Data, sin pedírselos a nadie.</p>
+          <span class="card__file">sistema/portal/index.html</span>
+        </a>
+      </div>
+    </section>
 
     <!-- ============ SISTEMA MASTER · CONTROL TOWER ============
          Va primero y solo en su sección a propósito: no es una app
@@ -233,7 +275,7 @@
   </main>
 
   <footer>
-    Casa Roca · AI System — Fase 0 (prototipo). Para correr localmente:
+    Casa Roca · AI System · Fase 0 (prototipo). Para correr localmente:
     <code>cd prototipo &amp;&amp; python3 -m http.server 5173</code> y abre <code>localhost:5173/hub.html</code>.
   </footer>
 </body>

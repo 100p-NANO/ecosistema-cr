@@ -106,7 +106,7 @@
 | 54 | Migración desde el sistema anterior | 🟠 | Canal completo y ensayado con 25.000 personas · falta la exportación real de 99-o |
 | 55 | Adopción y gestión del cambio | 🔴 | Guías escritas · sin sede piloto ni personas entrenadas |
 | 56 | Economía del producto | 🟠 | Costo por fase y por sede · precio sin firmar y una cifra por reconciliar |
-| 57 | Verificación antes de «listo» | ✅ | `verificar.sh`: 16 compuertas en verde |
+| 57 | Verificación antes de «listo» | ✅ | `verificar.sh`: 17 compuertas en verde |
 | 58 | Soporte, documentación y traspaso | 🟠 | HANDOFF, RUNBOOK y guías · falta la mesa de ayuda y una segunda persona que sepa operarlo |
 
 ## Apéndice

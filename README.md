@@ -35,7 +35,7 @@ cd backend
 ./scripts/arrancar.sh    # PostgreSQL 16 local en el puerto 5433
 ./scripts/migrar.sh      # recrea casaroca_dev: 77 migraciones + 25 semillas
 ./scripts/probar.sh      # 19 bancos, 265 invariantes
-./scripts/verificar.sh   # LA COMPUERTA: dieciséis verificaciones, de la base a Terraform
+./scripts/verificar.sh   # LA COMPUERTA: diecisiete verificaciones, de la base a Terraform
 ```
 
 Última corrida verificada: **21 de septiembre de 2026 · 77 migraciones limpias · 19 bancos, 265

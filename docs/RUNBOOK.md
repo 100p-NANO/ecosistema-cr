@@ -266,6 +266,17 @@ Todo el procedimiento, las reglas de rechazo y la reversión de una ola están e
 - 99-o sigue siendo la verdad de cada sede hasta que su ola se firma;
 - una ola que la sede ya usó no se revierte sin una decisión escrita.
 
+## 15b · El sitio de demostración (casaroca-system.netlify.app)
+
+Mientras la infraestructura no esté aplicada, lo que se enseña desde un teléfono es este sitio: el prototipo de la fase 0 y, en `/sistema/`, el sistema construido en modo demostración (datos inventados, ningún servidor detrás). No es producción y no guarda nada de nadie.
+
+1. Confirmar los cambios: el paquete sale de lo versionado, no de la carpeta de trabajo.
+2. `./scripts/empaquetar-sitio-demo.sh ~/Desktop/sitio-demo.zip`. Se niega si hay cambios sin confirmar, si alguna página carga scripts en línea o si el mapa del sistema no enlaza `/sistema/`.
+3. Subirlo en `app.netlify.com/projects/casaroca-system/deploys`, con «browse files to upload». Es contenido público: se sube con el visto bueno de quien responde por el sitio.
+4. Comprobar en vivo: `/hub` enseña la sección «El sistema construido» y `/sistema/`, `/sistema/master/` y `/sistema/portal/` abren con el aviso de demostración arriba.
+
+**Para revertir:** en la misma página de despliegues, abrir el anterior y «Publish deploy». Netlify guarda todos los anteriores, así que la reversión es inmediata y no toca el repositorio.
+
 ## 16 · Lo que NO se hace nunca
 
 - Conectarse a la base como propietario o superusuario desde la aplicación: la seguridad por fila no se aplica al dueño y se anularía sin un solo aviso.
