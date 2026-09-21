@@ -1,9 +1,9 @@
-import { BadRequestException, Body, Controller, Get, Module, Param, Post, Query, Req, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Body, Controller, Get, Module, Param, Post, Query, Req, NotFoundException } from '@nestjs/common';
 import type { Request } from 'express';
 import { DbModule } from '../db/db.module';
 import { DbService } from '../db/db.service';
 import { conSesion, exigirNivel } from '../comun/identidad.helper';
-import { uuid, uuidOpcional, texto, textoOpcional, fecha, unoDe, paginacion } from '../comun/validar';
+import { uuid, texto, textoOpcional, fecha, unoDe, paginacion } from '../comun/validar';
 
 const VINCULO = ['activo', 'suspendido', 'terminado'] as const;
 
@@ -105,10 +105,17 @@ export class TalentoController {
            b?.desde ? fecha(b.desde, 'desde') : null,
            b?.trabajaConMenores === true,
            b?.compromisoFirmadoEn ? fecha(b.compromisoFirmadoEn, 'compromisoFirmadoEn') : null]);
-        return { ...v, mensaje: 'Voluntariado registrado.' };
+        return { ...v, mensaje: b?.trabajaConMenores === true
+          ? 'Voluntariado registrado para servir con menores. La verificación de antecedentes quedó sellada con la fecha de hoy.'
+          : 'Voluntariado registrado.' };
       } catch (e: any) {
         if (e.code === '23503') throw new BadRequestException('La persona, la sede o el ministerio no están en su alcance.');
+        /* ⛔ «¿Va a estar con menores?» se rechazaba SIEMPRE: la regla pedía
+           una fecha de verificación que nadie escribía. Desde la 0070 la
+           base la sella si los antecedentes están completos y, si no, dice
+           cuáles faltan. Ese mensaje llega tal cual. */
         if (e.code === '23514' || e.code === 'P0001') throw new BadRequestException(e.message);
+        if (e.code === '42501') throw new ForbiddenException('Esa persona o esa sede no están en su alcance.');
         throw e;
       }
     });
@@ -153,23 +160,30 @@ export class TalentoController {
   registrarAntecedente(@Req() req: Request, @Body() b: any) {
     exigirNivel(req, 3, 'registrar un antecedente');
     return conSesion(this.db, req, async (c) => {
+      const persona = uuid(b?.personaId, 'personaId');
+      const { rows: [visible] } = await c.query(`SELECT 1 FROM nucleo.v_personas WHERE id = $1`, [persona]);
+      if (!visible) throw new ForbiddenException('Esa persona no está en su alcance: sus antecedentes los registra quien atiende su sede.');
       try {
+        /* ⛔ La sede ya NO viene del formulario. El formulario no la
+           mandaba (y la base la exige), y cuando se mandaba, el pastor de
+           Panamá sellaba con Panamá los antecedentes de un voluntario de
+           Bogotá. La base pone la sede de la PERSONA (migración 0070). */
         const { rows: [a] } = await c.query(
-          `INSERT INTO talento.antecedentes (persona_id, tipo, resultado, expedido_en, vence_en, sede_id)
-           VALUES ($1,$2,$3,$4::date,$5::date,$6)
+          `INSERT INTO talento.antecedentes (persona_id, tipo, resultado, expedido_en, vence_en)
+           VALUES ($1,$2,$3,$4::date,$5::date)
            RETURNING id, tipo, resultado, to_char(vence_en,'YYYY-MM-DD') AS vence_en`,
-          [uuid(b?.personaId, 'personaId'),
+          [persona,
            texto(b?.tipo, 'tipo', { min: 2, max: 40 }),
            unoDe(b?.resultado, 'resultado', ['apto', 'no_apto', 'con_observacion', 'en_tramite'] as const),
            fecha(b?.expedidoEn, 'expedidoEn'),
-           b?.venceEn ? fecha(b.venceEn, 'venceEn') : null,
-           uuidOpcional(b?.sedeId, 'sedeId')]);
+           b?.venceEn ? fecha(b.venceEn, 'venceEn') : null]);
         const { rows: [apto] } = await c.query(
           `SELECT talento.apto_para_menores($1) AS apto`, [uuid(b?.personaId, 'personaId')]);
         return { ...a, apto_para_menores: apto.apto, mensaje: 'Antecedente registrado.' };
       } catch (e: any) {
         if (e.code === '23503') throw new BadRequestException('La persona o el tipo de antecedente no existen.');
         if (e.code === '23514') throw new BadRequestException(e.message);
+        if (e.code === '42501') throw new ForbiddenException('Esa persona no está en su alcance.');
         throw e;
       }
     });
@@ -179,7 +193,11 @@ export class TalentoController {
   @Post('voluntariados/:id/terminar')
   terminar(@Req() req: Request, @Param('id') id: string, @Body() b: any) {
     exigirNivel(req, 3, 'terminar un voluntariado');
+    /* ⛔ El motivo se validaba DESPUÉS de terminar, y no se guardaba en
+       ninguna parte. Ahora se exige antes y va a la auditoría. */
+    const motivo = texto(b?.motivo, 'motivo', { min: 5, max: 300 });
     return conSesion(this.db, req, async (c) => {
+      await c.query(`SELECT set_config('app.motivo', $1, true)`, [motivo]);
       const { rows: [v] } = await c.query(
         `UPDATE talento.voluntariados
             SET estado = 'terminado', hasta = COALESCE($2::date, CURRENT_DATE)
@@ -187,8 +205,7 @@ export class TalentoController {
           RETURNING id, estado, to_char(hasta,'YYYY-MM-DD') AS hasta`,
         [uuid(id, 'id'), b?.hasta ? fecha(b.hasta, 'hasta') : null]);
       if (!v) throw new NotFoundException('Ese voluntariado no existe, no está en su alcance, o ya terminó.');
-      texto(b?.motivo, 'motivo', { min: 5, max: 300 });
-      return { ...v, mensaje: 'Voluntariado terminado.' };
+      return { ...v, motivo, mensaje: 'Voluntariado terminado. El motivo queda en la auditoría.' };
     });
   }
 }

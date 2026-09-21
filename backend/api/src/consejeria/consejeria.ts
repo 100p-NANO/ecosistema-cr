@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Module, Param, Post, Query, Req, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { BadRequestException, ForbiddenException, Body, Controller, Get, Module, Param, Post, Query, Req, NotFoundException } from '@nestjs/common';
 import type { Request } from 'express';
 import { DbModule } from '../db/db.module';
 import { DbService } from '../db/db.service';
@@ -45,23 +46,32 @@ export class ConsejeriaController {
       const { rows } = await c.query(
         `SELECT k.id, k.estado, k.topico, t.nombre AS topico_nombre, t.requiere_profesional,
                 k.sede_id, se.codigo AS sede, k.abierto_en, k.cerrado_en,
-                p.nombre_completo AS consultante,
+                COALESCE(p.nombre_completo, consejeria.nombre_consultante(k.id)) AS consultante,
                 (CURRENT_DATE - k.abierto_en::date) AS dias_abierto,
                 (SELECT count(*) FROM consejeria.sesiones s WHERE s.caso_id = k.id) AS sesiones,
                 (SELECT to_char(max(s.fecha),'YYYY-MM-DD') FROM consejeria.sesiones s WHERE s.caso_id = k.id) AS ultima_sesion,
-                (SELECT string_agg(cp.nombre_completo, ', ')
+                /* ⛔ Un consejero de otra sede no aparecía (el JOIN con la
+                   vista de personas lo borraba) y el caso salía «sin asignar»,
+                   inflando el aviso. Se cuentan las asignaciones de verdad y
+                   el nombre, si no se ve, se dice. */
+                (SELECT string_agg(COALESCE(cp.nombre_completo, 'Consejero de otra sede'), ', ')
                    FROM consejeria.asignaciones a
-                   JOIN nucleo.v_personas cp ON cp.id = a.consejero_id
-                  WHERE a.caso_id = k.id AND a.hasta IS NULL) AS consejeros
+                   LEFT JOIN nucleo.v_personas cp ON cp.id = a.consejero_id
+                  WHERE a.caso_id = k.id AND a.hasta IS NULL) AS consejeros,
+                (SELECT count(*) FROM consejeria.asignaciones a
+                  WHERE a.caso_id = k.id AND a.hasta IS NULL)::int AS asignados
            FROM consejeria.casos k
            JOIN org.sedes se ON se.id = k.sede_id
-           JOIN nucleo.v_personas p ON p.id = k.consultante_id
+           /* ⛔ Era JOIN interno: al consejero asignado de OTRA sede el caso
+              le desaparecía y leía «ese caso no existe». El RLS del caso ya
+              decide quién lo ve; la vista de personas no puede borrarlo. */
+           LEFT JOIN nucleo.v_personas p ON p.id = k.consultante_id
            LEFT JOIN consejeria.topicos t ON t.codigo = k.topico
           WHERE ($1::text IS NULL OR k.estado::text = $1)
           ORDER BY (k.estado::text IN ('abierto','en_proceso')) DESC, k.abierto_en
           LIMIT $2 OFFSET $3`,
         [q?.estado ? unoDe(q.estado, 'estado', ESTADOS) : null, limite, desde]);
-      const sin = rows.filter(r => !r.consejeros && r.estado !== 'cerrado').length;
+      const sin = rows.filter(r => Number(r.asignados) === 0 && !['cerrado', 'derivado'].includes(r.estado)).length;
       return {
         total_filas: rows.length, desde, casos: rows,
         aviso: sin > 0
@@ -75,17 +85,35 @@ export class ConsejeriaController {
   abrir(@Req() req: Request, @Body() b: any) {
     exigirNivel(req, 3, 'abrir un caso de consejería');
     return conSesion(this.db, req, async (c) => {
+      const consultante = uuid(b?.consultanteId, 'consultanteId');
+      const { rows: [persona] } = await c.query(
+        `SELECT sede_id FROM nucleo.v_personas WHERE id = $1`, [consultante]);
+      if (!persona) throw new ForbiddenException('Esa persona no está en su alcance.');
+      /* ⛔ «Abrir un caso» daba 403 SIEMPRE, también al Director General.
+         La causa es fina: con `RETURNING`, PostgreSQL aplica la política de
+         lectura al renglón recién insertado, y `caso_visible` (STABLE)
+         consulta una instantánea del INICIO de la sentencia, donde ese
+         renglón todavía no existe. Se inserta sin RETURNING, con el
+         identificador ya generado, y se lee en una segunda consulta. */
+      const idCaso = randomUUID();
       try {
-        const { rows: [k] } = await c.query(
-          `INSERT INTO consejeria.casos (consultante_id, sede_id, topico, estado)
-           VALUES ($1,$2,$3,'abierto') RETURNING id, estado, abierto_en`,
-          [uuid(b?.consultanteId, 'consultanteId'), uuid(b?.sedeId, 'sedeId'),
+        await c.query(
+          `INSERT INTO consejeria.casos (id, consultante_id, sede_id, topico, estado)
+           VALUES ($1,$2,$3,$4,'abierto')`,
+          [idCaso, consultante,
+           /* El caso es de la sede de la PERSONA, salvo que se diga otra. */
+           uuidOpcional(b?.sedeId, 'sedeId') ?? persona.sede_id,
            texto(b?.topico, 'topico', { min: 2, max: 40 })]);
-        return { ...k, mensaje: 'Caso abierto. Asígnele un consejero: un caso sin nadie detrás es una persona esperando.' };
       } catch (e: any) {
         if (e.code === '23503') throw new BadRequestException('La persona, la sede o el tópico no existen.');
+        if (e.code === '23514') throw new BadRequestException(e.message);
+        if (e.code === '42501') throw new ForbiddenException('Esa sede no está en su alcance.');
         throw e;
       }
+      const { rows: [k] } = await c.query(
+        `SELECT id, estado, abierto_en FROM consejeria.casos WHERE id = $1`, [idCaso]);
+      return { ...(k ?? { id: idCaso, estado: 'abierto' }),
+               mensaje: 'Caso abierto. Asígnele un consejero: un caso sin nadie detrás es una persona esperando.' };
     });
   }
 
@@ -99,10 +127,12 @@ export class ConsejeriaController {
       const { rows: [caso] } = await c.query(
         `SELECT k.id, k.estado, k.topico, t.nombre AS topico_nombre, k.sede_id,
                 k.abierto_en, k.cerrado_en, k.derivado_a,
-                k.consultante_id, p.nombre_completo AS consultante
+                k.consultante_id,
+                COALESCE(p.nombre_completo, consejeria.nombre_consultante(k.id)) AS consultante,
+                k.desenlace
            FROM consejeria.casos k
            LEFT JOIN consejeria.topicos t ON t.codigo = k.topico
-           JOIN nucleo.v_personas p ON p.id = k.consultante_id
+           LEFT JOIN nucleo.v_personas p ON p.id = k.consultante_id
           WHERE k.id = $1`, [k]);
       if (!caso) throw new NotFoundException('Ese caso no existe o no está a su alcance.');
 
@@ -114,13 +144,14 @@ export class ConsejeriaController {
         [k, 'ficha completa del caso, con notas']);
 
       const { rows: asignaciones } = await c.query(
-        `SELECT a.id, a.consejero_id, cp.nombre_completo AS consejero, a.rol, a.desde, a.hasta
-           FROM consejeria.asignaciones a JOIN nucleo.v_personas cp ON cp.id = a.consejero_id
+        `SELECT a.id, a.consejero_id, COALESCE(cp.nombre_completo, 'Consejero de otra sede') AS consejero,
+                a.rol, a.desde, a.hasta
+           FROM consejeria.asignaciones a LEFT JOIN nucleo.v_personas cp ON cp.id = a.consejero_id
           WHERE a.caso_id = $1 ORDER BY a.hasta NULLS FIRST, a.desde DESC`, [k]);
       const { rows: sesiones } = await c.query(
         `SELECT s.id, s.fecha, s.duracion_min, s.modalidad, s.asistio,
-                cp.nombre_completo AS consejero
-           FROM consejeria.sesiones s JOIN nucleo.v_personas cp ON cp.id = s.consejero_id
+                COALESCE(cp.nombre_completo, 'Consejero de otra sede') AS consejero
+           FROM consejeria.sesiones s LEFT JOIN nucleo.v_personas cp ON cp.id = s.consejero_id
           WHERE s.caso_id = $1 ORDER BY s.fecha DESC`, [k]);
       const { rows: notas } = await c.query(
         `SELECT n.id, n.escrita_en, n.contenido AS texto, cp.nombre_completo AS autor
@@ -184,26 +215,27 @@ export class ConsejeriaController {
     });
   }
 
-  /** Cerrar o derivar. Derivar EXIGE decir a dónde. */
+  /** Cerrar o derivar. Derivar EXIGE decir a dónde; cerrar, cómo terminó. */
   @Post('casos/:id/cerrar')
   cerrar(@Req() req: Request, @Param('id') id: string, @Body() b: any) {
     exigirNivel(req, 3, 'cerrar un caso');
     const derivar = b?.derivadoA !== undefined && b?.derivadoA !== null && b?.derivadoA !== '';
+    /* ⛔ Cerrar no exigía decir cómo terminó (201 con el cuerpo vacío). */
+    const desenlace = derivar ? textoOpcional(b?.desenlace, 'desenlace', { max: 400 })
+                              : texto(b?.desenlace, 'desenlace', { min: 5, max: 400 });
     return conSesion(this.db, req, async (c) => {
       const { rows: [k] } = await c.query(
         `UPDATE consejeria.casos
             SET estado = CASE WHEN $2::text IS NOT NULL THEN 'derivado' ELSE 'cerrado' END::consejeria.estado_caso,
-                cerrado_en = now(), derivado_a = $2
+                cerrado_en = now(), derivado_a = $2, desenlace = $3
           WHERE id = $1 AND cerrado_en IS NULL
-          RETURNING id, estado, cerrado_en, derivado_a`,
-        [uuid(id, 'id'), derivar ? texto(b.derivadoA, 'derivadoA', { min: 3, max: 200 }) : null]);
+          RETURNING id, estado, cerrado_en, derivado_a, desenlace`,
+        [uuid(id, 'id'), derivar ? texto(b.derivadoA, 'derivadoA', { min: 3, max: 200 }) : null, desenlace]);
       if (!k) throw new NotFoundException('Ese caso no existe, no está a su alcance, o ya estaba cerrado.');
-      /* Cerrar el caso cierra también las asignaciones vivas: si no, el
-         consejero sigue figurando como responsable de algo que ya terminó. */
       await c.query(
         `UPDATE consejeria.asignaciones SET hasta = now() WHERE caso_id = $1 AND hasta IS NULL`,
         [uuid(id, 'id')]);
-      return { ...k, mensaje: derivar ? 'Caso derivado y registrado a dónde.' : 'Caso cerrado.' };
+      return { ...k, mensaje: derivar ? 'Caso derivado y registrado a dónde.' : 'Caso cerrado, con su desenlace escrito.' };
     });
   }
 }

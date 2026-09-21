@@ -81,6 +81,20 @@ comprobar "Dashboard ordena por prioridad" "200" \
   "$(codigo -H "Authorization: Bearer $TOK_PASTOR" "$A/nuevos/dashboard?ordenar_por=prioridad&sede_id=$PTY")"
 
 echo "── Donaciones (documento M-Donaciones + Roles)"
+# ⛔ 21 sep 2026 · Aportes tiene compuerta legal y en Panamá está APAGADO
+#    (sin evidencia jurídica). Hasta hoy este banco pasaba porque el
+#    interruptor de módulos por sede no se aplicaba en ninguna parte. Ahora
+#    se aplica, y lo primero es comprobar ESO: apagado, la ruta se niega.
+CUERPO_APAGADO=$(printf '{"persona_id":"%s","tipo_aporte":"DIEZMO","monto":1000,"metodo_pago":"TRANSFERENCIA","fecha_aporte":"2026-07-30"}' "$DON")
+comprobar "Con Aportes apagado en la sede, registrar se niega" "403" \
+  "$(codigo -X POST -H "$H" -H "Authorization: Bearer $TOK_DIG" -d "$CUERPO_APAGADO" $A/aportes)"
+comprobar "…y no quedó ningún aporte escrito" "0" \
+  "$(sql "SELECT count(*) FROM aportes.aportes WHERE persona_id='$DON'")"
+# Se enciende CON su evidencia, como lo haría la central, y se prueba el resto.
+APORTES_ANTES=$(sql "SELECT coalesce(activo::text,'no') FROM sistema.modulos_sede WHERE sede_id='$PTY' AND modulo='aportes'")
+sql "INSERT INTO sistema.modulos_sede (sede_id, modulo, activo, evidencia_legal_ref, nota)
+     VALUES ('$PTY','aportes',true,'LAB-BANCO-DRIVE','Encendido por el banco de pruebas')
+     ON CONFLICT (sede_id, modulo) DO UPDATE SET activo = true, evidencia_legal_ref = 'LAB-BANCO-DRIVE'" >/dev/null
 R=$(curl -s -X POST -H "$H" -H "Authorization: Bearer $TOK_DIG" -d "{\"persona_id\":\"$DON\",\"tipo_aporte\":\"DIEZMO\",\"monto\":100000,\"metodo_pago\":\"TRANSFERENCIA\",\"referencia\":\"TRX-$SX\",\"fecha_aporte\":\"2026-07-30\"}" $A/aportes)
 AID=$(echo "$R" | campo "['id']")
 comprobar "El digitador registra una donación" "REGISTRADO" "$(echo "$R" | campo "['estado']")"
@@ -121,6 +135,11 @@ comprobar "modelo100p/personas solo trae su sede (con N4)" "True" \
   "$(curl -s -H "Authorization: Bearer $TOK_PASTOR_N4" "$A/modelo100p/personas?limite=1000" | python3 -c "import json,sys;d=json.load(sys.stdin)['datos'];print(len(d)>0 and all(x['sede_id']=='$PTY' for x in d))")"
 comprobar "Tabla fuera del modelo se rechaza" "400" "$(codigo -H "Authorization: Bearer $TOK_TES" $A/modelo100p/pg_authid)"
 comprobar "El trabajador de avisos exige su token" "503" "$(codigo -X POST $A/notificaciones/procesar)"
+
+# El módulo vuelve a como estaba: el banco no deja la red distinta de como la encontró.
+if [ "$APORTES_ANTES" = "true" ]; then :; else
+  sql "UPDATE sistema.modulos_sede SET activo = false, evidencia_legal_ref = NULL WHERE sede_id='$PTY' AND modulo='aportes'" >/dev/null
+fi
 
 echo
 printf '  %s pasan · %s fallan\n' "$ok" "$fallo"

@@ -69,14 +69,19 @@ export class RocakidsController {
   /** Entregar. La base verifica acudiente Y código; un fallo queda registrado. */
   @Post('entregar')
   @HttpCode(200)
-  entregar(@Req() req: Request, @Body() b: any) {
+  async entregar(@Req() req: Request, @Body() b: any) {
     exigirNivel(req, 4, 'entregar un menor');
     const s = sesionDe(req);
-    return conSesion(this.db, req, (c) => this.kids.entregar(c, {
+    const r = await conSesion(this.db, req, (c) => this.kids.entregar(c, {
       checkinId: uuid(b?.checkinId, 'checkinId'),
       retiradoPor: uuid(b?.retiradoPor, 'retiradoPor'),
       codigo: texto(b?.codigo, 'codigo', { min: 3, max: 10 }),
       maestroId: s.personaId,
     }));
+    /* ⛔ El rechazo se lanza AQUÍ, con la transacción ya confirmada: el
+       intento fallido queda escrito. Antes se lanzaba dentro y el ROLLBACK
+       borraba la prueba, mientras la pantalla decía «el intento quedó
+       registrado». Era falso. */
+    return this.kids.respuestaDeEntrega(r.resultado);
   }
 }

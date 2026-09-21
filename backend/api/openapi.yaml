@@ -43,6 +43,15 @@ paths:
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "429": { description: "demasiadas peticiones" }
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/arranque:
+    get:
+      summary: "Puesta en marcha, contada en la base"
+      description: "Directores con el rol EXACTO, equipos con rol, iglesias activas, iglesias CON pastor (y la lista de las que no), personas con acceso y plantillas sin nucleo. Antes se contaba en el navegador sobre listas cortadas y afirmaba cifras falsas."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /api/v1/administracion/auditoria:
     get:
       summary: "Quien hizo que"
@@ -108,7 +117,7 @@ paths:
   /api/v1/administracion/iglesias:
     post:
       summary: "Desplegar una iglesia"
-      description: "Una sola operacion crea la sede colgada de la maestra, le aplica los modulos de su plantilla, deja apagados los de compuerta legal y le asigna su pastor. Exige alcance de organizacion: una sede no crea otra sede."
+      description: "Crea la sede colgada de la maestra, le aplica la plantilla (que debe ser de su tipo o la MAESTRA), deja apagado lo de compuerta legal y asigna el pastor con `nivelPastor` (N2 a N4, por omision N3, nunca por encima del techo del rol)."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -134,7 +143,7 @@ paths:
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
     post:
       summary: "Marcar o desmarcar una casilla"
-      description: "Otorga o quita UNA cosa que un rol puede hacer. Desmarcar borra la fila: un permiso que no esta es un permiso que no existe, no uno apagado. Exige alcance de organizacion."
+      description: "Otorga o quita UNA accion a un rol. Exige `acta` (acta o motivo): el cambio queda en la auditoria con quien, cuando y por que. Un rol descontinuado no recibe permisos nuevos. Responde si hubo cambio o si la casilla ya estaba asi."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -161,7 +170,7 @@ paths:
   /api/v1/administracion/personas:
     post:
       summary: "Registrar a una persona"
-      description: "El otro despliegue del comando central. Despues se le crea cuenta y se le otorgan roles."
+      description: "Exige N4. Si la fecha de nacimiento es de un menor, exige `acudienteId` (un adulto ya registrado) y `parentesco` (un vinculo que confiere custodia): se registran juntos. El correo, si viene, debe tener forma de correo."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -196,7 +205,7 @@ paths:
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
     post:
       summary: "Crear o renombrar una plantilla"
-      description: "Una plantilla responde a con que modulos nace una iglesia nueva de ese tipo."
+      description: "Con `nueva: true` crea la plantilla con sus modulos de nucleo ya puestos y se niega si el codigo existe. Sin `nueva`, edita. La descripcion vacia conserva la anterior."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -223,7 +232,16 @@ paths:
   /api/v1/administracion/roles:
     post:
       summary: "Crear o cambiar un rol"
-      description: "Lo que no se manda NO SE TOCA: omitir la descripcion no la borra y omitir `activo` no resucita un rol descontinuado. Bajar el techo o descontinuar el rol queda escrito en la bitacora con a cuantas personas afecta."
+      description: "Con `nuevo: true` CREA y se niega si el codigo ya existe (antes reescribia el rol de toda la red). Sin `nuevo`, EDITA y se niega si no existe. Lo que no se manda no se toca. Bajar el techo o descontinuar queda escrito en la bitacora."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/administracion/sedes/:id/estado:
+    post:
+      summary: "Desactivar o reactivar una iglesia"
+      description: "Una iglesia no se borra: se desactiva con `motivo`, y se reactiva igual. Deja de ofrecerse en los formularios y su historia se conserva. La sede maestra no se desactiva. Queda en la auditoria y en la bitacora de aprovisionamiento."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -552,7 +570,7 @@ paths:
   /api/v1/consejeria/casos/:id/cerrar:
     post:
       summary: "Cerrar o derivar"
-      description: "Derivar EXIGE decir a donde. Cerrar el caso cierra tambien las asignaciones vivas."
+      description: "Cerrar EXIGE `desenlace` (como termino). Derivar EXIGE `derivadoA`. Cerrar el caso cierra tambien las asignaciones vivas."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -596,7 +614,7 @@ paths:
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
     post:
       summary: "Abrir un caso"
-      description: "Consultante, sede y topico."
+      description: "Consultante y topico; la sede es la del consultante salvo que se diga otra. Antes daba 403 siempre por un RETURNING bajo la politica de lectura; ahora se inserta y se lee aparte."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -685,7 +703,7 @@ paths:
   /api/v1/formacion/cohortes/:id/inscribir:
     post:
       summary: "Inscribir a alguien"
-      description: "Si pasa el cupo se inscribe IGUAL y se avisa: negarlo dejaria a la persona en la puerta por un numero, y quien decide si caben es el docente."
+      description: "Si la cohorte esta llena responde 409 y lo dice (cuenta igual que la base). En una cohorte con valor exige `estadoPago` (pendiente, pagado, parcial o exonerado)."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -729,7 +747,16 @@ paths:
   /api/v1/formacion/inscripciones/:id/calificar:
     post:
       summary: "Calificar"
-      description: "Nota final y estado (aprobado, reprobado, retirado…)."
+      description: "Nota final y estado. Sin nota CONSERVA la anterior (antes la borraba); borrarla exige `borrarNota: true`. El pago no se cambia aqui: tiene su propia ruta."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/formacion/inscripciones/:id/pago:
+    post:
+      summary: "Registrar el pago de una inscripcion"
+      description: "Cambia el estado del pago (no_aplica, pendiente, pagado, exonerado, parcial) con una `referencia` opcional que va a la auditoria. No existia: una inscripcion pendiente no podia pasar nunca a pagada."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -1183,7 +1210,7 @@ paths:
   /api/v1/talento/antecedentes:
     post:
       summary: "Registrar un antecedente"
-      description: "Es lo que abre (o cierra) la puerta de RocaKids: la base rechaza el rol sin antecedentes vigentes."
+      description: "La sede es la de la PERSONA (la base la pone y la del formulario se ignora): nadie sella antecedentes de otra sede. Solo lo registra quien alcanza a esa persona."
       responses:
         "200": { description: correcto }
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }

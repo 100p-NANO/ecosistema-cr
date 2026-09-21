@@ -37,6 +37,28 @@ export function sesionDe(req: Request): SesionDePeticion {
   return s;
 }
 
+/**
+ * Qué módulo sirve cada ruta. ⛔ Se deduce aquí, en UN solo sitio, y no en
+ * cada controlador: una ruta nueva que olvidara declararlo quedaría fuera
+ * del interruptor de módulos sin que nadie lo notara. Lo que no está en la
+ * lista (administración, identidad, sesión, personas, organización) es
+ * núcleo o gobierno, y no se apaga por sede.
+ */
+const MODULO_DE_RUTA: Record<string, string> = {
+  rocakids: 'rocakids', consejeria: 'consejeria', aportes: 'aportes',
+  grupos: 'grupos', asistencia: 'asistencia', formacion: 'formacion',
+  talento: 'talento', cumplimiento: 'cumplimiento', nuevos: 'crm', crm: 'crm',
+  analitica: 'analitica', calendario: 'calendario', comunicaciones: 'comunicaciones',
+  construccion: 'construccion', legal: 'legal', oracion: 'oracion',
+  peticiones: 'peticiones', requerimientos: 'requerimientos', tareas: 'tareas',
+  tematicas: 'tematicas',
+};
+
+export function moduloDeRuta(req: Request): string | null {
+  const m = /^\/api\/v1\/([a-z0-9-]+)/.exec(req.originalUrl ?? req.url ?? '');
+  return m ? (MODULO_DE_RUTA[m[1]] ?? null) : null;
+}
+
 export async function conSesion<T>(
   db: DbService, req: Request, fn: (c: PoolClient) => Promise<T>,
 ): Promise<T> {
@@ -55,6 +77,7 @@ export async function conSesion<T>(
     nivelMax: s.nivelMax,
     alcanceGlobal: s.alcanceGlobal,
     ip: ipDe(req),
+    modulo: moduloDeRuta(req),
   }, fn);
 }
 

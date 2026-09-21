@@ -17,6 +17,10 @@ export interface Cuerpo {
   jti: string;      // sesión
   cta: string;      // cuenta
   typ: 'acceso' | 'refresco' | 'configurar_mfa';
+  /** ⛔ Solo en un refresco nacido de un ingreso LIMITADO: el refresco
+      hereda la limitación. Sin esto, canjear el refresco de un ingreso
+      sin segundo factor devolvía un acceso completo. */
+  lim?: 'configurar_mfa';
   iat: number;
   exp: number;
 }

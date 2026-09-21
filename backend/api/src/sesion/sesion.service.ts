@@ -19,24 +19,13 @@ export class SesionService {
               email_principal, tipo_documento, numero_documento
          FROM nucleo.personas WHERE id = $1`, [ctx.personaId]);
 
-    const asignaciones = await c.query(
-      `SELECT a.rol, a.alcance_tipo, a.alcance_id, a.nivel_max,
-              a.vigente_desde, a.vigente_hasta,
-              r.nombre AS rol_nombre, s.nombre AS sede_nombre, s.codigo AS sede_codigo
-         FROM identidad.asignaciones a
-         LEFT JOIN identidad.roles r ON r.codigo = a.rol
-         LEFT JOIN org.sedes s ON s.id = a.alcance_id
-        WHERE a.persona_id = $1
-          AND (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE)
-        ORDER BY a.nivel_max DESC`, [ctx.personaId]);
-
-    const modulos = await c.query(
-      `SELECT DISTINCT p.modulo, m.nombre, m.nivel_dato
-         FROM sistema.matriz_permisos p
-         JOIN sistema.modulos m ON m.codigo = p.modulo
-        WHERE p.rol = ANY($1::text[]) AND m.nivel_dato <= $2
-        ORDER BY p.modulo`,
-      [asignaciones.rows.map(a => a.rol), ctx.nivelMax]);
+    /* ⛔ Antes leía las asignaciones PERSONALES sin mirar la revocación:
+       un rol revocado esta mañana seguía pintado como vigente, los que
+       llegan por un equipo no aparecían, y las pestañas no sabían del
+       interruptor de módulos por sede. Las dos listas salen ahora de la
+       misma fuente que decide el permiso real (migración 0070). */
+    const asignaciones = await c.query(`SELECT * FROM identidad.mis_accesos()`);
+    const modulos = await c.query(`SELECT * FROM identidad.mis_modulos()`);
 
     const p = persona.rows[0] ?? {};
     return {

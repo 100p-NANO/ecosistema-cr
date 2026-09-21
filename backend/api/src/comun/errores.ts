@@ -50,7 +50,7 @@ const TRADUCCIONES: Record<string, { estado: number; mensaje: string }> = {
    La pregunta correcta no es cómo empieza la frase, sino QUIÉN la
    escribió: si la escribió el motor, filtra la estructura interna y no
    sale; si la escribió una función nuestra, es para leerse. */
-const JERGA = /violates|constraint|relation "|column "|syntax error|duplicate key|invalid input|permission denied for|type "|operator does not exist/i;
+export const JERGA = /violates|constraint|relation "|column "|syntax error|duplicate key|invalid input|permission denied for|type "|operator does not exist/i;
 function esParaElUsuario(codigo: string, mensaje?: string): boolean {
   if (!mensaje) return false;
   if (JERGA.test(mensaje)) return false;
@@ -100,6 +100,24 @@ export class FiltroDeErrores implements ExceptionFilter {
 
     const codigo = (e as any)?.code as string | undefined;
     const t = codigo ? TRADUCCIONES[codigo] : undefined;
+
+    /* ⛔ Reglas DIFERIDAS: saltan al confirmar la transacción, fuera del
+       try de cualquier ruta, y por eso nunca pasaban por su traducción.
+       La del menor sin acudiente salía como «el registro hace referencia a
+       algo que no existe»: una frase falsa sobre un dato que sí existía. */
+    const crudo = String((e as any)?.message ?? '');
+    if (codigo === '23503' && /sin acudiente vigente/i.test(crudo)) {
+      log.warn(`${id} ${req.method} ${req.path} · menor sin acudiente al confirmar`);
+      return res.status(HttpStatus.BAD_REQUEST).json({
+        error: true, peticionId: id,
+        mensaje: 'Es menor de edad: se registra junto con su acudiente, en la misma operación.' });
+    }
+    if (/^new row violates row-level security policy/i.test(crudo)) {
+      log.warn(`${id} ${req.method} ${req.path} · escritura fuera de alcance`);
+      return res.status(HttpStatus.FORBIDDEN).json({
+        error: true, peticionId: id,
+        mensaje: 'Eso está fuera de su alcance: no se escribe sobre personas ni datos de otra sede.' });
+    }
 
     const mensajeDeLaBase = (e as any)?.message as string | undefined;
     const esMensajeRedactado = esParaElUsuario(codigo ?? '', mensajeDeLaBase);

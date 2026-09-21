@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Module, Param, Post, Query, Req } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Body, Controller, Get, Module, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { DbModule } from '../db/db.module';
 import { DbService } from '../db/db.service';
@@ -64,7 +64,12 @@ export class AsistenciaController {
         return { ...s, mensaje: 'Servicio abierto. Ya se puede marcar asistencia.' };
       } catch (e: any) {
         if (e.code === '23505') throw new BadRequestException('Ya hay un servicio de esa sede a esa hora ese día.');
+        /* ⛔ Un tipo fuera de la lista levantaba 23503 y el mensaje CULPABA
+           A LA SEDE. Desde la 0069 la base lo dice como regla (23514), con
+           la lista de los que valen. */
+        if (e.code === '23514') throw new BadRequestException(e.message);
         if (e.code === '23503') throw new BadRequestException('Esa sede no existe o no está en su alcance.');
+        if (e.code === '42501') throw new ForbiddenException('Esa sede no está en su alcance.');
         throw e;
       }
     });
@@ -77,6 +82,11 @@ export class AsistenciaController {
     return conSesion(this.db, req, async (c) => {
       const servicio = uuid(id, 'id');
       const persona = uuid(b?.personaId, 'personaId');
+      /* ⛔ Un pastor de Chía marcó presente a una persona de Bogotá Chicó
+         con solo su identificador: la política miraba el SERVICIO y nunca a
+         la PERSONA. La base ya lo impide (0070); aquí se dice claro. */
+      const { rows: [visible] } = await c.query(`SELECT 1 FROM nucleo.v_personas WHERE id = $1`, [persona]);
+      if (!visible) throw new ForbiddenException('Esa persona no está en su alcance: solo se marca a gente de las sedes que usted atiende.');
       const { rows: [ya] } = await c.query(
         `SELECT id FROM asistencia.entradas WHERE servicio_id = $1 AND persona_id = $2`,
         [servicio, persona]);
@@ -89,6 +99,7 @@ export class AsistenciaController {
         return { id: e.id, repetido: false, marcada_en: e.marcada_en };
       } catch (err: any) {
         if (err.code === '23503') throw new BadRequestException('El servicio o la persona no están en su alcance.');
+        if (err.code === '42501') throw new ForbiddenException('Esa persona o ese servicio no están en su alcance.');
         throw err;
       }
     });

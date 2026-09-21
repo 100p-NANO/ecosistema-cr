@@ -4,9 +4,10 @@ import type { Request } from 'express';
 import { randomInt } from 'node:crypto';
 import { DbModule } from '../db/db.module';
 import { DbService } from '../db/db.service';
-import { conSesion, exigirNivel } from '../comun/identidad.helper';
-import { uuid, texto, textoOpcional, booleano, entero } from '../comun/validar';
+import { conSesion, exigirNivel, sesionDe } from '../comun/identidad.helper';
+import { uuid, texto, textoOpcional, booleano, entero, fecha } from '../comun/validar';
 import { derivarClave } from '../auth/clave';
+import { JERGA } from '../comun/errores';
 
 /**
  * Administración de la solución.
@@ -84,15 +85,30 @@ function traducir(e: any, propios: Record<string, string> = {}): never {
   throw e;
 }
 
-/** El mensaje que ve un operador, sin la jerga del motor. */
+/**
+ * El mensaje que ve un operador, sin la jerga del motor.
+ *
+ * ⛔ 21 sep 2026. Cuatro mensajes comprobados salían con el nombre interno
+ * de una restricción o en inglés: el filtro `JERGA` de `errores.ts` los
+ * habría tapado, pero `traducir()` los envolvía ANTES y ese filtro ya no
+ * los veía. Ahora el mismo filtro corre aquí.
+ */
 function limpiar(mensaje: string): string {
-  return String(mensaje ?? '')
-    .replace(/^new row for relation "[^"]+" violates check constraint "([^"]+)"$/,
-             'Ese dato no cumple la regla «$1» del sistema.')
-    .replace(/^duplicate key value violates unique constraint "[^"]+"$/,
-             'Ya existe un registro con ese mismo valor.')
-    .trim() || 'La operación no se pudo completar.';
+  const m = String(mensaje ?? '').trim();
+  if (/^new row violates row-level security policy/i.test(m)) {
+    return 'Eso está fuera de su alcance: no se escribe sobre personas ni datos de otra sede.';
+  }
+  const chk = /^new row for relation "[^"]+" violates check constraint "([^"]+)"$/.exec(m);
+  if (chk) return `Ese dato no cumple la regla «${chk[1]}» del sistema.`;
+  if (/^duplicate key value violates unique constraint/.test(m)) return 'Ya existe un registro con ese mismo valor.';
+  if (JERGA.test(m)) {
+    return 'La operación no cumple una regla del sistema. Revise los datos; si el problema sigue, reporte el código de la petición.';
+  }
+  return m || 'La operación no se pudo completar.';
 }
+
+/** Un usuario es un correo: es lo que la persona sabe escribir y lo que se puede verificar. */
+const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 @Controller('api/v1/administracion')
 export class AdministracionController {
@@ -107,12 +123,15 @@ export class AdministracionController {
         `SELECT * FROM identidad.listar_cuentas($1,$2)`,
         [textoOpcional(q, 'q', { max: 80 }),
          limite ? entero(limite, 'limite', { min: 1, max: 500 }) : 100]);
-      const problemas = rows.filter(r => r.bloqueada || r.estado !== 'activa'
-        || (r.exige_segundo_factor && !r.segundo_factor_activo));
+      /* ⛔ Los KPI eran el TAMAÑO DE LA PÁGINA: con `?limite=5` la
+         pantalla decía «5 cuentas y 1 necesita atención» cuando eran 27 y
+         4. El total sale de la base, con el mismo alcance. */
+      const { rows: [t] } = await c.query(`SELECT * FROM identidad.resumen_cuentas()`);
       return {
-        total_filas: rows.length, cuentas: rows,
-        aviso: problemas.length
-          ? `${problemas.length} cuenta(s) necesitan atención: bloqueadas, suspendidas o con el segundo factor sin activar.`
+        total_filas: rows.length, total: t.total, necesitan_atencion: t.necesitan_atencion,
+        cuentas: rows,
+        aviso: t.necesitan_atencion
+          ? `${t.necesitan_atencion} de ${t.total} cuenta(s) necesitan atención: bloqueadas, suspendidas o con el segundo factor sin activar.`
           : null,
       };
     });
@@ -133,7 +152,9 @@ export class AdministracionController {
         const { rows: [r] } = await c.query(
           `SELECT identidad.crear_cuenta($1,$2,$3) AS id`,
           [uuid(b?.personaId, 'personaId'),
-           texto(b?.usuario, 'usuario', { min: 5, max: 120 }),
+           /* ⛔ Solo el navegador exigía forma de correo: con una petición
+              directa entraba cualquier texto como usuario. */
+           texto(b?.usuario, 'usuario', { min: 5, max: 120, patron: CORREO }),
            derivarClave(clave)]);
         return {
           id: r.id, usuario: b.usuario, clave_provisional: clave,
@@ -235,9 +256,15 @@ export class AdministracionController {
       return {
         total_filas: rows.length, accesos: rows,
         vencidos: Number(n.vencidos), vigentes: Number(n.vigentes),
-        aviso: Number(n.vencidos)
-          ? `${n.vencidos} acceso(s) pasaron su plazo de revisión, de ${n.vigentes} vigentes. Un permiso que nadie revisa es un permiso que nadie quitó.`
-          : `Ninguno de los ${n.vigentes} accesos vigentes pasó su plazo. El plazo es de 90 días para los que tocan datos N3 o N4, y de 180 para el resto.`,
+        alcance_de_red: sesionDe(req).alcanceGlobal,
+        /* ⛔ Para quien NO alcanza la red, la vista viene recortada por su
+           alcance y el contador decía «0 de 0» en verde con 28 accesos
+           vivos en la red. No se da un «todo al día» que no se puede ver. */
+        aviso: !sesionDe(req).alcanceGlobal
+          ? `Usted ve solo los accesos de su alcance (${n.vigentes}). La recertificación de la red la firma quien alcanza toda la red.`
+          : Number(n.vencidos)
+            ? `${n.vencidos} acceso(s) pasaron su plazo de revisión, de ${n.vigentes} vigentes. Un permiso que nadie revisa es un permiso que nadie quitó.`
+            : `Ninguno de los ${n.vigentes} accesos vigentes pasó su plazo. El plazo es de 90 días para los que tocan datos N3 o N4, y de 180 para el resto.`,
       };
     });
   }
@@ -254,13 +281,19 @@ export class AdministracionController {
     exigirNivel(req, 4, 'recertificar un acceso');
     return conSesion(this.db, req, async (c) => {
       try {
+        const veredicto = texto(b?.veredicto, 'veredicto', { min: 8, max: 12 });
         const { rows: [r] } = await c.query(
-          `SELECT identidad.recertificar($1, $2, $3) AS hecho`,
-          [uuid(id, 'asignacionId'),
-           texto(b?.veredicto, 'veredicto', { min: 8, max: 12 }),
-           texto(b?.nota, 'nota', { min: 5, max: 400 })]);
-        return { ...r.hecho, mensaje: b?.veredicto === 'se_revoca'
-          ? 'Revisado y REVOCADO. La persona pierde ese acceso ahora mismo.'
+          `SELECT identidad.recertificar($1, $2, $3, $4::smallint) AS hecho`,
+          [uuid(id, 'asignacionId'), veredicto,
+           texto(b?.nota, 'nota', { min: 5, max: 400 }),
+           /* ⛔ «Se reduce» no reducía nada: solo reiniciaba el reloj. Ahora
+              exige a qué nivel, y la base lo aplica. */
+           b?.nivelNuevo === undefined || b?.nivelNuevo === null || b?.nivelNuevo === ''
+             ? null : entero(b.nivelNuevo, 'nivelNuevo', { min: 0, max: 4 })]);
+        const h = r.hecho;
+        return { ...h, mensaje:
+          veredicto === 'se_revoca' ? 'Revisado y REVOCADO. La persona pierde ese acceso ahora mismo.'
+          : veredicto === 'se_reduce' ? `Revisado y REDUCIDO de N${h.nivel_antes} a N${h.nivel_despues}. Surte efecto en la próxima petición de esa persona.`
           : 'Revisado. El contador de días vuelve a cero y queda firmado con su nombre.' };
       } catch (e: any) { traducir(e); }
     });
@@ -304,9 +337,13 @@ export class AdministracionController {
     return conSesion(this.db, req, async (c) => {
       const { rows } = await c.query(
         `SELECT m.codigo, m.nombre, m.nivel_dato, m.es_nucleo, m.exige_compuerta_legal, m.depende_de,
-                COALESCE(ms.activo, false) AS activo, ms.evidencia_legal_ref, ms.activado_en, ms.nota
+                COALESCE(ms.activo, false) AS activo, ms.evidencia_legal_ref, ms.activado_en, ms.nota,
+                ms.desactivado_en, pe.nombre_completo AS activado_por_nombre,
+                pd.nombre_completo AS desactivado_por_nombre
            FROM sistema.modulos m
            LEFT JOIN sistema.modulos_sede ms ON ms.modulo = m.codigo AND ms.sede_id = $1
+           LEFT JOIN nucleo.v_personas pe ON pe.id = ms.activado_por
+           LEFT JOIN nucleo.v_personas pd ON pd.id = ms.desactivado_por
           ORDER BY m.es_nucleo DESC, m.nombre`, [uuid(id, 'id')]);
       const faltaEvidencia = rows.filter(r => r.activo && r.exige_compuerta_legal && !r.evidencia_legal_ref);
       return {
@@ -382,7 +419,7 @@ export class AdministracionController {
     return conSesion(this.db, req, async (c) => {
       try {
         const { rows: [r] } = await c.query(
-          `SELECT sistema.crear_iglesia($1,$2,$3::org.tipo_sede,$4::char(2),$5,$6,$7,$8::smallint) AS id`,
+          `SELECT sistema.crear_iglesia($1,$2,$3::org.tipo_sede,$4::char(2),$5,$6,$7,$8::smallint,$9::smallint) AS id`,
           [texto(b?.codigo, 'codigo', { min: 2, max: 20 }),
            texto(b?.nombre, 'nombre', { min: 3, max: 120 }),
            texto(b?.tipo, 'tipo', { min: 4, max: 30 }),
@@ -390,7 +427,11 @@ export class AdministracionController {
            texto(b?.ciudad, 'ciudad', { min: 2, max: 80 }),
            texto(b?.plantilla, 'plantilla', { min: 2, max: 30 }),
            uuid(b?.pastorId, 'pastorId'),
-           b?.ola === undefined || b?.ola === null ? null : entero(b.ola, 'ola', { min: 1, max: 20 })]);
+           b?.ola === undefined || b?.ola === null ? null : entero(b.ola, 'ola', { min: 1, max: 20 }),
+           /* ⛔ El pastor nacía con N2 escrito a mano y Consejería exige N3:
+              ningún pastor de una iglesia nueva abría su consejería. El nivel
+              se decide al desplegar; por omisión N3. */
+           b?.nivelPastor === undefined || b?.nivelPastor === null ? 3 : entero(b.nivelPastor, 'nivelPastor', { min: 2, max: 4 })]);
         return {
           id: r.id,
           mensaje: 'Iglesia desplegada con su plantilla y su pastor. '
@@ -402,11 +443,61 @@ export class AdministracionController {
     });
   }
 
+  /**
+   * Desactivar o reactivar una iglesia.
+   * ⛔ Desplegar no tenía vuelta atrás: un error de dedo en el código
+   * dejaba una iglesia permanente que no se podía ni borrar ni apagar. No
+   * se borra (su historia se conserva): se desactiva, con motivo.
+   */
+  @Post('sedes/:id/estado')
+  estadoSede(@Req() req: Request, @Param('id') id: string, @Body() b: any) {
+    exigirNivel(req, 4, 'activar o desactivar una iglesia');
+    return conSesion(this.db, req, async (c) => {
+      try {
+        const activa = booleano(b?.activa, 'activa');
+        const { rows: [r] } = await c.query(`SELECT sistema.cambiar_estado_sede($1,$2,$3) AS hecho`,
+          [uuid(id, 'id'), activa, texto(b?.motivo, 'motivo', { min: 5, max: 300 })]);
+        return { ...r.hecho, mensaje: activa
+          ? 'Iglesia reactivada. Vuelve a aparecer en los formularios.'
+          : 'Iglesia desactivada. Deja de ofrecerse en los formularios; su gente y su historia se conservan.' };
+      } catch (e: any) { traducir(e); }
+    });
+  }
+
+  /** La puesta en marcha, contada en la base y no en el navegador. */
+  @Get('arranque')
+  arranque(@Req() req: Request) {
+    exigirNivel(req, 4, 'ver la puesta en marcha');
+    return conSesion(this.db, req, async (c) => {
+      const { rows: [r] } = await c.query(`SELECT sistema.estado_de_arranque() AS e`);
+      return r.e;
+    });
+  }
+
   /** Registrar a una persona. Es el otro despliegue del comando central. */
   @Post('personas')
   crearPersona(@Req() req: Request, @Body() b: any) {
-    exigirNivel(req, 2, 'registrar a una persona');
+    /* ⛔ La pestaña dice N4 y el paso 1 exigía N2: con N3 se registraba a
+       la persona y el paso 2 respondía que hacía falta N4. Media pantalla
+       inutilizable sin avisar. Se pide lo mismo desde el principio. */
+    exigirNivel(req, 4, 'registrar a una persona desde el comando central');
     return conSesion(this.db, req, async (c) => {
+      const fnac = b?.fechaNacimiento ? fecha(b.fechaNacimiento, 'fechaNacimiento') : null;
+      /* ⛔ Registrar a un MENOR era imposible, y el mensaje mentía: la
+         base exige su acudiente en la MISMA operación (regla diferida que
+         salta al confirmar, fuera de cualquier try), y la pantalla decía
+         «el registro hace referencia a algo que no existe». Ahora se
+         pregunta ANTES y se registran juntos. */
+      let menor = false;
+      if (fnac) {
+        const { rows: [m] } = await c.query(`SELECT nucleo.es_menor($1::date) AS menor`, [fnac]);
+        menor = Boolean(m?.menor);
+      }
+      const acudienteId = menor ? (b?.acudienteId ? uuid(b.acudienteId, 'acudienteId') : null) : null;
+      if (menor && !acudienteId) {
+        throw new BadRequestException(
+          'Es menor de edad: se registra junto con su acudiente. Elija al acudiente (ya registrado como adulto) y el parentesco.');
+      }
       try {
         const { rows: [p] } = await c.query(
           `INSERT INTO nucleo.personas
@@ -421,20 +512,40 @@ export class AdministracionController {
            textoOpcional(b?.segundoApellido, 'segundoApellido', { max: 60 }),
            textoOpcional(b?.tipoDocumento, 'tipoDocumento', { max: 10 }),
            textoOpcional(b?.numeroDocumento, 'numeroDocumento', { max: 40 }),
-           textoOpcional(b?.fechaNacimiento, 'fechaNacimiento', { max: 10 }),
-           textoOpcional(b?.email, 'email', { max: 160 }),
+           fnac,
+           textoOpcional(b?.email, 'email', { max: 160, patron: CORREO }),
            textoOpcional(b?.telefono, 'telefono', { max: 40 })]);
-        return { id: p.id, mensaje: 'Persona registrada. Ya se le puede crear cuenta y otorgar roles.' };
+        if (menor && acudienteId) {
+          const { rows: [adulto] } = await c.query(
+            `SELECT NOT nucleo.es_menor(fecha_nacimiento) AS es_adulto FROM nucleo.personas WHERE id = $1`, [acudienteId]);
+          if (!adulto) throw new BadRequestException('Ese acudiente no existe o no está en su alcance.');
+          if (!adulto.es_adulto) throw new BadRequestException('El acudiente tiene que ser un adulto.');
+          /* El parentesco es un código del catálogo de vínculos, y solo
+             valen los que CONFIEREN CUSTODIA (un primo no es acudiente). */
+          const parentesco = texto(b?.parentesco, 'parentesco', { min: 3, max: 40 }).toUpperCase();
+          const { rows: [v] } = await c.query(
+            `SELECT confiere_custodia FROM nucleo.tipos_vinculo WHERE codigo = $1`, [parentesco]);
+          if (!v?.confiere_custodia) {
+            const { rows: validos } = await c.query(
+              `SELECT nombre FROM nucleo.tipos_vinculo WHERE confiere_custodia ORDER BY nombre`);
+            throw new BadRequestException(
+              `«${b?.parentesco}» no sirve como parentesco de un acudiente. Valen: ${validos.map((x: any) => x.nombre).join(', ')}.`);
+          }
+          await c.query(
+            `INSERT INTO nucleo.acudientes (menor_id, acudiente_id, parentesco, es_principal, autoriza_retiro, vigente_desde)
+             VALUES ($1,$2,$3,true,$4,CURRENT_DATE)`,
+            [p.id, acudienteId, parentesco, b?.autorizaRetiro === false ? false : true]);
+        }
+        return { id: p.id, menor, mensaje: menor
+          ? 'Menor registrado junto con su acudiente. Sus datos son N4: toda lectura queda registrada.'
+          : 'Persona registrada. Ya se le puede crear cuenta y otorgar roles.' };
       } catch (e: any) {
+        if (e instanceof BadRequestException) throw e;
         traducir(e, {
           '23505': 'Ya hay alguien con ese documento.',
           '23503': 'Esa sede no está en su alcance.',
           ...(String(e.message).includes('personas_documento_completo') ? { '23514':
             'El documento va completo o no va: si escribe el número, elija también el tipo (CC, TI, CE…), y al revés.' } : {}),
-          /* ⛔ Una restricción de la base es una frase para quien la
-             escribió, no para quien está llenando un formulario: el
-             equipo de la central veía «violates check constraint
-             personas_documento_completo» y no sabía qué corregir. */
         });
       }
     });
@@ -553,19 +664,20 @@ export class AdministracionController {
           WHERE m.unidad_id = $1 AND m.revocado_en IS NULL
           ORDER BY m.hasta NULLS FIRST, p.nombre_completo`, [u]);
       const { rows: roles } = await c.query(
-        `SELECT a.id, a.rol, a.alcance_tipo, a.nivel_max,
+        `SELECT a.id, a.rol, r.nombre AS rol_nombre, a.alcance_tipo, a.nivel_max,
                 to_char(a.vigente_desde,'YYYY-MM-DD') AS desde,
-                to_char(a.vigente_hasta,'YYYY-MM-DD') AS hasta, a.acta_referencia
+                to_char(a.vigente_hasta,'YYYY-MM-DD') AS hasta, a.acta_referencia,
+                (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE) AS vigente
            FROM identidad.asignaciones_unidad a
+           LEFT JOIN identidad.roles r ON r.codigo = a.rol
           WHERE a.unidad_id = $1 AND a.revocada_en IS NULL
-          ORDER BY a.nivel_max DESC`, [u]);
+          ORDER BY (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE) DESC, a.nivel_max DESC`, [u]);
+      /* ⛔ Medía el ORGANIGRAMA (las sedes que cuelgan de la unidad), no el
+         alcance del equipo: para un equipo, siempre vacío, y la pantalla
+         decía «Ninguna por esta vía» justo cuando alcanzaba toda la red.
+         Ahora sale de los roles vigentes del equipo. */
       const { rows: sedes } = await c.query(
-        /* ⛔ `sedes_de_unidad` devuelve uuid[], no un conjunto de filas:
-           tratarla como tabla daba «operator does not exist: uuid = uuid[]». */
-        `SELECT s.codigo, s.nombre
-           FROM org.sedes s
-          WHERE s.id = ANY(org.sedes_de_unidad($1))
-          ORDER BY s.codigo`, [u]);
+        `SELECT codigo, nombre, por_rol FROM org.sedes_que_alcanza_el_equipo($1) ORDER BY codigo`, [u]);
       return {
         unidad,
         miembros: { activos: miembros.filter(m => !m.hasta).length, lista: miembros },
@@ -637,7 +749,7 @@ export class AdministracionController {
   catalogo(@Req() req: Request) {
     exigirNivel(req, 2, 'ver el catálogo del sistema');
     return conSesion(this.db, req, async (c) => {
-      const [m, a, r, n, td] = await Promise.all([
+      const [m, a, r, n, td, vin] = await Promise.all([
         c.query(`SELECT codigo, nombre, esquema, nivel_dato, es_nucleo, exige_compuerta_legal, depende_de, orden
                    FROM sistema.modulos ORDER BY orden, nombre`),
         c.query(`SELECT codigo, nombre, orden, es_sensible, modulo, descripcion
@@ -652,9 +764,10 @@ export class AdministracionController {
                    FROM sistema.catalogo_valores
                   WHERE catalogo='tipo_documento' AND vigente AND retirado_en IS NULL
                   ORDER BY orden`),
+        c.query(`SELECT codigo, nombre FROM nucleo.tipos_vinculo WHERE confiere_custodia ORDER BY nombre`),
       ]);
       return { modulos: m.rows, acciones: a.rows, roles: r.rows,
-               niveles: n.rows, tiposDocumento: td.rows };
+               niveles: n.rows, tiposDocumento: td.rows, vinculosDeCustodia: vin.rows };
     });
   }
 
@@ -689,8 +802,10 @@ export class AdministracionController {
            texto(b?.accion, 'accion', { min: 2, max: 40 }),
            booleano(b?.marcado, 'marcado'),
            b?.nivelMax === undefined || b?.nivelMax === null ? null : entero(b.nivelMax, 'nivelMax', { min: 0, max: 4 }),
-           textoOpcional(b?.acta, 'acta', { max: 200 })]);
-        return { marcado: r.marcado, mensaje: r.marcado ? 'Permiso otorgado.' : 'Permiso quitado.' };
+           /* ⛔ Cambiar la matriz no dejaba rastro ni acta: la consola nunca
+              la mandaba. Ahora es obligatoria y va a la auditoría. */
+           texto(b?.acta, 'acta', { min: 4, max: 200 })]);
+        return r.marcado;
       } catch (e: any) {
         traducir(e);
       }
@@ -703,6 +818,18 @@ export class AdministracionController {
     exigirNivel(req, 4, 'crear o cambiar un rol');
     return conSesion(this.db, req, async (c) => {
       try {
+        /* ⛔ «+ Crear un rol» era un UPSERT: escribir TESORERIA en el código
+           REESCRIBÍA el rol de Tesorería de toda la red y decía «guardado».
+           Crear y editar son ahora dos puertas. */
+        if (b?.nuevo === true) {
+          await c.query(`SELECT identidad.crear_rol($1,$2,$3,$4::smallint,$5)`,
+            [texto(b?.codigo, 'codigo', { min: 3, max: 40 }),
+             texto(b?.nombre, 'nombre', { min: 3, max: 120 }),
+             texto(b?.alcanceMaximo, 'alcanceMaximo', { min: 4, max: 30 }),
+             entero(b?.nivelMaximo, 'nivelMaximo', { min: 0, max: 4 }),
+             texto(b?.descripcion, 'descripcion', { min: 10, max: 400 })]);
+          return { mensaje: 'Rol creado. Ahora márquele sus permisos en la matriz.' };
+        }
         await c.query(`SELECT identidad.guardar_rol($1,$2,$3,$4::smallint,$5,$6)`,
           [texto(b?.codigo, 'codigo', { min: 2, max: 40 }),
            texto(b?.nombre, 'nombre', { min: 3, max: 120 }),
@@ -727,12 +854,16 @@ export class AdministracionController {
     exigirNivel(req, 4, 'crear o cambiar una plantilla');
     return conSesion(this.db, req, async (c) => {
       try {
-        await c.query(`SELECT sistema.guardar_plantilla($1,$2,$3,$4)`,
+        const nueva = b?.nueva === true;
+        await c.query(`SELECT sistema.guardar_plantilla($1,$2,$3,$4,$5)`,
           [texto(b?.codigo, 'codigo', { min: 2, max: 30 }),
            texto(b?.nombre, 'nombre', { min: 3, max: 120 }),
            texto(b?.tipoSede, 'tipoSede', { min: 4, max: 30 }),
-           textoOpcional(b?.descripcion, 'descripcion', { max: 400 })]);
-        return { mensaje: 'Plantilla guardada. Marque los módulos que debe traer una iglesia nueva.' };
+           textoOpcional(b?.descripcion, 'descripcion', { max: 400 }),
+           nueva]);
+        return { mensaje: nueva
+          ? 'Plantilla creada con los módulos de núcleo puestos. Marque los demás que debe traer una iglesia nueva.'
+          : 'Plantilla guardada.' };
       } catch (e: any) {
         traducir(e, { '22P02': 'Ese tipo de sede no existe.' });
         throw e;
@@ -784,26 +915,46 @@ export class AdministracionController {
            FROM nucleo.v_personas p LEFT JOIN org.sedes s ON s.id = p.sede_id
           WHERE p.id = $1`, [p]);
       if (!persona) throw new NotFoundException('Esa persona no existe o no está en su alcance.');
-      const { rows: cuenta } = await c.query(
-        `SELECT * FROM identidad.listar_cuentas(NULL, 500)`);
+      /* ⛔ La pantalla prometía «toda lectura de un menor queda registrada
+         con nombre y fecha» y NO se escribía nada. Consejería y RocaKids sí
+         lo hacían. Ahora también aquí, antes de devolver un solo dato. */
+      if (persona.es_menor) {
+        await c.query(`SELECT plataforma.registrar_lectura($1,$2,$3,$4::smallint,$5,$6)`,
+          ['nucleo', 'personas', p, 4, 'Ficha de un menor en la consola de administración', 1]);
+      }
+      /* ⛔ Buscaba la cuenta entre las primeras 500 con `.find()`: con más
+         cuentas decía «no tiene cuenta» a quien sí la tenía. */
+      let cuenta: any = null;
+      try {
+        const { rows: [cu] } = await c.query(`SELECT * FROM identidad.cuenta_de($1)`, [p]);
+        cuenta = cu ?? null;
+      } catch { cuenta = null; }
       const { rows: roles } = await c.query(
         `SELECT a.id, a.rol, r.nombre AS rol_nombre, a.alcance_tipo, a.alcance_id, a.nivel_max,
                 to_char(a.vigente_desde,'YYYY-MM-DD') AS desde,
-                to_char(a.vigente_hasta,'YYYY-MM-DD') AS hasta, a.acta_referencia
+                to_char(a.vigente_hasta,'YYYY-MM-DD') AS hasta, a.acta_referencia,
+                (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE) AS vigente,
+                s.nombre AS sede_nombre
            FROM identidad.asignaciones a
            LEFT JOIN identidad.roles r ON r.codigo = a.rol
+           LEFT JOIN org.sedes s ON a.alcance_tipo = 'sede' AND s.id = a.alcance_id
           WHERE a.persona_id = $1 AND a.revocada_en IS NULL
-          ORDER BY a.nivel_max DESC`, [p]);
+          ORDER BY (a.vigente_hasta IS NULL OR a.vigente_hasta >= CURRENT_DATE) DESC, a.nivel_max DESC`, [p]);
       const { rows: equipos } = await c.query(
         `SELECT u.id, u.nombre, u.clase, m.rol_en_unidad
            FROM org.unidad_miembros m JOIN org.unidades u ON u.id = m.unidad_id
           WHERE m.persona_id = $1 AND m.hasta IS NULL AND m.revocado_en IS NULL`, [p]);
+      const { rows: [tot] } = await c.query(`SELECT identidad.accesos_vigentes_de($1) AS n`, [p]);
+      const vivos = roles.filter((r: any) => r.vigente).length + equipos.length;
+      const fuera = Math.max(0, Number(tot?.n ?? 0) - vivos);
       return {
-        persona,
-        cuenta: cuenta.find((x: any) => x.persona_id === p) ?? null,
-        roles, equipos,
-        aviso: roles.length === 0 && equipos.length === 0
-          ? 'Esta persona no tiene ningún rol ni equipo: puede entrar y no ve nada.' : null,
+        persona, cuenta, roles, equipos,
+        accesos_fuera_de_su_alcance: fuera,
+        aviso: vivos === 0 && fuera === 0
+          ? 'Esta persona no tiene ningún rol ni equipo vigente: puede entrar y no ve nada.'
+          : fuera > 0 && vivos === 0
+            ? `Esta persona tiene ${fuera} acceso(s) en un alcance que usted no ve: no se muestran aquí.`
+            : null,
       };
     });
   }
@@ -819,7 +970,15 @@ export class AdministracionController {
                 pa.codigo AS sede_padre, s.ola_migracion
            FROM org.sedes s LEFT JOIN org.sedes pa ON pa.id = s.sede_padre_id
           WHERE s.id = $1`, [s]);
-      if (!sede) throw new NotFoundException('Esa iglesia no existe o no está en su alcance.');
+      if (!sede) throw new NotFoundException('Esa iglesia no existe.');
+      /* ⛔ Las sedes son dato N0 (cualquiera las lista), pero lo de ADENTRO
+         no: fuera del alcance, el RLS vaciaba los conteos y la ficha se
+         pintaba con ceros y con una alarma roja FALSA («NO tiene pastor»).
+         «No puedo ver al pastor» se convertía en «no hay pastor». */
+      const { rows: [vis] } = await c.query(`SELECT plataforma.sede_visible($1) AS ve`, [s]);
+      if (!vis?.ve) {
+        throw new ForbiddenException('Esa iglesia no está en su alcance: su ficha la ve quien la administra o la red.');
+      }
       const { rows: [conteo] } = await c.query(
         `SELECT (SELECT count(*) FROM nucleo.personas p WHERE p.sede_id = $1 AND p.eliminado_en IS NULL) AS personas,
                 (SELECT count(*) FROM grupos.grupos g WHERE g.sede_id = $1 AND g.cerrado_en IS NULL) AS grupos,

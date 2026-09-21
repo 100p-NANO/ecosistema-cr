@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { almacen, type Contexto } from '../contexto/contexto';
 import { MAX_NEGOCIO, TOTAL_POR_INSTANCIA } from './pozos';
@@ -94,6 +94,42 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
       await cliente.query('SELECT set_config($1,$2,true)', ['app.ip', ctx.ip ?? '']);
       if (process.env.APP_LLAVE_N4) {
         await cliente.query('SELECT set_config($1,$2,true)', ['app.llave_n4', process.env.APP_LLAVE_N4]);
+      }
+
+      /* ⛔ EL INTERRUPTOR DE MÓDULOS POR SEDE, APLICADO.
+         La consola dejaba apagar RocaKids en Panamá y no pasaba nada: el
+         pastor de Panamá seguía viendo la pestaña, entraba, y se le ofrecían
+         salas de otra sede. `sistema.modulos_sede` no se consultaba en
+         ninguna parte fuera de la consola.
+         Ahora, en las rutas de un módulo, las sedes donde está APAGADO salen
+         del contexto de la transacción. No hace falta tocar una sola política:
+         el RLS ya no ve esas sedes, ni para leer ni para escribir. Quien
+         alcanza toda la red pierde la marca de «global» solo si el módulo
+         está apagado en alguna sede; si está encendido en todas, nada cambia. */
+      if (ctx.modulo) {
+        const { rows: [m] } = await cliente.query(
+          `SELECT sistema.sedes_con_modulo($1) AS sedes,
+                  (SELECT count(*) FROM org.sedes s WHERE s.activa)::int AS activas,
+                  (SELECT nombre FROM sistema.modulos WHERE codigo = $1) AS nombre`, [ctx.modulo]);
+        const encendidas: string[] = m?.sedes ?? [];
+        let global = ctx.alcanceGlobal;
+        let sedes = ctx.sedeIds;
+        if (ctx.alcanceGlobal) {
+          if (encendidas.length < Number(m?.activas ?? 0)) { global = false; sedes = encendidas; }
+        } else {
+          sedes = ctx.sedeIds.filter((x) => encendidas.includes(x));
+        }
+        if (!global && sedes.length === 0) {
+          throw new ForbiddenException(
+            `El módulo «${m?.nombre ?? ctx.modulo}» está apagado en ` +
+            `${ctx.sedeIds.length === 1 ? 'su sede' : 'las sedes que usted alcanza'}. ` +
+            'Lo enciende la central desde «Qué ve cada iglesia».');
+        }
+        if (global !== ctx.alcanceGlobal || sedes !== ctx.sedeIds) {
+          await cliente.query('SELECT set_config($1,$2,true)', ['app.sede_ids', sedes.length ? `{${sedes.join(',')}}` : '']);
+          await cliente.query('SELECT set_config($1,$2,true)', ['app.alcance_global', String(global)]);
+          ctx = { ...ctx, sedeIds: sedes, alcanceGlobal: global };
+        }
       }
 
       const salida = await almacen.run({ ...ctx, cliente }, () => fn(cliente));

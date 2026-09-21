@@ -12,6 +12,16 @@ CREATE TEMP TABLE c_res(n int, caso text, esperado text, obtenido text, pasa boo
 CREATE FUNCTION pg_temp.rg(a int, b text, c text, d text, e boolean) RETURNS void
 LANGUAGE sql AS $$ INSERT INTO c_res VALUES (a,b,c,d,e) $$;
 
+/* ⛔ 21 sep 2026 · Desde la 0070, `agregar_valor` escribe con sus propios
+   permisos y por eso decide ELLA quién puede: exige una sesión, y alcance
+   de organización para los catálogos de la red. El banco entra como el
+   Pastor Director General, igual que entraría la consola. */
+SELECT set_config('app.persona_id',
+  (SELECT a.persona_id::text FROM identidad.asignaciones a
+    WHERE a.rol = 'PASTOR_DIRECTOR_GENERAL' AND a.revocada_en IS NULL LIMIT 1), false);
+SELECT set_config('app.alcance_global', 'true', false);
+SELECT set_config('app.nivel_max', '4', false);
+
 -- C1 · ⭐ «Culto de jovenes», sin migracion y sin despliegue.
 DO $$
 DECLARE existe boolean;
@@ -58,8 +68,8 @@ BEGIN
   BEGIN PERFORM sistema.agregar_valor('estado_aporte','medio_conciliado','Medio conciliado');
   EXCEPTION WHEN others THEN ok := true; msg := SQLERRM; END;
   PERFORM pg_temp.rg(4,'Se puede inventar un estado desde la consola','RECHAZADO con motivo',
-    CASE WHEN ok AND msg ~ 'cerrado a proposito' THEN 'RECHAZADO con motivo' ELSE COALESCE(msg,'ACEPTADO (mal)') END,
-    ok AND msg ~ 'cerrado a proposito');
+    CASE WHEN ok AND msg ~ 'cerrado a prop(o|ó)sito' THEN 'RECHAZADO con motivo' ELSE COALESCE(msg,'ACEPTADO (mal)') END,
+    ok AND msg ~ 'cerrado a prop(o|ó)sito');
 END $$;
 
 -- C5 · Todo catalogo cerrado tiene su motivo escrito.
@@ -157,6 +167,32 @@ BEGIN
    WHERE c.relkind='v' AND ns.nspname='aportes'
      AND c.relname IN ('v_detalle_por_persona','v_agregado_sede','v_pagos_sin_dueno');
   PERFORM pg_temp.rg(11,'La conversion se llevo vistas por delante','3 vistas', n||' vistas', n = 3);
+END $$;
+
+-- C12 · ⭐ Sin sesión, nadie amplía un catálogo. Antes la función no
+--       preguntaba quién llamaba: el único freno era que la aplicación
+--       tampoco podía escribir, así que fallaba para TODOS por igual.
+DO $$
+DECLARE ok boolean := false; v_ant text := current_setting('app.persona_id', true);
+BEGIN
+  PERFORM set_config('app.persona_id', '', true);
+  BEGIN PERFORM sistema.agregar_valor('tipo_servicio','sin_sesion','Sin sesion');
+  EXCEPTION WHEN insufficient_privilege THEN ok := true; END;
+  PERFORM set_config('app.persona_id', v_ant, true);
+  PERFORM pg_temp.rg(12,'Ampliar un catálogo sin sesión','RECHAZADO como debe',
+    CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
+END $$;
+
+-- C13 · ⭐ Un pastor de UNA sede no amplía un catálogo de toda la red.
+DO $$
+DECLARE ok boolean := false;
+BEGIN
+  PERFORM set_config('app.alcance_global', 'false', true);
+  PERFORM set_config('app.sede_ids', '{' || (SELECT id FROM org.sedes WHERE codigo='CHIA') || '}', true);
+  BEGIN PERFORM sistema.agregar_valor('tipo_servicio','de_una_sede','De una sede');
+  EXCEPTION WHEN insufficient_privilege THEN ok := true; END;
+  PERFORM pg_temp.rg(13,'Una sede amplía un catálogo de la red','RECHAZADO como debe',
+    CASE WHEN ok THEN 'RECHAZADO como debe' ELSE 'ACEPTADO (mal)' END, ok);
 END $$;
 
 -- Limpieza del laboratorio: el valor de prueba no se queda en el catalogo.

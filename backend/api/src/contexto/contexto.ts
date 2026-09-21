@@ -20,6 +20,9 @@ export interface Contexto {
   nivelMax: number;
   alcanceGlobal: boolean;
   ip: string | null;
+  /** Módulo de la ruta (rocakids, consejeria…). Si viene, solo cuentan las
+      sedes donde ese módulo está ENCENDIDO: ver DbService.enTransaccion. */
+  modulo?: string | null;
   /** El cliente de la transacción abierta para esta petición. */
   cliente?: PoolClient;
 }

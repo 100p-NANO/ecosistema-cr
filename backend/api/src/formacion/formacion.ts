@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Module, Param, Post, Query, Req, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Body, Controller, Get, Module, Param, Post, Query, Req, NotFoundException } from '@nestjs/common';
 import type { Request } from 'express';
 import { DbModule } from '../db/db.module';
 import { DbService } from '../db/db.service';
@@ -142,54 +142,102 @@ export class FormacionController {
     exigirNivel(req, 2, 'inscribir a alguien');
     return conSesion(this.db, req, async (c) => {
       const h = uuid(id, 'id'), p = uuid(b?.personaId, 'personaId');
+      const { rows: [visible] } = await c.query(`SELECT 1 FROM nucleo.v_personas WHERE id = $1`, [p]);
+      if (!visible) throw new ForbiddenException('Esa persona no está en su alcance.');
       const { rows: [ya] } = await c.query(
         `SELECT id, estado FROM formacion.inscripciones
           WHERE cohorte_id=$1 AND persona_id=$2 AND estado::text <> 'retirado'`, [h, p]);
       if (ya) return { id: ya.id, repetido: true, mensaje: 'Esa persona ya está inscrita en esta cohorte.' };
+      /* ⛔ El controlador contaba distinto que la base quién ocupa asiento, y
+         su comentario decía «se inscribe igual y se avisa» mientras la base
+         bloqueaba en duro. Manda la base: aquí se cuenta como ella y se dice
+         ANTES de intentar. */
       const { rows: [cupo] } = await c.query(
-        `SELECT h.cupo,
+        `SELECT h.cupo, h.valor, h.moneda,
                 (SELECT count(*) FROM formacion.inscripciones i
-                  WHERE i.cohorte_id = h.id AND i.estado::text <> 'retirado') AS inscritos
+                  WHERE i.cohorte_id = h.id AND i.estado::text NOT IN ('retirado','reprobado')) AS ocupan
            FROM formacion.cohortes h WHERE h.id = $1`, [h]);
       if (!cupo) throw new NotFoundException('Esa cohorte no existe o no está en su alcance.');
-      const excede = cupo.cupo && Number(cupo.inscritos) >= cupo.cupo;
+      if (cupo.cupo && Number(cupo.ocupan) >= cupo.cupo) {
+        throw new ConflictException(`La cohorte está llena (${cupo.ocupan} de ${cupo.cupo}). Amplíe el cupo o inscríbala en otra cohorte.`);
+      }
+      /* ⛔ En una cohorte con valor la base exige declarar el pago, y la
+         pantalla no tenía el campo: 400 siempre. Ahora se pide y se dice. */
+      const conValor = cupo.valor !== null && Number(cupo.valor) > 0;
+      const estadoPago = b?.estadoPago ? unoDe(b.estadoPago, 'estadoPago', PAGOS) : null;
+      if (conValor && (!estadoPago || estadoPago === 'no_aplica')) {
+        throw new BadRequestException(
+          `Esta cohorte cuesta ${cupo.valor} ${cupo.moneda ?? ''}`.trim() + ': diga el estado del pago (pendiente, pagado, parcial o exonerado).');
+      }
       try {
         const { rows: [i] } = await c.query(
           `INSERT INTO formacion.inscripciones (cohorte_id, persona_id, estado, estado_pago)
            VALUES ($1,$2,'inscrito',COALESCE($3,'no_aplica')::formacion.estado_pago)
            RETURNING id, estado, estado_pago, inscrito_en`,
-          [h, p, b?.estadoPago ? unoDe(b.estadoPago, 'estadoPago', PAGOS) : null]);
-        return {
-          ...i, repetido: false,
-          /* Se inscribe igual y SE AVISA: negarlo dejaría a la persona en la
-             puerta por un número, y el que decide si caben es el docente. */
-          aviso: excede
-            ? `Con esta, la cohorte queda en ${Number(cupo.inscritos) + 1} sobre un cupo de ${cupo.cupo}.`
-            : null,
-        };
+          [h, p, estadoPago]);
+        return { ...i, repetido: false, mensaje: 'Inscripción registrada.' };
       } catch (e: any) {
         if (e.code === '23503') throw new BadRequestException('La persona no está en su alcance.');
+        if (e.code === '23514') throw new BadRequestException(e.message);
+        if (e.code === '42501') throw new ForbiddenException('Esa persona o esa cohorte no están en su alcance.');
         throw e;
       }
     });
   }
 
-  /** Calificar y cerrar la inscripción. La nota manda sobre el estado. */
+  /**
+   * Cambiar el estado del pago de una inscripción.
+   * ⛔ NO EXISTÍA: una inscripción «pendiente» no podía pasar nunca a
+   * «pagado». El cambio queda en la auditoría con su referencia.
+   */
+  @Post('inscripciones/:id/pago')
+  pago(@Req() req: Request, @Param('id') id: string, @Body() b: any) {
+    exigirNivel(req, 2, 'registrar un pago de formación');
+    const estadoPago = unoDe(b?.estadoPago, 'estadoPago', PAGOS);
+    const referencia = textoOpcional(b?.referencia, 'referencia', { max: 120 });
+    return conSesion(this.db, req, async (c) => {
+      await c.query(`SELECT set_config('app.motivo', $1, true)`,
+        [referencia ? `Pago: ${referencia}` : 'Cambio de estado de pago']);
+      try {
+        const { rows: [i] } = await c.query(
+          `UPDATE formacion.inscripciones SET estado_pago = $2::formacion.estado_pago
+            WHERE id = $1 RETURNING id, estado_pago`, [uuid(id, 'id'), estadoPago]);
+        if (!i) throw new NotFoundException('Esa inscripción no existe o no está en su alcance.');
+        return { ...i, mensaje: 'Estado del pago actualizado. Queda en la auditoría.' };
+      } catch (e: any) {
+        if (e.code === '23514') throw new BadRequestException(e.message);
+        throw e;
+      }
+    });
+  }
+
   @Post('inscripciones/:id/calificar')
   calificar(@Req() req: Request, @Param('id') id: string, @Body() b: any) {
     exigirNivel(req, 2, 'calificar');
+    /* ⛔ El pago se ignoraba aquí en silencio (201). Tiene su propia ruta. */
+    if (b?.estadoPago !== undefined) {
+      throw new BadRequestException('El pago no se cambia al calificar: use «Registrar pago» de la inscripción.');
+    }
+    /* ⛔ Volver a calificar dejando la nota vacía BORRABA la anterior
+       (4.50 → cambiar solo el estado → vacío). Lo que no se manda, se
+       conserva; borrarla es una decisión explícita. */
+    const borrar = b?.borrarNota === true;
+    const nota = b?.nota === undefined || b?.nota === null || b?.nota === '' ? null : String(b.nota);
+    if (nota !== null && !/^\d{1,2}(\.\d{1,2})?$/.test(nota)) {
+      throw new BadRequestException('«nota» debe ser un número con máximo dos decimales (por ejemplo 4.5).');
+    }
     return conSesion(this.db, req, async (c) => {
       const { rows: [i] } = await c.query(
         `UPDATE formacion.inscripciones
-            SET nota_final = $2, estado = $3::formacion.estado_inscripcion
+            SET nota_final = CASE WHEN $4 THEN NULL ELSE COALESCE($2::numeric, nota_final) END,
+                estado = $3::formacion.estado_inscripcion
           WHERE id = $1 RETURNING id, nota_final, estado`,
-        [uuid(id, 'id'),
-         b?.nota === undefined || b?.nota === null ? null : String(b.nota),
-         unoDe(b?.estado, 'estado', ESTADOS)]);
+        [uuid(id, 'id'), nota, unoDe(b?.estado, 'estado', ESTADOS), borrar]);
       if (!i) throw new NotFoundException('Esa inscripción no existe o no está en su alcance.');
       return { ...i, mensaje: 'Calificación registrada.' };
     });
   }
+
 }
 
 @Module({ imports: [DbModule], controllers: [FormacionController] })

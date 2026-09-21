@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Module, Param, Post, Query, Req, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Body, Controller, Get, Module, Param, Post, Query, Req, NotFoundException } from '@nestjs/common';
 import type { Request } from 'express';
 import { DbModule } from '../db/db.module';
 import { DbService } from '../db/db.service';
@@ -68,8 +68,11 @@ export class GruposController {
            uuidOpcional(b?.ministerioId, 'ministerioId'), uuidOpcional(b?.segmentoId, 'segmentoId')]);
         return { ...g, mensaje: 'Grupo creado.' };
       } catch (e: any) {
+        /* ⛔ El tipo de grupo fuera del catálogo levantaba 23503 y este
+           mensaje CULPABA A LA SEDE. Ahora la base lo dice como regla. */
+        if (e.code === '23514') throw new BadRequestException(e.message);
         if (e.code === '23503') throw new BadRequestException('La sede, el ministerio o el segmento no existen o no están en su alcance.');
-        if (e.code === '23514') throw new BadRequestException('El grupo no cumple las reglas: ' + e.message);
+        if (e.code === '42501') throw new ForbiddenException('Esa sede no está en su alcance.');
         throw e;
       }
     });
@@ -112,6 +115,11 @@ export class GruposController {
     exigirNivel(req, 2, 'agregar a alguien a un grupo');
     return conSesion(this.db, req, async (c) => {
       const g = uuid(id, 'id'), p = uuid(b?.personaId, 'personaId');
+      /* ⛔ Con el token del pastor de Chía se agregó a Ana Rojas, de Bogotá
+         Chicó, a un grupo de Chía: la política solo miraba el GRUPO. La base
+         ya lo impide (0070); aquí se dice claro y antes. */
+      const { rows: [visible] } = await c.query(`SELECT 1 FROM nucleo.v_personas WHERE id = $1`, [p]);
+      if (!visible) throw new ForbiddenException('Esa persona no está en su alcance: solo se agrega a gente de las sedes que usted atiende.');
       const { rows: [ya] } = await c.query(
         `SELECT id FROM grupos.membresias WHERE grupo_id=$1 AND persona_id=$2 AND fecha_salida IS NULL`, [g, p]);
       if (ya) return { id: ya.id, repetido: true, mensaje: 'Esa persona ya está en el grupo.' };
@@ -124,6 +132,7 @@ export class GruposController {
       } catch (e: any) {
         if (e.code === '23503') throw new BadRequestException('El grupo o la persona no están en su alcance.');
         if (e.code === '23514') throw new BadRequestException(e.message);
+        if (e.code === '42501') throw new ForbiddenException('Esa persona o ese grupo no están en su alcance.');
         throw e;
       }
     });

@@ -86,13 +86,14 @@ async function main() {
 
   // A6 · ⭐ Un rol que alcanza datos N3/N4 NO entra sin segundo factor:
   //      recibe un token LIMITADO, que sirve para configurarlo y para nada más.
-  let acceso = '', refresco = '', limitado = '';
+  let acceso = '', refresco = '', limitado = '', refrescoLimitado = '';
   let secretoMfa = '';   // se rellena al activar el segundo factor (A6c)
   {
     const r = await pedir('/api/v1/auth/entrar', {
       method: 'POST', body: JSON.stringify({ usuario: USUARIO, clave: CLAVE }),
     });
     limitado = r.cuerpo?.acceso ?? '';
+    refrescoLimitado = r.cuerpo?.refresco ?? '';
     rg(6, 'Un rol N4 entra sin segundo factor', '200 pero limitado',
        `${r.estado} · debeConfigurar ${r.cuerpo?.debeConfigurarSegundoFactor === true}`,
        r.estado === 200 && r.cuerpo?.debeConfigurarSegundoFactor === true);
@@ -102,6 +103,24 @@ async function main() {
   {
     const r = await pedir('/api/v1/sesion/yo', { headers: { Authorization: `Bearer ${limitado}` } });
     rg(16, 'El token limitado abre los datos', '401', String(r.estado), r.estado === 401);
+  }
+
+  // A6d · ⭐ 21 sep 2026 · EL REFRESCO DEL INGRESO LIMITADO NO ABRE LOS DATOS.
+  //      Antes: el ingreso sin segundo factor entregaba un acceso limitado y
+  //      un refresco NORMAL; canjearlo devolvía un acceso completo. Con
+  //      usuario y contraseña bastaba para saltarse el segundo factor.
+  {
+    const r = await pedir('/api/v1/auth/refrescar', {
+      method: 'POST', body: JSON.stringify({ refresco: refrescoLimitado }),
+    });
+    const nuevo = r.cuerpo?.acceso ?? '';
+    const datos = await pedir('/api/v1/sesion/yo', { headers: { Authorization: `Bearer ${nuevo}` } });
+    rg(22, 'El refresco de un ingreso limitado da acceso completo', 'sigue limitado y 401 a los datos',
+       `refrescar ${r.estado} · limitado ${r.cuerpo?.debeConfigurarSegundoFactor === true} · datos ${datos.estado}`,
+       r.estado === 200 && r.cuerpo?.debeConfigurarSegundoFactor === true && datos.estado === 401);
+    /* El refresco ROTA la sesión: el acceso limitado anterior queda
+       revocado. Se sigue con el nuevo, que también es limitado. */
+    if (nuevo) limitado = nuevo;
   }
 
   // A6c · Se configura el segundo factor y se entra de verdad.

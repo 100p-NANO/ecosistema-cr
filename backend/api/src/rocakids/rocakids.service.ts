@@ -102,8 +102,16 @@ export class RocakidsService {
     const { rows } = await c.query(
       `SELECT rocakids.entregar_menor($1,$2,$3,$4) AS resultado`,
       [d.checkinId, d.retiradoPor, d.codigo, d.maestroId]);
-    const r = rows[0]?.resultado as string;
+    /* ⛔ NO se lanza aquí. La base ya escribió el intento; si esta función
+       lanzara, la transacción se desharía y se LLEVARÍA LA PRUEBA, y la
+       alerta de «dos intentos fallidos sobre el mismo niño» no podría
+       dispararse nunca. El rechazo lo lanza el controlador, DESPUÉS del
+       COMMIT (ver `respuestaDeEntrega`). */
+    return { resultado: rows[0]?.resultado as string };
+  }
 
+  /** Traduce el resultado de la entrega. Se llama FUERA de la transacción. */
+  respuestaDeEntrega(r: string) {
     switch (r) {
       case 'entregado':        return { entregado: true, mensaje: 'Menor entregado.' };
       case 'ya_entregado':     throw new BadRequestException('Ese menor ya fue entregado.');
@@ -114,6 +122,7 @@ export class RocakidsService {
       default:                 throw new BadRequestException(`No se pudo entregar: ${r}`);
     }
   }
+
 
   /** Quién está sirviendo en la sala, para la regla de dos adultos. */
   async servidores(c: PoolClient, salaId: string) {

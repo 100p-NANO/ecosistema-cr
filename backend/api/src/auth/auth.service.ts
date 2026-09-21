@@ -110,15 +110,46 @@ export class AuthService {
     return this.emitirPar(c.cuenta_id, ip, agente, null, c.debe_cambiar_clave);
   }
 
-  /** Renovar el acceso. El refresco se ROTA: usarlo dos veces lo invalida. */
+  /**
+   * Renovar el acceso. El refresco se ROTA: usarlo dos veces lo invalida.
+   *
+   * ⛔ 21 de septiembre de 2026 · SE PODÍA SALTAR EL SEGUNDO FACTOR ENTERO.
+   * Quien entraba sin haberlo configurado recibía un acceso LIMITADO (solo
+   * sirve para configurarlo) y un refresco NORMAL; canjeando ese refresco
+   * salía un acceso completo. Con usuario y contraseña bastaba. Lo único que
+   * lo frenaba era que el navegador tiraba ese refresco por su cuenta: desde
+   * cualquier otro cliente no había compuerta.
+   *
+   * Ahora hay dos cerraduras: el refresco hereda la limitación (firmada, no
+   * se puede quitar), y además se vuelve a preguntar a la base por la cuenta.
+   * Si la cuenta exige segundo factor y no lo tiene activo, el refresco solo
+   * devuelve otro acceso limitado, venga de donde venga.
+   */
   async refrescar(tokenRefresco: string, ip: string | null, agente: string | null) {
     const cuerpo = verificarToken(tokenRefresco, this.secreto);
     if (!cuerpo || cuerpo.typ !== 'refresco') throw new UnauthorizedException('Sesión no válida.');
 
     const { rows } = await this.pool.query(
       `SELECT * FROM identidad.contexto_de_sesion($1)`, [cuerpo.jti]);
-    if (!rows[0]) throw new UnauthorizedException('La sesión ya no está activa.');
+    const sesion = rows[0];
+    if (!sesion) throw new UnauthorizedException('La sesión ya no está activa.');
 
+    const { rows: [cred] } = await this.pool.query(
+      `SELECT * FROM identidad.credencial_de($1)`, [sesion.usuario]);
+    if (!cred || cred.estado !== 'activa') {
+      throw new UnauthorizedException('La cuenta no está activa. Comuníquese con la central.');
+    }
+
+    const limitado = cuerpo.lim === 'configurar_mfa'
+      || (Boolean(cred.exige_segundo_factor) && !cred.segundo_factor_activo);
+    if (limitado) {
+      const par = await this.emitirPar(cuerpo.cta, ip, agente, cuerpo.jti, false, 'configurar_mfa');
+      return {
+        ...par,
+        debeConfigurarSegundoFactor: true,
+        aviso: 'Su rol alcanza datos sensibles: antes de entrar tiene que activar el segundo factor.',
+      };
+    }
     return this.emitirPar(cuerpo.cta, ip, agente, cuerpo.jti, false);
   }
 
@@ -235,7 +266,9 @@ export class AuthService {
     const base = { sub: personaId ?? cuentaId, cta: cuentaId };
     return {
       acceso: firmarToken({ ...base, jti: jtiAcceso, typ: tipo }, MINUTOS_ACCESO * 60, this.secreto),
-      refresco: firmarToken({ ...base, jti: jtiRefresco, typ: 'refresco' }, MINUTOS_REFRESCO * 60, this.secreto),
+      refresco: firmarToken(
+        { ...base, jti: jtiRefresco, typ: 'refresco', ...(tipo === 'configurar_mfa' ? { lim: 'configurar_mfa' as const } : {}) },
+        MINUTOS_REFRESCO * 60, this.secreto),
       expiraEnSegundos: MINUTOS_ACCESO * 60,
       debeCambiarClave,
     };
