@@ -25,7 +25,7 @@ export function pintarCalendario(c, sesion) {
           { titulo: 'Cuándo', pintar: e => `${esc(e.inicia)}<br><span class="ayuda">hasta ${esc(e.termina.slice(11))}</span>` },
           { titulo: 'Estado', pintar: e => chipEstado(e.estado) + (e.motivo_cancelacion ? `<br><span class="ayuda">${esc(e.motivo_cancelacion)}</span>` : '') },
           { titulo: 'Sede', campo: 'sede' },
-          { titulo: 'Responsable', pintar: e => esc(e.responsable ?? '—') },
+          { titulo: 'Responsable', pintar: e => esc(e.responsable ?? '·') },
         ])
       : vacio('📅', 'Nada agendado', 'Agende el primer evento con el formulario de arriba.')),
   });

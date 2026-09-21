@@ -20,7 +20,7 @@ export function pintarRequerimientos(c) {
           { titulo: 'Prioridad', pintar: r => chip(r.prioridad, PRIORIDAD[r.prioridad] ?? '') },
           { titulo: 'Estado', pintar: r => chipEstado(r.estado) },
           { titulo: 'Vence', pintar: r => `${esc(r.vence)}${r.vencido ? '<br>' + chip('vencido', 'distintivo--n4') : ''}` },
-          { titulo: 'Atiende', pintar: r => esc(r.asignado ?? '—') },
+          { titulo: 'Atiende', pintar: r => esc(r.asignado ?? '·') },
         ])
       : vacio('🛠', abiertos ? 'Nada pendiente' : 'Ningún requerimiento', 'Lo que una sede reporte aparece aquí con su plazo.')),
   });
@@ -53,7 +53,7 @@ export function pintarRequerimiento(c, id) {
       const r = d.requerimiento;
       const abierto = !['resuelto', 'cerrado', 'cancelado'].includes(r.estado);
       return `<div class="tarjeta">
-        ${cabezaFicha(r.asunto, `${r.categoria_nombre ?? r.categoria} · ${r.sede} · reportado por ${r.reportado_por_nombre ?? '—'}`,
+        ${cabezaFicha(r.asunto, `${r.categoria_nombre ?? r.categoria} · ${r.sede} · reportado por ${r.reportado_por_nombre ?? 'sin dato'}`,
           [chipEstado(r.estado), chip('prioridad ' + r.prioridad, PRIORIDAD[r.prioridad] ?? ''), r.vencido ? chip('vencido', 'distintivo--n4') : ''].filter(Boolean))}
         ${r.detalle ? `<p class="texto-largo">${esc(r.detalle)}</p>` : ''}
         <p class="ayuda">Vence ${esc(fechaHora(r.vence_en))}${r.asignado ? ` · lo atiende ${esc(r.asignado)}` : ''}</p>

@@ -20,7 +20,7 @@ export function pintarPeticiones(c) {
           { titulo: 'Prioridad', pintar: p => chip(p.prioridad, PRIORIDAD[p.prioridad] ?? '') },
           { titulo: 'Estado', pintar: p => chipEstado(p.estado) },
           { titulo: 'Enviada', pintar: p => `${esc(p.fecha)}<br><span class="ayuda">hace ${esc(p.dias)} día(s)</span>` },
-          { titulo: 'Decidió', pintar: p => p.decidida_por ? `${esc(p.decidida_por)}<br><span class="ayuda">${esc(p.decidida_en)}</span>` : '—' },
+          { titulo: 'Decidió', pintar: p => p.decidida_por ? `${esc(p.decidida_por)}<br><span class="ayuda">${esc(p.decidida_en)}</span>` : '·' },
         ])
       : vacio('📨', 'Ninguna petición', 'Lo que se le pida a la dirección aparece aquí con su decisión.')),
   });
@@ -52,7 +52,7 @@ export function pintarPeticion(c, id) {
       const p = d.peticion;
       const pendiente = ['enviada', 'en_revision'].includes(p.estado);
       return `<div class="tarjeta">
-        ${cabezaFicha(p.asunto, `${p.tipo_nombre ?? p.tipo} · ${p.sede} · pedida por ${p.solicitante ?? '—'}`,
+        ${cabezaFicha(p.asunto, `${p.tipo_nombre ?? p.tipo} · ${p.sede} · pedida por ${p.solicitante ?? 'sin dato'}`,
           [chipEstado(p.estado), chip('prioridad ' + p.prioridad, PRIORIDAD[p.prioridad] ?? '')])}
         <p class="texto-largo">${esc(p.detalle)}</p>
         ${p.decision ? `<h3 style="margin-top:1rem">Decisión</h3><p class="texto-largo">${esc(p.decision)}</p>

@@ -31,7 +31,7 @@ export function pintarTalento(c) {
               { titulo: 'Nombre', pintar: v => `<strong>${esc(v.nombre_completo)}</strong>` },
               { titulo: 'Función', pintar: v => `${esc(v.funcion)}<br><span class="ayuda">${esc(v.ministerio)} · ${esc(v.sede)}</span>` },
               { titulo: 'Estado', pintar: v => chip(v.estado, v.estado === 'activo' ? '' : 'distintivo--aviso') },
-              { titulo: 'Con menores', pintar: v => !v.trabaja_con_menores ? '—'
+              { titulo: 'Con menores', pintar: v => !v.trabaja_con_menores ? '·'
                   : v.apto_para_menores ? chip('apto') : chip('SIN antecedentes', 'distintivo--n4') },
               { titulo: '', pintar: v => `<a class="boton boton--suave" href="#/talento/${esc(v.persona_id)}">Antecedentes</a>` },
             ])

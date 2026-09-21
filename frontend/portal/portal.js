@@ -247,7 +247,7 @@ function derechos(v) {
       <thead><tr><th>Radicado</th><th>Estado</th><th>Plazo</th></tr></thead><tbody>
       ${resumen.peticiones.map(p => `<tr><td data-th="Radicado"><strong>${esc(p.radicado)}</strong><br><span class="ayuda">${esc(TIPO_PETICION[p.tipo] ?? p.tipo)}</span>
         ${p.respuesta ? `<p class="texto-largo" style="margin:.4rem 0 0">${esc(p.respuesta)}</p>` : ''}</td>
-        <td data-th="Estado">${esc(String(p.estado).replace('_', ' '))}</td><td data-th="Plazo">${esc(p.vence ?? '—')}</td></tr>`).join('')}
+        <td data-th="Estado">${esc(String(p.estado).replace('_', ' '))}</td><td data-th="Plazo">${esc(p.vence ?? '·')}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="ayuda">No ha radicado ninguna petición.</p>'}`;
   v.querySelector('#f-pet').addEventListener('submit', ev => {
     ev.preventDefault();

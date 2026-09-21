@@ -240,6 +240,23 @@ const UNIDADES = [
     activa: true, padre: 'Casa Sobre la Roca · Central', lider: null, integrantes: '1', roles: '0' },
 ];
 
+/* La bandeja de salida de la demostración: dos avisos que no salieron,
+   uno pasajero que agotó sus intentos y uno definitivo que no se reintenta. */
+const AVISOS = {
+  salud: { pendientes: 2, esperando_reintento: 1, enviando: 0, segundos_del_mas_viejo: 95,
+           ultimo_envio: new Date(Date.now() - 10 * 60000).toISOString() },
+  muertos: [
+    { id: id(1300), sede: 'MED', destinatario: 'l•••@example.org', canal: 'email',
+      plantilla: 'Bienvenida_miembro', estado: 'fallida', intentos: 5,
+      ultimo_error: 'El proveedor no respondió en 10 s, cinco veces seguidas (pasajero).',
+      creada_en: new Date(Date.now() - 26 * 3600000).toISOString(), proximo_intento: null },
+    { id: id(1301), sede: 'CHIA', destinatario: 'j•••@example.org', canal: 'email',
+      plantilla: 'Certificado_aportes', estado: 'fallida', intentos: 1,
+      ultimo_error: 'El servidor de destino rechazó la dirección (550): definitivo, no se reintenta.',
+      creada_en: new Date(Date.now() - 5 * 3600000).toISOString(), proximo_intento: null },
+  ],
+};
+
 const CATALOGOS = [
   { codigo: 'estado_civil', nombre: 'Estado civil',
     descripcion: 'Lista abierta: cambia con la ley y con la realidad de la gente.',
@@ -430,6 +447,37 @@ const YO = {
   ],
 };
 const buscar = (lista, x) => lista.find(e => e.id === x);
+
+/* Fichas de la demostración: se arman una vez por persona y lo que se
+   corrige vive en esta pestaña. */
+const FICHAS = {};
+function fichaDemo(personaId) {
+  const p = PERSONAS.find(x => x.id === personaId) ?? PERSONAS[0];
+  if (!FICHAS[p.id]) {
+    const [nombre, apellido1, apellido2] = p.nombre.split(' ');
+    const sede = SEDES.find(s => s.codigo === p.sede) ?? SEDES[0];
+    const n = PERSONAS.indexOf(p);
+    FICHAS[p.id] = {
+      primer_nombre: nombre, segundo_nombre: null, primer_apellido: apellido1, segundo_apellido: apellido2 ?? null,
+      tipo_documento: 'CC', numero_documento: p.numero_documento,
+      fecha_nacimiento: `19${80 + n}-0${1 + (n % 9)}-1${n % 10}`,
+      email_principal: nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') + '@example.org',
+      telefono_movil: '300 555 01' + String(10 + n), telefono_fijo: null, telefono_emergencia: null, email_secundario: null,
+      direccion: 'Calle ' + (10 + n) + ' # ' + (4 + n) + '-2' + n, ciudad_residencia: sede.ciudad, zona: null, pais_residencia: 'Colombia',
+      genero: n % 2 ? 'masculino' : 'femenino', estado_civil: n % 3 ? 'casado' : 'soltero', nacionalidad: 'colombiana',
+      nombre_corto: null, ha_sido_bautizado: n % 4 !== 0, fecha_bautismo: n % 4 !== 0 ? '2015-06-1' + (n % 10) : null,
+      fecha_conversion: '2014-0' + (1 + (n % 9)) + '-20', es_cristiano: true, iglesia_anterior: null,
+      nivel_compromiso: ['visitante', 'asistente', 'miembro', 'servidor'][n % 4], es_ministro: false,
+      estado: p.estado ?? 'activa', sede_id: sede.id, sede_codigo: sede.codigo, sede_nombre: sede.nombre,
+    };
+  }
+  const f = FICHAS[p.id];
+  const anios = f.fecha_nacimiento ? Math.floor((Date.now() - new Date(f.fecha_nacimiento)) / 31557600000) : null;
+  return { id: p.id, ...f,
+    nombre: [f.primer_nombre, f.segundo_nombre, f.primer_apellido, f.segundo_apellido].filter(Boolean).join(' '),
+    edad: anios, es_menor: anios != null && anios < 18,
+    nivel_de_la_sesion: 4, campos_ocultos: [], puede_editar: true };
+}
 const demoGuarda = (mensaje) => ({ mensaje: mensaje + ' (demostración: vive solo en esta pestaña)' });
 
 /** Respuestas por ruta. La clave es «MÉTODO ruta» con los identificadores
@@ -599,6 +647,33 @@ function responder(metodo, ruta, cuerpo = null) {
     'GET /personas': () => {
       const t = (q.get('q') ?? '').toLowerCase();
       return PERSONAS.filter(x => !t || x.nombre.toLowerCase().includes(t));
+    },
+    /* La ficha de la persona (21 sep 2026). Los datos de contacto se
+       inventan a partir del nombre; nada de esto es de nadie. */
+    'GET /personas/:id': () => fichaDemo(trozos[1]),
+    'PUT /personas/:id': () => {
+      const f = fichaDemo(trozos[1]);
+      Object.assign(FICHAS[f.id], Object.fromEntries(Object.entries(cuerpo ?? {}).filter(([, v]) => v !== '')));
+      return fichaDemo(trozos[1]);
+    },
+    'GET /personas/:id/linea-tiempo': () => {
+      const f = fichaDemo(trozos[1]);
+      return [
+        { ocurrido_en: new Date(Date.now() - 3 * 864e5).toISOString(), tipo: 'ASISTENCIA', tipo_nombre: 'Asistencia a un servicio',
+          nivel: 2, resumen: 'Asistió al servicio del domingo en ' + f.sede_nombre },
+        { ocurrido_en: new Date(Date.now() - 40 * 864e5).toISOString(), tipo: 'INGRESO_GRUPO', tipo_nombre: 'Ingreso a un grupo',
+          nivel: 2, resumen: 'Entró al grupo ' + (GRUPOS[0]?.nombre ?? 'de su barrio') },
+        { ocurrido_en: new Date(Date.now() - 95 * 864e5).toISOString(), tipo: 'PRIMERA_VISITA', tipo_nombre: 'Primera visita',
+          nivel: 2, resumen: 'Llegó por invitación de un amigo' },
+      ];
+    },
+    'GET /personas/:id/atributos': () => [
+      { codigo: 'talla_camiseta', etiqueta: 'Talla de camiseta', modulo: 'eventos', tipo_dato: 'opcion', nivel_dato: 1, valor: 'M' },
+    ],
+    'GET /personas/:id/duplicados': () => {
+      const f = fichaDemo(trozos[1]);
+      const otra = PERSONAS.find(x => x.id !== f.id && x.nombre.split(' ')[1] === f.primer_apellido);
+      return otra ? [{ candidata_id: otra.id, nombre: otra.nombre, sede_codigo: otra.sede, puntaje: 0.52, motivos: 'apellido igual' }] : [];
     },
     'GET /asistencia/servicios': () => ({ total_filas: SERVICIOS.length, desde: 0, servicios: SERVICIOS }),
     'POST /asistencia/servicios': () => ({ id: id(299), fecha: d(0), hora: '09:00', mensaje: 'En la demostración nada se guarda.' }),
@@ -1169,13 +1244,71 @@ function responder(metodo, ruta, cuerpo = null) {
       return { mensaje: 'Sesión cerrada. Surte efecto ahora, no cuando expire el token.' };
     },
 
-    'GET /administracion/auditoria': () => ({ total_filas: 2, movimientos: [
+    /* ⛔ Sin `total`, la bitácora paginada (21 sep) pintaba «1 a NaN de
+       undefined»: la API real lo manda desde que pagina. */
+    'GET /administracion/auditoria': () => ({ total: 2, desde: 0, limite: 25, total_filas: 2, movimientos: [
       { ocurrido_en: new Date().toISOString(), esquema: 'aportes', tabla: 'aportes', operacion: 'I', actor: 'Rosa Cifuentes Lara', actor_ip: '190.0.0.4' },
       { ocurrido_en: new Date(Date.now()-36e5).toISOString(), esquema: 'identidad', tabla: 'asignaciones', operacion: 'U', actor: 'Marta Quiroga Peña', actor_ip: '190.0.0.1' }] }),
-    'GET /administracion/lecturas': () => ({ total_filas: 1, lecturas: [
+    'GET /administracion/lecturas': () => ({ total: 1, desde: 0, limite: 25, total_filas: 1, lecturas: [
       { ocurrido_en: new Date().toISOString(), esquema: 'consejeria', tabla: 'casos', nivel: 3,
         motivo: 'ficha completa del caso, con notas', filas_leidas: 1, actor: 'Rosa Cifuentes Lara', actor_ip: '190.0.0.4' }],
       aviso: 'Esta bitácora existe para que mirar por curiosidad tenga nombre y hora.' }),
+    /* ⛔ 21 sep 2026 · La consola estrenó ese día «Puesta en marcha» contada
+       por la base, y la pestaña «Avisos e integraciones». Ninguna de las
+       tres rutas llegó a la demostración: la PRIMERA pantalla de la consola
+       publicada decía «esta pantalla todavía no trae datos de ejemplo».
+       Las cifras salen del mismo estado de esta pestaña que usan las demás
+       pantallas, para que la puesta en marcha y el tablero no se
+       contradigan con lo que se ve al entrar a cada una. */
+    'GET /administracion/arranque': () => {
+      const equipos = UNIDADES.filter(x => x.clase === 'equipo' && x.activa !== false);
+      const conAcceso = new Set([
+        ...PERSONAS.slice(0, 3).map(x => x.id),
+        ...Object.keys(G.asignaciones).filter(k => (G.asignaciones[k] ?? []).some(a => !a.revocada)),
+      ]);
+      return {
+        directores: 1,
+        equipos: equipos.length,
+        equipos_con_rol: equipos.filter(x => Number(x.roles) > 0).length,
+        iglesias_activas: SEDES.filter(s => s.activa).length,
+        iglesias_con_pastor: SEDES.filter(s => s.activa).length,
+        iglesias_sin_pastor: [],
+        personas_con_acceso: conAcceso.size,
+        plantillas: G.plantillas.length,
+        plantillas_sin_nucleo: G.plantillas.filter(pl =>
+          MODULOS_DEMO.some(m => m.es_nucleo && !pl.modulos.has(m.codigo))).length,
+        alcance_de_red: true,
+      };
+    },
+    'GET /administracion/avisos': () => ({
+      salud: { ...AVISOS.salud, muertos: AVISOS.muertos.length },
+      avisos: AVISOS.muertos, total_filas: AVISOS.muertos.length,
+      aviso: AVISOS.muertos.length
+        ? `${AVISOS.muertos.length} aviso(s) murieron tras sus intentos. Revise el error de cada uno antes de reprocesar.`
+        : null }),
+    'POST /administracion/avisos/:id/reprocesar': () => {
+      if (String(cuerpo?.motivo ?? '').trim().length < 5) {
+        noEnDemo('Escriba qué cambió para que ahora sí salga: queda en la auditoría.');
+      }
+      const i = AVISOS.muertos.findIndex(x => x.id === trozos[2]);
+      if (i < 0) noEnDemo('Ese aviso ya no está entre los que no salieron.');
+      AVISOS.muertos.splice(i, 1);
+      AVISOS.salud.pendientes += 1;
+      return demoGuarda('Aviso devuelto a la cola. Sale en la próxima vuelta del trabajador.');
+    },
+    'GET /administracion/integraciones': () => ({
+      integraciones: [
+        { clave: 'sendgrid', nombre: 'Correo (SendGrid)', configurada: true, variable: 'SENDGRID_API_KEY',
+          modo_degradado: 'Sin llave o con el proveedor caído, los avisos esperan en la cola: no se pierden ni gastan intentos.',
+          ultimo: { ok: true, estado: 202, ms: 184 }, circuito_abierto: false, fallos_seguidos: 0 },
+        { clave: 'recaptcha', nombre: 'Formulario público (reCAPTCHA)', configurada: true, variable: 'RECAPTCHA_SECRET',
+          modo_degradado: 'Si Google no responde, el formulario de «soy nuevo» sigue abierto; el límite por IP frena a los robots.',
+          ultimo: { ok: true, estado: 200, ms: 96 }, circuito_abierto: false, fallos_seguidos: 0 },
+        { clave: 'payu', nombre: 'Pagos (PayU)', configurada: false, variable: 'PAYU_API_KEY',
+          modo_degradado: 'Sin llave, los avisos de pago se guardan como no verificados y NO se convierten en aportes.',
+          ultimo: null, circuito_abierto: false, fallos_seguidos: 0 },
+      ],
+      nota: 'El estado de «último intento» es de esta instancia de la API y se reinicia al desplegar.' }),
     'GET /identidad/roles': () => [
       { codigo: 'PASTOR_DIRECTOR_GENERAL', nombre: 'Pastor Director General', activo: true },
       { codigo: 'TESORERIA', nombre: 'Tesorería', activo: true },

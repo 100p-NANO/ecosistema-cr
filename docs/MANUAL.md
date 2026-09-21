@@ -44,7 +44,7 @@
 | 12 | Autenticación | ✅ | scrypt, segundo factor, bloqueo por intentos; 22 pruebas |
 | 13 | Sesión y tokens | ✅ | Sesión viva en la base, acceso 30 min, renovación 12 h |
 | 14 | Autorización y tenencia en el código | ✅ | Doble cerradura; 98 + 37 conectores que preguntan a la base |
-| 15 | Migraciones sin caída | 🟠 | 77 migraciones desde cero en cada verificación; regla de agregar, usar y quitar escrita en el RUNBOOK · no ensayado contra producción |
+| 15 | Migraciones sin caída | 🟠 | 78 migraciones desde cero en cada verificación; regla de agregar, usar y quitar escrita en el RUNBOOK · no ensayado contra producción |
 | 16 | Esqueleto del backend | ✅ | NestJS 12 por módulos, `/salud`, arranque que se niega con un rol que salte la seguridad por fila |
 | 17 | Contrato de API | ✅ | 197 rutas en `openapi.yaml`, generado y comparado en cada verificación |
 | 18 | Persistencia y transacciones | ✅ | Contexto por transacción, idempotencia en el check-in y en la migración |
@@ -92,7 +92,7 @@
 | # | Estación | Estado | Evidencia · qué falta |
 |---|---|---|---|
 | 47 | Seguridad aplicada | 🟠 | `docs/SEGURIDAD-ASVS-L2.md` · falta la prueba de intrusión externa |
-| 48 | Pruebas | 🟠 | 19 bancos (265 invariantes), 135 conectores, extremo a extremo, ensayo de migración · falta automatizar el navegador |
+| 48 | Pruebas | 🟠 | 20 bancos (287 invariantes), 146 conectores, extremo a extremo, ensayo de migración · falta automatizar el navegador |
 | 49 | Canal de despliegue y entrega | 🟠 | `desplegar.sh`, Cloud Build, `revertir-despliegue.sh` · la CI de GitHub espera un permiso (`gh auth refresh -s workflow`) |
 | 50 | Observabilidad de plataforma | 🟠 | Alertas de plataforma y del negocio en Terraform · sin aplicar |
 | 51 | Respaldo y continuidad | ✅ | Restauración ejecutada y medida con el volumen de la red · el RPO lo asume la mesa |

@@ -145,7 +145,7 @@ const opcPersonas = () => buscarPersonas('');
  * persona ya elegida NO se pierde aunque deje de coincidir con lo escrito.
  * ⛔ Antes una sola tecla deseleccionaba a la persona elegida.
  */
-function enlazarBuscador(inp, sel, { vacio = '— elija una persona —', alCambiar = null, iniciales = null } = {}) {
+function enlazarBuscador(inp, sel, { vacio = 'Elija una persona', alCambiar = null, iniciales = null } = {}) {
   const conocidas = new Map();
   const pintarOpciones = (l) => {
     const elegido = sel.value;
@@ -469,7 +469,7 @@ function tablaMs(filas, cols, vacio = 'Nada todavía.', abre = null) {
        el enlace de la primera celda, que ya existe y ya se alcanza con el
        tabulador; la fila es solo un blanco más grande para el dedo. */
     const at = abre ? ` class="ms-fila-abre" data-${abre.attr}="${esc(abre.id(f))}"` : '';
-    return `<tr${at}>${cols.map(c => `<td>${c.p ? c.p(f) : esc(f[c.k] ?? '—')}</td>`).join('')}</tr>`;
+    return `<tr${at}>${cols.map(c => `<td>${c.p ? c.p(f) : esc(f[c.k] ?? '·')}</td>`).join('')}</tr>`;
   };
   return `<div class="ms-scroll"><table class="ms-tabla">
     <thead><tr>${cols.map(c => `<th>${esc(c.t)}</th>`).join('')}</tr></thead>
@@ -532,7 +532,7 @@ function pedir(campos, titulo) {
     });
     d.querySelectorAll('[data-busca]').forEach(inp => {
       const sel = d.querySelector(`select[name="${inp.dataset.busca}"]`);
-      enlazarBuscador(inp, sel, { vacio: '— elija de la lista —' });
+      enlazarBuscador(inp, sel, { vacio: 'Elija de la lista' });
     });
     d.querySelector('input,select')?.focus();
     d.querySelector('#b-cancelar').addEventListener('click', () => { d.remove(); resolve(null); });
@@ -754,7 +754,7 @@ const VISTAS = {
           <div class="ms-fila2">
             <label class="ms-campo"><span>Tipo de documento</span>
               <select name="tipoDocumento">
-                <option value="">— sin documento —</option>
+                <option value="">Sin documento</option>
                 ${(cat.tiposDocumento ?? []).map(t =>
                   `<option value="${esc(t.codigo)}">${esc(t.codigo)} · ${esc(t.etiqueta)}</option>`).join('')}
               </select></label>
@@ -798,7 +798,7 @@ const VISTAS = {
             <input class="ms-filtro" id="q-persona" placeholder="Escriba para buscar a alguien ya registrado"
                    style="margin-bottom:6px">
             <select name="personaId" required id="sel-persona" size="6">
-              <option value="">— registre a alguien arriba o búsquelo aquí —</option>
+              <option value="">Registre a alguien arriba o búsquelo aquí</option>
             </select></label>
           <label class="ms-campo"><span>Usuario (correo) <i class="ms-req">obligatorio</i></span>
             <input name="usuario" type="email" required></label>
@@ -821,7 +821,7 @@ const VISTAS = {
     const fp = m.querySelector('#f-persona');
     const bloqueAcu = m.querySelector('#bloque-acudiente');
     enlazarBuscador(m.querySelector('#q-acudiente'), m.querySelector('#sel-acudiente'),
-      { vacio: '— elija al acudiente —' });
+      { vacio: 'Elija al acudiente' });
     fp.elements.fechaNacimiento.addEventListener('change', () => {
       bloqueAcu.hidden = !esMenor(fp.elements.fechaNacimiento.value);
       fp.elements.acudienteId.required = !bloqueAcu.hidden;
@@ -856,7 +856,7 @@ const VISTAS = {
         if (d.email) m.querySelector('#f-cuenta').elements.usuario.value = d.email;
         /* ⛔ Antes solo se insertaba la opción en el DOM. Bastaba teclear
            una letra en el filtro para que el `select` se reconstruyera
-           desde el array `personas` —que no la tenía— y la persona recién
+           desde el array `personas` (que no la tenía) y la persona recién
            registrada desapareciera, dejando el paso 2 bloqueado sin
            explicar por qué. Ahora entra en el ARRAY, que es la fuente. */
         buscador.elegir(r.id, `${d.primerNombre} ${d.primerApellido} · recién registrada`);
@@ -876,7 +876,7 @@ const VISTAS = {
        elegida se perdía con una tecla. Ahora pregunta al servidor y la
        recién registrada queda elegida aunque se siga escribiendo. */
     const buscador = enlazarBuscador(m.querySelector('#q-persona'), m.querySelector('#sel-persona'),
-      { vacio: '— elija a quien va a tener cuenta —' });
+      { vacio: 'Elija a quien va a tener cuenta' });
 
     m.querySelector('#f-cuenta').addEventListener('submit', async ev => {
       ev.preventDefault();
@@ -949,14 +949,14 @@ Object.assign(VISTAS, {
                 <button class="ms-btn ms-btn--peq" data-rev="${esc(a.id)}" style="margin-top:4px">Revocar</button>` },
             { t: 'Alcance', p: a => esc(ALC(a)) },
             { t: 'Techo', p: a => niv(a.nivel_max) },
-            { t: 'Desde', p: a => esc(String(a.vigente_desde ?? a.desde ?? '—').slice(0, 10)) },
+            { t: 'Desde', p: a => esc(String(a.vigente_desde ?? a.desde ?? '·').slice(0, 10)) },
             { t: 'Acta', p: a => a.acta_referencia ? `<code>${esc(a.acta_referencia)}</code>` : '<span class="ms-falta">sin acta</span>' },
           ], fuera ? 'Ningún rol a su alcance.' : 'Sin roles vigentes: esta persona puede entrar y no ve nada.')}
           ${pasadas.length ? `<details class="ms-plegable"><summary>Roles revocados o vencidos · ${pasadas.length}</summary>
             ${tablaMs(pasadas, [
               { t: 'Rol', p: a => `<b>${esc(a.rol_nombre ?? a.rol)}</b><span class="ms-doc">${esc(a.rol)}</span>` },
               { t: 'Estado', p: a => `<span class="ms-chip">${esc(a.estado ?? 'no vigente')}</span>` },
-              { t: 'Motivo', p: a => esc(a.motivo_revocacion ?? '—') },
+              { t: 'Motivo', p: a => esc(a.motivo_revocacion ?? '·') },
             ])}</details>` : ''}
           <h2 class="ms-h2">Lo que alcanza de verdad <span class="num">${permisos.length}</span></h2>
           ${tablaMs(permisos.slice(0, 300), [
@@ -978,8 +978,8 @@ Object.assign(VISTAS, {
               nota: 'Nunca más ancho que el alcance máximo del rol: la base lo rechaza.',
               opciones: ALCANCES.map(v => ({ valor: v.valor, texto: v.texto })) },
             { nombre: 'alcanceId', etiqueta: 'Iglesia (solo si el alcance es «sede»)',
-              vacio: '— no aplica —', opciones: opcSedes(await sedesDe()) },
-            { nombre: 'nivelMax', etiqueta: 'Nivel', vacio: '— el techo del rol —', numero: true,
+              vacio: 'No aplica', opciones: opcSedes(await sedesDe()) },
+            { nombre: 'nivelMax', etiqueta: 'Nivel', vacio: 'El techo del rol', numero: true,
               nota: 'N3 abre consejería y aportes con monto; N4, los datos de menores (exige antecedentes vigentes).',
               opciones: [2, 3, 4].map(n => ({ valor: String(n), texto: 'N' + n })) },
             { nombre: 'acta', etiqueta: 'Acta que lo autoriza', obligatorio: true },
@@ -1001,7 +1001,7 @@ Object.assign(VISTAS, {
         }));
       } catch (e) { z.innerHTML = `<div class="ms-alerta ms-alerta--roja">${esc(e.message)}</div>`; }
     };
-    enlazarBuscador(m.querySelector('#q'), sel, { vacio: '— elija una persona —', alCambiar: ver });
+    enlazarBuscador(m.querySelector('#q'), sel, { vacio: 'Elija una persona', alCambiar: ver });
   },
 
   /* ── Roles y techos ────────────────────────────────────────────────
@@ -1267,7 +1267,7 @@ Object.assign(VISTAS, {
             { valor: 'se_revoca', texto: 'Se revoca: ya no lo necesita' }] },
         /* ⛔ «Se reduce» no reducía nada: solo reiniciaba el reloj. Ahora se
            dice a cuánto, y la base lo aplica. */
-        { nombre: 'nivelNuevo', etiqueta: 'Si se reduce: ¿a qué nivel?', vacio: '— solo si se reduce —', numero: true,
+        { nombre: 'nivelNuevo', etiqueta: 'Si se reduce: ¿a qué nivel?', vacio: 'Solo si se reduce', numero: true,
           nota: `Hoy tiene N${actual}. Reducir es bajar: la base aplica el nivel nuevo en la próxima petición de esa persona.`,
           opciones: [0, 1, 2, 3].filter(n => n < actual).map(n => ({ valor: String(n), texto: 'N' + n })) },
         { nombre: 'nota', etiqueta: 'Por qué · queda firmado con su nombre', obligatorio: true },
@@ -1771,7 +1771,7 @@ Object.assign(VISTAS, {
                 { t: 'Estado', p: r => r.vigente === false
                     ? `<span class="ms-vig ms-vig--fin">venció ${esc(r.hasta ?? '')}</span>`
                     : '<span class="ms-vig ms-vig--ok">vigente</span>' },
-                { t: 'Acta', p: r => r.acta_referencia ? `<code>${esc(r.acta_referencia)}</code>` : '—' },
+                { t: 'Acta', p: r => r.acta_referencia ? `<code>${esc(r.acta_referencia)}</code>` : '·' },
               ], 'Ninguno: el equipo existe pero no puede hacer nada.')}
               <h2 class="ms-h2">Integrantes</h2>
               ${tablaMs(u.miembros.lista, [
@@ -1814,9 +1814,9 @@ Object.assign(VISTAS, {
             { nombre: 'alcanceTipo', etiqueta: 'Alcance', obligatorio: true, valor: 'organizacion',
               opciones: ALCANCES.filter(a => ['organizacion', 'sede', 'unidad'].includes(a.valor)) },
             { nombre: 'sedeId', etiqueta: 'Iglesia (si el alcance es una iglesia)',
-              vacio: '— no aplica —', opciones: opcSedes(await sedesDe()) },
+              vacio: 'No aplica', opciones: opcSedes(await sedesDe()) },
             { nombre: 'unidadId', etiqueta: 'Unidad (si el alcance es una unidad)',
-              vacio: '— no aplica —', opciones: d.unidades.map(x => ({ valor: x.id, texto: `${x.nombre} · ${x.clase}` })) },
+              vacio: 'No aplica', opciones: d.unidades.map(x => ({ valor: x.id, texto: `${x.nombre} · ${x.clase}` })) },
             { nombre: 'nivelMax', etiqueta: 'Nivel', obligatorio: true, valor: '3', numero: true,
               opciones: [1, 2, 3, 4].map(n => ({ valor: String(n), texto: 'N' + n })) },
             { nombre: 'acta', etiqueta: 'Acta que lo autoriza', obligatorio: true },
@@ -1894,13 +1894,13 @@ Object.assign(VISTAS, {
         { t: 'Desde', p: x => esc(new Date(x.emitida_en).toLocaleString('es-CO')) },
         /* ⛔ `le_queda` llegaba como objeto y se veía «[object Object]» en
            TODAS las filas. Ahora la base lo manda ya formateado. */
-        { t: 'Le queda', p: x => `<code>${esc(x.le_queda ?? '—')}</code>` },
-        { t: 'Dirección', p: x => `<code>${esc(x.ip ?? '—')}</code>` },
+        { t: 'Le queda', p: x => `<code>${esc(x.le_queda ?? '·')}</code>` },
+        { t: 'Dirección', p: x => `<code>${esc(x.ip ?? '·')}</code>` },
       ], 'Nadie dentro.')}
       <h2 class="ms-h2">Intentos fallidos</h2>
       ${tablaMs(ale.alertas, [
         { t: 'Usuario', k: 'usuario' },
-        { t: 'Dirección', p: x => `<code>${esc(x.ip ?? '—')}</code>` },
+        { t: 'Dirección', p: x => `<code>${esc(x.ip ?? '·')}</code>` },
         { t: 'Intentos', p: x => `<span class="ms-niv ms-niv--4">${esc(x.intentos_fallidos)}</span>` },
       ], 'Ninguno.')}`;
 
@@ -1928,7 +1928,9 @@ Object.assign(VISTAS, {
       'catalogo_valores', 'personas', 'acudientes', 'antecedentes', 'voluntariados', 'aportes',
       'grupos', 'membresias', 'servicios', 'conteos', 'inscripciones', 'sesiones', 'notificaciones'];
     const fecha = (x) => esc(new Date(x).toLocaleString('es-CO'));
-    const paginas = (total, desde, clave) => total <= TAM ? '' : `
+    /* Un total que no llega (o llega como texto) no puede pintar «1 a NaN
+       de undefined»: sin total conocido no hay páginas que ofrecer. */
+    const paginas = (bruto, desde, clave, total = Number(bruto) || 0) => total <= TAM ? '' : `
       <div class="ms-barra" style="justify-content:flex-end">
         <span style="color:var(--tin-dim);font-size:12px">${desde + 1} a ${Math.min(desde + TAM, total)} de ${total}</span>
         <button class="ms-btn ms-btn--peq" data-pag="${clave}|-1" ${desde === 0 ? 'disabled' : ''}>Anteriores</button>
@@ -1967,7 +1969,7 @@ Object.assign(VISTAS, {
           { t: 'Qué', p: x => `<code>${esc(x.esquema)}.${esc(x.tabla)}</code>
               <span class="ms-chip">${esc({ I: 'creó', U: 'cambió', D: 'borró' }[x.operacion] ?? x.operacion)}</span>
               ${x.campos ? `<span class="ms-doc">${esc(x.campos)}</span>` : ''}` },
-          { t: 'Motivo', p: x => x.motivo ? esc(x.motivo) : '<span class="ms-vacio">—</span>' },
+          { t: 'Motivo', p: x => x.motivo ? esc(x.motivo) : '<span class="ms-vacio">·</span>' },
         ], est.q || est.tabla ? 'Nada coincide.' : 'Sin movimientos.') + paginas(d.total, est.desde, 'aud');
       } catch (e) { z.innerHTML = `<div class="ms-alerta ms-alerta--roja">${esc(e.message)}</div>`; }
     };
@@ -1978,7 +1980,7 @@ Object.assign(VISTAS, {
           + (est.lq ? '&q=' + encodeURIComponent(est.lq) : '') + (est.nivel ? '&nivel=' + est.nivel : ''));
         z.innerHTML = tablaMs(d.lecturas, [
           { t: 'Cuándo', p: x => fecha(x.ocurrido_en) },
-          { t: 'Quién', p: x => `<b>${esc(x.actor ?? '—')}</b>` },
+          { t: 'Quién', p: x => `<b>${esc(x.actor ?? '·')}</b>` },
           { t: 'Qué', p: x => `<code>${esc(x.esquema)}.${esc(x.tabla)}</code> ${niv(x.nivel)}` },
           { t: 'Motivo', p: x => `<span style="color:var(--tin-mid)">${esc(x.motivo ?? '')}</span>` },
         ], 'Ninguna lectura sensible registrada.') + paginas(d.total, est.ldesde, 'lec');
@@ -2013,7 +2015,7 @@ Object.assign(VISTAS, {
       api.obtener('/api/v1/administracion/integraciones').catch(() => ({ integraciones: [] })),
     ]);
     const s = av.salud ?? {};
-    const mins = (seg) => seg == null ? '—' : seg < 120 ? seg + ' s' : Math.round(seg / 60) + ' min';
+    const mins = (seg) => seg == null ? '·' : seg < 120 ? seg + ' s' : Math.round(seg / 60) + ' min';
     m.innerHTML = `
       ${cabecera('Avisos e integraciones',
         'Lo que el sistema envía solo y los servicios de terceros de los que depende. Si algo aquí está en rojo, alguien se está quedando sin su correo.')}
@@ -2073,7 +2075,7 @@ Object.assign(VISTAS, {
 const COLS_CUENTA = [
   { t: 'Persona', p: x => `<button class="ms-enlace" data-persona="${esc(x.persona_id)}">
       <b>${esc(x.persona)}</b><span class="ms-doc">${esc(x.usuario)}</span></button>` },
-  { t: 'Iglesia', p: x => esc(x.sede ?? '—') },
+  { t: 'Iglesia', p: x => esc(x.sede ?? '·') },
   { t: 'Estado', p: x => `
       ${x.estado === 'activa' && !x.bloqueada ? '<span class="ms-vig ms-vig--ok">activa</span>' : ''}
       ${x.bloqueada ? '<span class="ms-vig ms-vig--porvencer">bloqueada</span>'
@@ -2164,8 +2166,8 @@ async function abrirPersona(id) {
           nota: 'Nunca más ancho que el alcance máximo del rol: la base lo rechaza.',
           opciones: ALCANCES },
         { nombre: 'alcanceId', etiqueta: 'Iglesia (solo si el alcance es «sede»)',
-          vacio: '— no aplica —', opciones: opcSedes(await sedesDe()) },
-        { nombre: 'nivelMax', etiqueta: 'Nivel', vacio: '— el techo del rol —', numero: true,
+          vacio: 'No aplica', opciones: opcSedes(await sedesDe()) },
+        { nombre: 'nivelMax', etiqueta: 'Nivel', vacio: 'El techo del rol', numero: true,
           nota: 'N3 abre consejería y aportes con monto; N4, los datos de menores (exige antecedentes vigentes).',
           opciones: [2, 3, 4].map(n => ({ valor: String(n), texto: 'N' + n })) },
         { nombre: 'acta', etiqueta: 'Acta que lo autoriza', obligatorio: true },

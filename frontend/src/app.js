@@ -40,7 +40,7 @@ function perezosa(archivo, funcion) {
    siquiera aparece en el menú, y entrar por la URL tampoco la abre. */
 const VISTAS = {
   panel:      { titulo: 'Panel',      icono: '◈', modulo: null,          pintar: pintarPanel },
-  personas:   { titulo: 'Personas',   icono: '☺', modulo: 'personas',    pintar: perezosa('personas', 'pintarPersonas'), ficha: null },
+  personas:   { titulo: 'Personas',   icono: '☺', modulo: 'personas',    pintar: perezosa('personas', 'pintarPersonas'), ficha: perezosa('personas', 'pintarPersona') },
   asistencia: { titulo: 'Asistencia', icono: '✓', modulo: 'asistencia',  pintar: perezosa('asistencia', 'pintarAsistencia'), ficha: perezosa('asistencia', 'pintarServicio') },
   grupos:     { titulo: 'Grupos',     icono: '⬡', modulo: 'grupos',      pintar: perezosa('grupos', 'pintarGrupos'),   ficha: perezosa('grupos', 'pintarGrupo') },
   checkin:    { titulo: 'Niños',      icono: '✦', modulo: 'rocakids',    pintar: perezosa('checkin', 'pintarCheckin') },

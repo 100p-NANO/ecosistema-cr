@@ -22,7 +22,7 @@ export function pintarNuevos(c) {
         { titulo: 'Persona', pintar: n => `<a class="enlace-fila" href="#/nuevos/${esc(n.id)}"><strong>${esc(n.nombre)}</strong></a>
             <br><span class="ayuda">${esc(n.telefono ?? n.email ?? 'sin contacto')}</span>` },
         { titulo: 'Próxima acción', pintar: n => n.proxima_accion === 'ATRASADO'
-            ? chip('atrasado', 'distintivo--n4') : esc(n.proxima_accion ?? '—') },
+            ? chip('atrasado', 'distintivo--n4') : esc(n.proxima_accion ?? '·') },
         { titulo: 'Estado', pintar: n => chipEstado(n.estado) },
         { titulo: 'Contactos', pintar: n => `${esc(n.contactos ?? 0)}${n.ultimo_contacto ? `<br><span class="ayuda">último ${esc(String(n.ultimo_contacto).slice(0, 10))}</span>` : ''}` },
         { titulo: 'Llegó', pintar: n => esc(String(n.registrado_en ?? '').slice(0, 10)) },

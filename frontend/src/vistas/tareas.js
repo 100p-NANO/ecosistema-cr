@@ -21,7 +21,7 @@ export function pintarTareas(c) {
                 ${t.estado === 'pendiente' ? `<button class="boton boton--suave" data-enviar="/api/v1/tareas/${esc(t.id)}/estado" data-cuerpo='{"estado":"en_curso"}'>Empezar</button>` : ''}
               </div>` : ''}` },
           { titulo: 'Estado', pintar: t => chipEstado(t.estado) },
-          { titulo: 'Vence', pintar: t => t.vence ? `${esc(t.vence)}${t.vencida ? ' ' + chip('vencida', 'distintivo--n4') : ''}` : '—' },
+          { titulo: 'Vence', pintar: t => t.vence ? `${esc(t.vence)}${t.vencida ? ' ' + chip('vencida', 'distintivo--n4') : ''}` : '·' },
           { titulo: 'Responsable', pintar: t => esc(t.asignada ?? 'sin asignar') },
           { titulo: 'Sede', campo: 'sede' },
         ])

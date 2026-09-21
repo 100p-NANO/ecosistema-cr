@@ -21,7 +21,7 @@ export function tabla(filas, columnas) {
         <tbody>${filas.map(f => `
           <tr${f.__id ? ` data-id="${esc(f.__id)}"` : ''}${f.__click ? ' class="fila--pulsable"' : ''}>
             ${columnas.map((k, i) => {
-              const dentro = k.pintar ? k.pintar(f) : esc(f[k.campo] ?? '—');
+              const dentro = k.pintar ? k.pintar(f) : esc(f[k.campo] ?? '·');
               /* ⛔ Nada de role="button" sobre un <tr>: borra el rol de fila y
                  el lector de pantalla deja de anunciar la tabla. El foco vive
                  en un botón de verdad en la PRIMERA celda; la fila entera es
@@ -115,8 +115,11 @@ export function pantalla(c, { titulo, intro, barra = '', cargar, pintar }) {
  * Formulario en una tarjeta plegable. Se pliega a propósito: la pantalla
  * es para MIRAR lo que hay; crear es lo que se hace de vez en cuando.
  */
-export function formulario({ titulo, campos, boton = 'Guardar', al }) {
-  const id = 'f' + Math.random().toString(36).slice(2, 8);
+export function formulario({ id: idFijo, titulo, campos, boton = 'Guardar', al }) {
+  /* Un identificador FIJO deja repintar el formulario con valores nuevos
+     (una ficha después de guardar) sin perder su escuchador, que se cuelga
+     una sola vez por identificador. Sin él, cada formulario es único. */
+  const id = idFijo ?? ('f' + Math.random().toString(36).slice(2, 8));
   const html = `
     <details class="tarjeta" style="margin-bottom:1rem">
       <summary style="cursor:pointer;font-weight:600">${esc(String(titulo).replace(/^\+\s*/, ''))}</summary>
@@ -137,12 +140,13 @@ export function formulario({ titulo, campos, boton = 'Guardar', al }) {
             ${k.opciones ? `
               <select id="${id}-${esc(k.nombre)}" name="${esc(k.nombre)}" ${k.obligatorio ? 'required' : ''}>
                 <option value="">${esc(k.vacio ?? 'Elija…')}</option>
-                ${k.opciones.map(o => `<option value="${esc(o.valor)}">${esc(o.texto)}</option>`).join('')}
+                ${k.opciones.map(o => `<option value="${esc(o.valor)}"${k.valor !== undefined && k.valor !== null
+                    && String(o.valor) === String(k.valor) ? ' selected' : ''}>${esc(o.texto)}</option>`).join('')}
               </select>`
             : k.multilinea ? `
               <textarea id="${id}-${esc(k.nombre)}" name="${esc(k.nombre)}" rows="3"
                         ${k.obligatorio ? 'required' : ''}
-                        ${k.minimo ? `minlength="${k.minimo}"` : ''}></textarea>`
+                        ${k.minimo ? `minlength="${k.minimo}"` : ''}>${k.valor !== undefined && k.valor !== null ? esc(k.valor) : ''}</textarea>`
             : `
               <input id="${id}-${esc(k.nombre)}" name="${esc(k.nombre)}" type="${esc(k.tipo ?? 'text')}"
                      ${k.obligatorio ? 'required' : ''} ${k.minimo ? `minlength="${k.minimo}"` : ''}
@@ -170,8 +174,11 @@ export function formulario({ titulo, campos, boton = 'Guardar', al }) {
      */
     enganchar(raiz, recargar) {
       engancharBuscadores(raiz);
-      if (raiz.dataset['forma_' + id]) return;
-      raiz.dataset['forma_' + id] = '1';
+      /* La marca va en `dataset`, que no admite un guion seguido de
+         minúscula: «f-persona» rompía la ficha entera. Se normaliza. */
+      const marca = 'forma_' + id.replace(/[^A-Za-z0-9_]/g, '_');
+      if (raiz.dataset[marca]) return;
+      raiz.dataset[marca] = '1';
       raiz.addEventListener('submit', ev => {
         const f = ev.target;
         if (f?.id !== id) return;
@@ -331,7 +338,7 @@ export const historial = (items, vacioTexto = 'Nada registrado todavía.') => it
 /** Distintivo de estado con el color de lo que significa. */
 export function chipEstado(estado) {
   const mal = ['vencido', 'rechazada', 'cancelada', 'cancelado', 'suspendida'];
-  const bien = ['respondida', 'aprobada', 'resuelto', 'cerrado', 'hecha', 'realizado', 'terminada', 'enviada', 'cerrada'];
+  const bien = ['respondida', 'aprobada', 'resuelto', 'cerrado', 'hecha', 'realizado', 'terminada', 'enviada', 'cerrada', 'activa', 'activo'];
   const clase = mal.includes(estado) ? 'distintivo--n4' : bien.includes(estado) ? 'distintivo--ok' : 'distintivo--aviso';
   return chip(String(estado ?? '').replace(/_/g, ' '), clase);
 }
@@ -344,6 +351,6 @@ export function zonaFicha(c, volverA, textoVolver) {
 
 /** Fecha y hora legibles, en la hora del teléfono de quien mira. */
 export const fechaHora = (v) => v
-  ? new Date(v).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+  ? new Date(v).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) : '·';
 
 export { esc, vacio, avisar };

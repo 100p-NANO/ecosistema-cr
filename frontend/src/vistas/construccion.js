@@ -2,14 +2,14 @@ import { api } from '../api.js';
 import { pantalla, formulario, tabla, chipEstado, sedes, valoresDe, campoPersona, cabezaFicha, zonaFicha,
          esc, vacio, avisar } from './comun.js';
 
-const dinero = (v, moneda = 'COP') => v == null ? '—'
+const dinero = (v, moneda = 'COP') => v == null ? '·'
   : Number(v).toLocaleString('es-CO', { style: 'currency', currency: moneda, maximumFractionDigits: 0 });
 
 /** Avance contra ejecutado, en la misma escala: una obra que gasta más de
     lo que avanza se ve sin leer números. */
 const progreso = (avance, ejecutadoPct) => `<div class="progreso">
   <div class="progreso__fila"><span>Avance</span><span class="progreso__barra"><span style="width:${Math.min(100, Number(avance) || 0)}%"></span></span><b>${esc(avance)} %</b></div>
-  <div class="progreso__fila"><span>Gastado</span><span class="progreso__barra progreso__barra--gasto"><span style="width:${Math.min(100, Number(ejecutadoPct) || 0)}%"></span></span><b>${ejecutadoPct == null ? '—' : esc(ejecutadoPct) + ' %'}</b></div>
+  <div class="progreso__fila"><span>Gastado</span><span class="progreso__barra progreso__barra--gasto"><span style="width:${Math.min(100, Number(ejecutadoPct) || 0)}%"></span></span><b>${ejecutadoPct == null ? '·' : esc(ejecutadoPct) + ' %'}</b></div>
 </div>`;
 
 export function pintarConstruccion(c) {
@@ -25,7 +25,7 @@ export function pintarConstruccion(c) {
           { titulo: 'Avance', pintar: o => progreso(o.avance_pct, o.ejecutado_pct) },
           { titulo: 'Presupuesto', pintar: o => `${dinero(o.presupuesto, o.moneda)}<br><span class="ayuda">gastado ${dinero(o.ejecutado, o.moneda)}</span>` },
           { titulo: 'Estado', pintar: o => chipEstado(o.estado) },
-          { titulo: 'Fin estimado', pintar: o => esc(o.termina_estimado ?? '—') },
+          { titulo: 'Fin estimado', pintar: o => esc(o.termina_estimado ?? '·') },
         ])
       : vacio('🏗', 'Ninguna obra', 'Registre la primera obra con el formulario de arriba.')),
   });
@@ -88,7 +88,7 @@ export function pintarObra(c, id) {
       ${d.hitos.length ? tabla(d.hitos, [
           { titulo: 'Hito', pintar: h => `<strong>${esc(h.descripcion)}</strong>` },
           { titulo: 'Fecha', campo: 'fecha' },
-          { titulo: 'Avance', pintar: h => h.avance_pct == null ? '—' : esc(h.avance_pct) + ' %' },
+          { titulo: 'Avance', pintar: h => h.avance_pct == null ? '·' : esc(h.avance_pct) + ' %' },
           { titulo: 'Gasto', pintar: h => dinero(h.gasto, o.moneda) },
           { titulo: 'Registró', campo: 'registro' },
         ]) : vacio('📐', 'Ningún hito', 'El primer hito pone la obra en curso.')}`;

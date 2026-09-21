@@ -420,3 +420,14 @@ details.tarjeta > summary:focus-visible { outline: 2px solid var(--cr-azul-700);
 .freno--puesto { border-color: var(--cr-peligro); background: var(--cr-peligro-bg); }
 .vista-previa { border: 1px solid var(--cr-borde); border-radius: var(--cr-radio-md); padding: var(--cr-sp-4); background: var(--cr-superficie); }
 .vista-previa h3 { margin: 0 0 var(--cr-sp-2); }
+
+/* La ficha de una persona: los datos agrupados como los piensa quien
+   atiende. Dos columnas en escritorio, una en el teléfono. */
+.ficha-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: var(--cr-sp-4) var(--cr-sp-5); }
+.ficha-datos h3 { margin: 0 0 var(--cr-sp-2); font-size: var(--cr-tx-sm); color: var(--cr-texto-suave); font-weight: var(--cr-peso-medio); }
+.ficha-datos dl { margin: 0; display: grid; gap: 0; }
+.ficha-datos dl > div { display: grid; grid-template-columns: minmax(0, 8.5rem) minmax(0, 1fr); gap: var(--cr-sp-3);
+  padding: var(--cr-sp-2) 0; border-bottom: 1px solid var(--cr-borde); }
+.ficha-datos dl > div:last-child { border-bottom: 0; }
+.ficha-datos dt { color: var(--cr-texto-suave); font-size: var(--cr-tx-sm); }
+.ficha-datos dd { margin: 0; overflow-wrap: anywhere; }

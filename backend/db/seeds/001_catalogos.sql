@@ -73,6 +73,10 @@ INSERT INTO crm.tipos_hecho (codigo,nombre,modulo,nivel) VALUES
   ('VISITA_PASTORAL','Visita pastoral','crm',2),
   ('CAMBIO_ETAPA','Cambio de etapa del recorrido 4C','crm',2),
   ('INGRESO_GRUPO','Ingreso a un grupo','grupos',2),
+  -- ⛔ 21 sep 2026 · La 0069 hizo que salir de un grupo dejara su hecho en la
+  --    línea de tiempo, y este tipo nunca se sembró: sacar a alguien de un
+  --    grupo reventaba contra la llave foránea y no salía nadie.
+  ('SALIDA_GRUPO','Salida de un grupo','grupos',2),
   ('ASISTENCIA','Asistencia a un servicio','asistencia',2),
   ('CURSO_INICIADO','Inicio de curso','formacion',2),
   ('CURSO_CERTIFICADO','Certificación de curso','formacion',2),

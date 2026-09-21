@@ -118,8 +118,15 @@ comprobar "Anular con motivo libera los 2 aportes" "2" \
   "$(curl -s -X POST -H "$H" -H "Authorization: Bearer $TOK_TES" -d '{"motivo":"Faltaba un aporte"}' $A/aportes/certificados/$CID/anular | campo "['aportes_liberados']")"
 
 echo "── Personas y modelo del Drive"
-comprobar "Actualizar campos del Drive (zona, es_cristiano)" "Zona Norte" \
-  "$(curl -s -X PUT -H "$H" -H "Authorization: Bearer $TOK_TES" -d '{"zona":"Zona Norte","es_cristiano":"si","es_ministro":false}' $A/personas/$DON | campo "['zona']")"
+# ⛔ 21 sep 2026 · Esta prueba editaba con la sesión de TESORERÍA, que en la
+#    matriz solo tiene «ver» sobre Personas: pasaba porque editar no pedía el
+#    permiso (0077). La prueba había fijado el defecto como si fuera la regla.
+#    Ahora edita el pastor de la sede y se comprueba que tesorería no puede.
+comprobar "Tesorería no edita datos de una persona (solo tiene «ver»)" "403" \
+  "$(codigo -X PUT -H "$H" -H "Authorization: Bearer $TOK_TES" -d '{"zona":"Zona Sur"}' $A/personas/$DON)"
+comprobar "…y en la base no cambió nada" "0" "$(sql "SELECT count(*) FROM nucleo.personas WHERE id='$DON' AND zona='Zona Sur'")"
+comprobar "Actualizar campos del Drive (zona, es_cristiano) con el pastor" "Zona Norte" \
+  "$(curl -s -X PUT -H "$H" -H "Authorization: Bearer $TOK_PASTOR" -d '{"zona":"Zona Norte","es_cristiano":"si","es_ministro":false}' $A/personas/$DON | campo "['zona']")"
 # ⛔ 20 sep 2026 · Esta ruta devuelve TODAS las columnas (`SELECT *`),
 #    incluidas salud, menores y consejeria. La RLS acotaba la sede pero
 #    NADIE acotaba la sensibilidad: una sesion N1 podia pedir

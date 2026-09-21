@@ -15,9 +15,9 @@ export function pintarLegal(c) {
           { titulo: 'Asunto', pintar: a => `<a class="enlace-fila" href="#/legal/${esc(a.id)}"><strong>${esc(a.titulo)}</strong></a>
               <br><span class="ayuda">${esc(a.tipo_nombre ?? a.tipo)} · ${esc(a.sede)}</span>` },
           { titulo: 'Estado', pintar: a => chipEstado(a.estado) },
-          { titulo: 'Término', pintar: a => a.vence ? `${esc(a.vence)}${a.vence_pronto ? ' ' + chip('pronto', 'distintivo--n4') : ''}` : '—' },
+          { titulo: 'Término', pintar: a => a.vence ? `${esc(a.vence)}${a.vence_pronto ? ' ' + chip('pronto', 'distintivo--n4') : ''}` : '·' },
           { titulo: 'Actuaciones', campo: 'actuaciones' },
-          { titulo: 'Responsable', pintar: a => esc(a.responsable ?? '—') },
+          { titulo: 'Responsable', pintar: a => esc(a.responsable ?? '·') },
         ])
       : vacio('⚖', 'Ningún asunto', 'Contratos, arriendos, derechos de petición y tutelas se llevan aquí.')),
   });

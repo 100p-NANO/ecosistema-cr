@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
-# BANCO DE CONECTORES · LOS DIEZ MÓDULOS NUEVOS (migración 0074)
+# BANCO DE CONECTORES · LOS DIEZ MÓDULOS NUEVOS (0074), EL PORTAL (0075)
+# Y LA FICHA POR ALCANCE (0077)
 #
 # ⛔ La regla del banco de conectores: un 200 no prueba nada. Cada paso
 #    manda el cuerpo que manda la pantalla y después le PREGUNTA A LA BASE
@@ -251,6 +252,47 @@ comprobar "un correo mal escrito se rechaza y se dice en castellano" "400|1" "$C
 pedir "$TMB" GET /oracion
 comprobar "el miembro no usa la API de las sedes (sin sede asignada)" "403" "$COD"
 
+echo "· La ficha de una persona se abre por alcance, no por sede (0077)"
+LIDER=$(sql "INSERT INTO nucleo.personas (sede_id, primer_nombre, primer_apellido) VALUES ('$CHIA','Lider','Ficha$SX') RETURNING id" | head -1)
+FUERA=$(sql "INSERT INTO nucleo.personas (sede_id, primer_nombre, primer_apellido, telefono_movil, ha_sido_bautizado)
+             VALUES ('$CHIA','Fuera','DelGrupo$SX','300 111 $SX', true) RETURNING id" | head -1)
+sql "INSERT INTO identidad.asignaciones (persona_id, rol, alcance_tipo, alcance_id, nivel_max, otorgado_por, acta_referencia)
+     VALUES ('$LIDER','LIDER_GRUPO','grupo','$GRUPO',2,'$DG','Banco de modulos · ficha')" >/dev/null
+MENOR=$(sql "WITH m AS (INSERT INTO nucleo.personas (sede_id, primer_nombre, primer_apellido, fecha_nacimiento)
+                        VALUES ('$CHIA','Menor','Ficha$SX', CURRENT_DATE - 7 * 365) RETURNING id),
+                  a AS (INSERT INTO nucleo.acudientes (menor_id, acudiente_id, parentesco, es_principal, autoriza_retiro)
+                        SELECT id, '$FUERA', 'MADRE', true, true FROM m)
+             SELECT id FROM m" | head -1)
+TL=$(PGUSER="$ADMIN" node scripts/token-para.js "$LIDER")
+pedir "$TL" GET "/personas/$M1"
+comprobar "el líder abre la ficha de un miembro de su grupo" "200|1" "$COD|$(tiene "Permiso$SX")"
+comprobar "y los datos N3 (fe y bautismo) no le llegan: su techo es N2" "true|2" \
+  "$(jq1 ".campos_ocultos.includes('ha_sido_bautizado')")|$(jq1 .nivel_de_la_sesion)"
+pedir "$TL" GET "/personas/$FUERA"
+comprobar "⭐ el líder NO abre la ficha de alguien de su sede que no está en su grupo" "404" "$COD"
+pedir "$TL" GET "/personas/$FUERA/linea-tiempo"
+comprobar "ni su historia" "404" "$COD"
+pedir "$TL" PUT "/personas/$M1" '{"telefono_movil":"311 000 0000"}'
+comprobar "el líder no edita: su rol solo tiene «ver», y en la base no cambia nada" "403|0" \
+  "$COD|$(sql "SELECT count(*) FROM nucleo.personas WHERE id='$M1' AND telefono_movil='311 000 0000'")"
+N3_ANTES=$(sql "SELECT count(*) FROM plataforma.bitacora_lectura WHERE fila_id='$FUERA' AND nivel=3")
+pedir "$TP" GET "/personas/$FUERA"
+comprobar "el pastor de Chía sí la abre, ve el dato N3 y puede editar" "200|true|true" \
+  "$COD|$(jq1 .ha_sido_bautizado)|$(jq1 .puede_editar)"
+comprobar "y leer un dato N3 deja su huella en la bitácora" "$((N3_ANTES+1))" \
+  "$(sql "SELECT count(*) FROM plataforma.bitacora_lectura WHERE fila_id='$FUERA' AND nivel=3")"
+pedir "$TP" PUT "/personas/$FUERA" "{\"telefono_movil\":\"301 222 $SX\"}"
+comprobar "el pastor corrige el teléfono · llega a la base" "200|301 222 $SX" \
+  "$COD|$(sql "SELECT telefono_movil FROM nucleo.personas WHERE id='$FUERA'")"
+pedir "$TM" GET "/personas/$FUERA"
+comprobar "el pastor de Medellín no la abre" "404" "$COD"
+pedir "$TP" GET "/personas/$MENOR"
+comprobar "la ficha de un menor se abre y queda con nombre y hora (N4)" "200|true|1" \
+  "$COD|$(jq1 .es_menor)|$(sql "SELECT count(*) FROM plataforma.bitacora_lectura WHERE fila_id='$MENOR' AND nivel=4 AND actor_id='$PCHIA'")"
+pedir "$TP" POST "/grupos/$GRUPO/miembros/$M2/salir" '{"motivo":"Se muda de ciudad (banco)"}'
+comprobar "sacar a alguien del grupo funciona y deja su hecho en la historia" "201|1|1" \
+  "$COD|$(sql "SELECT count(*) FROM grupos.membresias WHERE grupo_id='$GRUPO' AND persona_id='$M2' AND fecha_salida IS NOT NULL")|$(sql "SELECT count(*) FROM crm.linea_tiempo WHERE persona_id='$M2' AND tipo='SALIDA_GRUPO'")"
+
 echo "· Errores que se dicen en castellano"
 salida=$(curl -s -w $'\n%{http_code}' -X POST -H "$H" -H "Authorization: Bearer $TP" -d '{mal json' "$A/tareas")
 COD="${salida##*$'\n'}"; RES="${salida%$'\n'*}"
@@ -276,6 +318,8 @@ limpiar "UPDATE identidad.cuentas SET estado='suspendida', motivo_estado='Fin de
 limpiar "UPDATE grupos.grupos SET cerrado_en=CURRENT_DATE WHERE id='$GRUPO'"
 limpiar "UPDATE sistema.frenos SET activo=false WHERE codigo='comunicaciones_masivas'"
 limpiar "UPDATE identidad.asignaciones SET revocada_en=now(), vigente_hasta=CURRENT_DATE, motivo_revocacion='Fin del banco de modulos' WHERE persona_id='$MIEMBRO' AND revocada_en IS NULL"
+limpiar "UPDATE identidad.asignaciones SET revocada_en=now(), vigente_hasta=CURRENT_DATE, motivo_revocacion='Fin del banco de modulos' WHERE persona_id='$LIDER' AND revocada_en IS NULL"
+limpiar "UPDATE identidad.cuentas SET estado='suspendida', motivo_estado='Fin del banco de modulos' WHERE persona_id='$LIDER'"
 
 echo ""
 echo "═══ MÓDULOS: $PASAN de $N ═══"

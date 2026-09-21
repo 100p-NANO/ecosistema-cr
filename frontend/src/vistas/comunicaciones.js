@@ -30,10 +30,10 @@ export function pintarComunicaciones(c, sesion) {
           { titulo: 'Comunicación', pintar: k => `<a class="enlace-fila" href="#/comunicaciones/${esc(k.id)}"><strong>${esc(k.asunto)}</strong></a>
               <br><span class="ayuda">${esc(FINALIDAD[k.finalidad] ?? k.finalidad)} · ${esc(k.grupo ?? DESTINO[k.destinatarios] ?? '')}</span>` },
           { titulo: 'Estado', pintar: k => chipEstado(k.estado) },
-          { titulo: 'Escribió', pintar: k => `${esc(k.autor ?? '—')}${k.es_mia ? ' (usted)' : ''}` },
-          { titulo: 'Aprobó', pintar: k => esc(k.aprobo ?? '—') },
+          { titulo: 'Escribió', pintar: k => `${esc(k.autor ?? '·')}${k.es_mia ? ' (usted)' : ''}` },
+          { titulo: 'Aprobó', pintar: k => esc(k.aprobo ?? '·') },
           { titulo: 'Resultado', pintar: k => k.estado === 'enviada'
-              ? `${esc(k.encolados)} en cola${k.omitidos_sin_consentimiento ? `<br><span class="ayuda">${esc(k.omitidos_sin_consentimiento)} sin autorización</span>` : ''}` : '—' },
+              ? `${esc(k.encolados)} en cola${k.omitidos_sin_consentimiento ? `<br><span class="ayuda">${esc(k.omitidos_sin_consentimiento)} sin autorización</span>` : ''}` : '·' },
         ])
       : vacio('✉', 'Ninguna comunicación', 'Escriba la primera con el formulario de arriba.')}`,
   });
@@ -81,7 +81,7 @@ export function pintarComunicacion(c, id) {
       const k = d.comunicacion, a = d.alcance ?? {};
       return `
       ${cabezaFicha(k.asunto, `${FINALIDAD[k.finalidad] ?? k.finalidad} · ${k.grupo ?? DESTINO[k.destinatarios]} · ${k.sede}`,
-        [chipEstado(k.estado), chip('escribió ' + (k.autor ?? '—')), k.aprobo ? chip('aprobó ' + k.aprobo, 'distintivo--ok') : ''].filter(Boolean))}
+        [chipEstado(k.estado), chip('escribió ' + (k.autor ?? 'sin dato')), k.aprobo ? chip('aprobó ' + k.aprobo, 'distintivo--ok') : ''].filter(Boolean))}
       <div class="cifras">
         <div class="cifra"><b>${esc(a.personas ?? 0)}</b><span>personas en el destino</span></div>
         <div class="cifra"><b>${esc(a.recibirian ?? 0)}</b><span>lo recibirían</span></div>

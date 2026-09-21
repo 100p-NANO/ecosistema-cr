@@ -65,12 +65,12 @@ const DESCRIPCIONES = {
   'PUT /api/v1/organizacion/sedes/:id/ministerios/:min': ['Encender o apagar un ministerio en una sede', 'Los modulos con compuerta legal (Aportes, RocaKids) exigen evidencia registrada: la base lo rechaza sin ella.'],
 
   'GET /api/v1/personas': ['Buscar personas', 'Tolera errores de digitacion, tildes, documento, telefono y correo. Respeta la seguridad por fila: lo que no alcanza la sesion no sale.'],
-  'GET /api/v1/personas/:id': ['Ficha de una persona', 'Los campos por encima del nivel de la sesion no se devuelven, y la lectura de datos N3 o N4 queda en la bitacora.'],
-  'PUT /api/v1/personas/:id': ['Actualizar una persona', 'Exige membresia VIGENTE en una sede alcanzada. La sede de origen puede ver a quien se traslado, pero ya no lo edita.'],
-  'GET /api/v1/personas/:id/linea-tiempo': ['Historia de una persona', 'Todo lo que los modulos publicaron sobre ella, en orden. Filtrada por nivel de sensibilidad.'],
-  'GET /api/v1/personas/:id/atributos': ['Casillas propias de una persona', 'Los atributos extensibles declarados desde la consola, con su nivel.'],
+  'GET /api/v1/personas/:id': ['Ficha de una persona', 'Exige permiso de ver Personas y ALCANCE sobre esa persona (sede, unidad, grupo, segmento, ministerio, caso propio o menor a cargo): ver la sede no basta. Los campos por encima del nivel de la sesion no se devuelven (campos_ocultos dice cuales), y la lectura de datos N3, o de la ficha de un menor, queda en la bitacora.'],
+  'PUT /api/v1/personas/:id': ['Actualizar una persona', 'Exige el permiso de editar Personas, alcance sobre esa persona y membresia VIGENTE en una sede alcanzada: la sede de origen puede ver a quien se traslado, pero ya no lo edita. Un campo por encima del nivel de la sesion se rechaza con 403.'],
+  'GET /api/v1/personas/:id/linea-tiempo': ['Historia de una persona', 'Todo lo que los modulos publicaron sobre ella, en orden. Filtrada por nivel de sensibilidad, con el mismo alcance que la ficha, y la historia de un menor queda en la bitacora.'],
+  'GET /api/v1/personas/:id/atributos': ['Casillas propias de una persona', 'Los atributos extensibles declarados desde la consola, con su nivel. Mismo alcance que la ficha.'],
   'PUT /api/v1/personas/:id/atributos/:codigo': ['Escribir una casilla propia', 'El nivel de la casilla lo declaro quien la creo; escribir por encima del nivel de la sesion se rechaza.'],
-  'GET /api/v1/personas/:id/duplicados': ['Quien podria ser la misma persona', 'Candidatos a duplicado con puntaje y motivo: mismo documento, misma fecha de nacimiento, nombre parecido. Con 36 fuentes migrando, los duplicados son certeza.'],
+  'GET /api/v1/personas/:id/duplicados': ['Quien podria ser la misma persona', 'Candidatos a duplicado con puntaje y motivo: mismo documento, misma fecha de nacimiento, nombre parecido. Con 36 fuentes migrando, los duplicados son certeza. Mismo alcance que la ficha.'],
   'GET /api/v1/personas/por-atributo': ['Personas que cumplen una casilla', 'Es como se arrastra gente a un modulo nuevo sin migrar nada.'],
 
   'GET /api/v1/identidad/roles': ['Los roles de la red', 'Con su techo de nivel y su alcance maximo.'],

@@ -9,9 +9,9 @@
 
 | Columna | Estado | Evidencia |
 |---|---|---|
-| **Backend · datos** | ✅ | 77 migraciones + 25 semillas aplicadas desde cero · **19 bancos, 265 invariantes en verde** (`scripts/probar.sh`) · migración desde 99-o **ensayada con 25.000 personas** (validación 3 s, aplicación 17 s, conciliación cuadrada por sede, reversión 4 s) |
-| **Backend · API** | ✅ | **197 rutas**, todas descritas en `openapi.yaml` · 22 pruebas de autenticación, 52 de la API, **98 conectores de la consola y 37 de los módulos nuevos** (cada uno pregunta a la base si el dato llegó) · terceros con tiempo de espera y cortacircuitos · Nest 12, **0 vulnerabilidades** en dependencias |
-| **Frontend** | 🟠 | **Los 22 módulos tienen pantalla** (21 en la app de las sedes, organización en la consola) y el **portal del congregante** · verificado en el navegador contra la API real, en móvil y escritorio, sin desbordes · demostración sin API para el teléfono. Falta: prueba automática de accesibilidad (axe) y prueba en teléfonos reales iOS y Android |
+| **Backend · datos** | ✅ | 78 migraciones + 25 semillas aplicadas desde cero · **20 bancos, 287 invariantes en verde** (`scripts/probar.sh`) · migración desde 99-o **ensayada con 25.000 personas** (validación 3 s, aplicación 17 s, conciliación cuadrada por sede, reversión 4 s) |
+| **Backend · API** | ✅ | **197 rutas**, todas descritas en `openapi.yaml` · 22 pruebas de autenticación, 54 de la API, **98 conectores de la consola y 48 de los módulos nuevos y de la ficha** (cada uno pregunta a la base si el dato llegó) · terceros con tiempo de espera y cortacircuitos · Nest 12, **0 vulnerabilidades** en dependencias |
+| **Frontend** | 🟠 | **Los 22 módulos tienen pantalla** (21 en la app de las sedes, organización en la consola), **la ficha de cada persona** y el **portal del congregante** · verificado en el navegador contra la API real, en móvil y escritorio, sin desbordes · demostración sin API para el teléfono. Falta: prueba automática de accesibilidad (axe) y prueba en teléfonos reales iOS y Android |
 | **Infraestructura** | 🔴 | Terraform **validado y probado** (6 casos) con alertas del negocio, **sin aplicar** · restauración **medida con el volumen de la red** (365 MB: copia 4 s, restauración verificada 6 s) · 17 compuertas en `scripts/verificar.sh` · Cloud Build construye y prueba las imágenes. **Falta la facturación de Google Cloud para aplicarla** |
 | **Seguridad** | 🟠 | `docs/SEGURIDAD-ASVS-L2.md`: 9 de los 13 capítulos que aplican en verde, con evidencia. Falta aplicar KMS, Secret Manager y TLS a la base (dependen de la infraestructura) y la **prueba de intrusión externa** |
 | **Cumplimiento** | 🟠 | Ley 1581 construida en la base: consentimiento por canal y finalidad, plazos legales con festivos, supresión, retención aplicada, bitácora de lectura, y el titular ejerce sus derechos solo en el portal. Los **documentos legales están en borrador** (`docs/legal/`): faltan los datos del Responsable y la revisión de un abogado |
@@ -31,6 +31,7 @@
 | Salida de 99-o | Área de aterrizaje, validación explicada, aplicación por bloques, conciliación por sede, reversión exacta, ensayo de 25.000 | Migración 0076, `scripts/migrar-99o.sh`, `backend/db/migracion/MAPA-99o.md` |
 | Operación | Alertas del negocio, reversión del despliegue, gancho de pre-commit, Node fijado, restauración medida | `infra/gcp`, `scripts/revertir-despliegue.sh`, `docs/RUNBOOK.md` |
 | Documentos | Tres decisiones (tema, IA, migración), ASVS nivel 2, economía, legales en borrador, guías por rol | `docs/` |
+| La ficha de la persona | Datos agrupados, corrección con permiso, historia de todos los módulos, casillas propias y posibles duplicados. Se abre por alcance, no por sede | Migración 0077, `personas.service.ts`, `frontend/src/vistas/personas.js` |
 
 **Defectos que aparecieron al construir y se cerraron el mismo día:** la purga de retención nunca se había aplicado a dos tablas, habría borrado alergias de niños que siguen viniendo y habría abortado al chocar con la evidencia de entregas; cinco semillas sin clasificar tumbaban el despliegue a producción; la imagen del frontend no traía la consola ni el portal y en la nube habría llamado a `127.0.0.1`; nginx quitaba las cabeceras de seguridad del HTML; los acudientes al entregar un niño se leían solo de la memoria del equipo; el conteo de la puerta se reescribía en ceros al corregirlo.
 
@@ -86,6 +87,21 @@ estaban en el producto, no en las pruebas**:
 líder elegido con `LIMIT 1` sin orden, una invariante que registraba `ACEPTADO` sin mirar nada y
 otra que dependía de cómo quedó la semilla). Todas pasaban en base nueva y fallaban en base
 usada, que es la peor clase de prueba: la que da confianza sin darla.
+
+## 2c · Lo que apareció la tarde del 21 de septiembre, al construir la ficha de la persona
+
+La búsqueda de Personas encontraba a la gente y no dejaba abrir a nadie: la API tenía la ficha desde el principio y ninguna pantalla la usaba. Al construirla y probarla con roles distintos aparecieron seis fallos que estaban en el producto:
+
+| # | Hallazgo | Por qué importa | Cómo se cerró |
+|---|---|---|---|
+| H-25 | **La ficha se abría por sede, no por alcance** | El aislamiento es por sede y cada alcance fino (grupo, segmento, ministerio) se convierte en la sede entera. Un líder de grupo, con un grupo VACÍO, abría la ficha completa de las 35 personas de su sede: correo, teléfono, dirección, nacimiento. La arquitectura prevé unos 800 líderes | `identidad.alcanza_persona` (0077) se exige en la ficha, la historia, las casillas, los duplicados y la edición. Banco `alcance_persona.sql` con 22 casos, uno por tipo de alcance, y 11 comprobaciones por la API |
+| H-26 | **Editar a una persona no pedía el permiso «editar»** | La política de la base mira la sede y el servicio no preguntaba: Tesorería, que solo tiene «ver», corregía los datos de fe de cualquiera. Una prueba del banco del Drive lo hacía y pasaba: había fijado el defecto como si fuera la regla | Se exige el permiso y el alcance; la prueba se corrigió y ahora comprueba que Tesorería recibe 403 |
+| H-27 | **El contrato de la ficha no se cumplía** | Decía que los campos por encima del nivel de la sesión no se devolvían y que leer N3 quedaba en la bitácora. No se hacía ninguna de las dos: la fe y el bautismo (N3) le llegaban a un líder N2 | Recorte por `plataforma.clasificacion_columna`, bitácora de toda lectura N3 y rechazo de escribir un campo que la sesión no ve |
+| H-28 | **La ficha de un menor por la ruta de las sedes no dejaba rastro** | La consola sí lo registraba; esta ruta, que es la que usan las sedes, no | Lectura N4 registrada en la ficha y en la historia de un menor |
+| H-29 | **Sacar a alguien de un grupo fallaba siempre** | La 0069 hizo que la salida dejara su hecho en la historia, y el tipo `SALIDA_GRUPO` nunca se sembró: la operación entera reventaba contra la llave foránea. Ninguna prueba sacaba a nadie de un grupo por la API | Semilla del tipo y comprobación por la API, con el hecho en la historia |
+| H-30 | **La consola publicada abría en una pantalla vacía** | Tres rutas nacidas el 21 (puesta en marcha, avisos, integraciones) no estaban en la demostración, y la bitácora pintaba «1 a NaN de undefined» | Rutas agregadas y un barrido automático de las 15 pestañas de la consola y las 23 de la app, fichas incluidas |
+
+Además se quitaron 57 rayas largas que se mostraban en pantalla como valor vacío (la regla de Daniel también rige la interfaz).
 
 ## 3 · Cómo se opera
 
@@ -146,4 +162,4 @@ cd backend
 
 ## 7 · La advertencia que sigue vigente
 
-Esto certifica que **lo diseñado** cubre los controles y que **lo construido** pasa 265 invariantes de base, 22 pruebas de autenticación, 52 de la API, 135 conectores entre pantalla y base, un ensayo de migración de 25.000 personas y una restauración medida. **No certifica que lo desplegado los cumpla en producción**, porque todavía no hay producción. Eso lo certifica la prueba de intrusión externa, sobre la infraestructura aplicada.
+Esto certifica que **lo diseñado** cubre los controles y que **lo construido** pasa 287 invariantes de base, 22 pruebas de autenticación, 54 de la API, 146 conectores entre pantalla y base, un ensayo de migración de 25.000 personas y una restauración medida. **No certifica que lo desplegado los cumpla en producción**, porque todavía no hay producción. Eso lo certifica la prueba de intrusión externa, sobre la infraestructura aplicada.

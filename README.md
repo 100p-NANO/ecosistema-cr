@@ -7,7 +7,7 @@ Hasta ahora esto vivía en tres carpetas sueltas y en documentos de Drive. Aquí
 sobre todo, **revisable línea por línea**, que es lo que pidió el CTO.
 
 ```
-backend/           PostgreSQL 16 · 77 migraciones + 25 semillas + 19 bancos · API NestJS 12
+backend/           PostgreSQL 16 · 78 migraciones + 25 semillas + 20 bancos · API NestJS 12
 frontend/          App de las sedes, consola del Sistema Master y portal «Mi iglesia»: móvil primero, sin paso de construcción
 infra/gcp/         Terraform (16 archivos), validado y SIN aplicar
 docs/              Arquitectura, infraestructura, runbook, entrega, seguridad (ASVS), economía, decisiones, legales (borrador) y guías por rol
@@ -24,8 +24,8 @@ Google Cloud.
 
 | Si eres… | Abre esto primero |
 |---|---|
-| **Jhon** (desarrollo e infraestructura) | `backend/db/migrations/`: las 77 migraciones en orden, `infra/gcp/README.md` y `docs/PUESTA-EN-MARCHA-GCP.md` |
-| **Manuel** (testing y calidad) | `backend/db/tests/`: los 19 bancos de invariantes, y `backend/scripts/verificar.sh`, que es la compuerta |
+| **Jhon** (desarrollo e infraestructura) | `backend/db/migrations/`: las 78 migraciones en orden, `infra/gcp/README.md` y `docs/PUESTA-EN-MARCHA-GCP.md` |
+| **Manuel** (testing y calidad) | `backend/db/tests/`: los 20 bancos de invariantes, y `backend/scripts/verificar.sh`, que es la compuerta |
 | **Ps. Carlos Ricardo** (gerencia) | `backend/entregas-drive/`: los documentos de arquitectura, modelo financiero y plan; `docs/ECONOMIA.md` y `docs/guias/` |
 
 ## Cómo se corre la base de datos (3 comandos, sin nube ni Docker)
@@ -33,14 +33,14 @@ Google Cloud.
 ```bash
 cd backend
 ./scripts/arrancar.sh    # PostgreSQL 16 local en el puerto 5433
-./scripts/migrar.sh      # recrea casaroca_dev: 77 migraciones + 25 semillas
-./scripts/probar.sh      # 19 bancos, 265 invariantes
+./scripts/migrar.sh      # recrea casaroca_dev: 78 migraciones + 25 semillas
+./scripts/probar.sh      # 20 bancos, 287 invariantes
 ./scripts/verificar.sh   # LA COMPUERTA: diecisiete verificaciones, de la base a Terraform
 ```
 
-Última corrida verificada: **21 de septiembre de 2026 · 77 migraciones limpias · 19 bancos, 265
-invariantes · 22 pruebas de autenticación · 52 de la API · 98 conectores de la consola · 37 de los
-módulos nuevos y el portal · ensayo de migración desde 99-o · Terraform válido y 6 pruebas ·
+Última corrida verificada: **21 de septiembre de 2026 · 78 migraciones limpias · 20 bancos, 287
+invariantes · 22 pruebas de autenticación · 54 de la API · 98 conectores de la consola · 48 de los
+módulos nuevos, el portal y la ficha por alcance · ensayo de migración desde 99-o · Terraform válido y 6 pruebas ·
 0 fugas de lectura · 0 vulnerabilidades en dependencias.**
 
 ## Qué está demostrado, no solo diseñado

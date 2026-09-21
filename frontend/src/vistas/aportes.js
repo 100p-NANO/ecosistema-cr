@@ -32,7 +32,7 @@ export function pintarAportes(c) {
         { titulo: 'Fecha', pintar: a => esc(String(a.fecha_aporte ?? '').slice(0, 10)) },
         { titulo: 'Medio', pintar: a => esc(String(a.metodo_pago ?? '').toLowerCase()) },
         { titulo: 'Estado', pintar: a => chipEstado(String(a.estado).toLowerCase()) + (a.inmutable ? ' ' + chip('inmutable') : '') },
-        { titulo: 'Referencia', pintar: a => esc(a.referencia ?? '—') },
+        { titulo: 'Referencia', pintar: a => esc(a.referencia ?? '·') },
       ]) : vacio('💠', 'Ningún aporte en este filtro', 'Registre el primero con el formulario de arriba.')}`,
   });
   c.querySelector('#f-anio').addEventListener('change', ev => { anio = Number(ev.target.value); recargar(); });

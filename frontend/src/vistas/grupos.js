@@ -102,8 +102,8 @@ export function pintarGrupo(c, id) {
       ${d.reuniones.length
         ? tabla(d.reuniones, [
             { titulo: 'Fecha', campo: 'fecha' },
-            { titulo: 'Tema', pintar: r => esc(r.tema || '—') },
-            { titulo: 'Asistentes', pintar: r => r.asistentes ?? '—' },
+            { titulo: 'Tema', pintar: r => esc(r.tema || '·') },
+            { titulo: 'Asistentes', pintar: r => r.asistentes ?? '·' },
           ])
         : vacio('🗓', 'Ninguna reunión reportada', 'Un grupo que no reporta reuniones es una lista, no un grupo.')}`,
   });

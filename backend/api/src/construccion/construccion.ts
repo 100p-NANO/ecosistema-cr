@@ -87,7 +87,7 @@ export class ConstruccionController {
       if (!obra) throw new NotFoundException('Esa obra no existe o no está a su alcance.');
       const { rows: hitos } = await c.query(
         `SELECT to_char(h.fecha,'YYYY-MM-DD') AS fecha, h.descripcion, h.avance_pct, h.gasto,
-                COALESCE(x.nombre_completo,'—') AS registro
+                COALESCE(x.nombre_completo,'sin dato') AS registro
            FROM org.obras_hitos h LEFT JOIN nucleo.v_personas x ON x.id = h.registrado_por
           WHERE h.obra_id = $1 ORDER BY h.fecha, h.registrado_en`, [o]);
       return { obra, hitos, puede_editar: await puede(c, 'construccion', 'editar') };

@@ -38,6 +38,7 @@ BANCOS=(
   bandeja_de_salida
   modulos_nuevos
   portal
+  alcance_persona
 )
 
 rojos=(); verdes=0; total_pruebas=0

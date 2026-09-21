@@ -110,7 +110,7 @@ export function pintarCaso(c, id) {
         ? tabla(d.sesiones, [
             { titulo: 'Fecha', pintar: s => esc(new Date(s.fecha).toLocaleDateString('es-CO')) },
             { titulo: 'Consejero', campo: 'consejero' },
-            { titulo: 'Duración', pintar: s => s.duracion_min ? s.duracion_min + ' min' : '—' },
+            { titulo: 'Duración', pintar: s => s.duracion_min ? s.duracion_min + ' min' : '·' },
             { titulo: 'Asistió', pintar: s => s.asistio ? chip('sí') : chip('no', 'distintivo--aviso') },
           ])
         : vacio('🗓', 'Ninguna sesión', 'Registre la primera cuando ocurra.')}

@@ -16,7 +16,7 @@ export function pintarTematicas(c, sesion) {
               ${s.alcance_red ? ' ' + chip('toda la red', 'distintivo--aviso') : ''}` },
           { titulo: 'Estado', pintar: s => chipEstado(s.estado) },
           { titulo: 'Enseñanzas', pintar: s => `${esc(s.ensenanzas)}${s.ultima ? `<br><span class="ayuda">última ${esc(s.ultima)}</span>` : ''}` },
-          { titulo: 'Fechas', pintar: s => s.inicia ? `${esc(s.inicia)} a ${esc(s.termina ?? '…')}` : '—' },
+          { titulo: 'Fechas', pintar: s => s.inicia ? `${esc(s.inicia)} a ${esc(s.termina ?? '…')}` : '·' },
           { titulo: 'Sede', campo: 'sede' },
         ])
       : vacio('📖', 'Ninguna serie todavía', 'Cree la primera serie con el formulario de arriba.')),
@@ -70,8 +70,8 @@ export function pintarSerie(c, id) {
       ${d.ensenanzas.length ? tabla(d.ensenanzas, [
           { titulo: 'Enseñanza', pintar: e => `<strong>${esc(e.titulo)}</strong>${e.resumen ? `<br><span class="ayuda">${esc(e.resumen.slice(0, 140))}</span>` : ''}` },
           { titulo: 'Fecha', campo: 'fecha' },
-          { titulo: 'Pasaje', pintar: e => esc(e.pasaje ?? '—') },
-          { titulo: 'Predicó', pintar: e => esc(e.predicador ?? '—') },
+          { titulo: 'Pasaje', pintar: e => esc(e.pasaje ?? '·') },
+          { titulo: 'Predicó', pintar: e => esc(e.predicador ?? '·') },
         ]) : vacio('🗒', 'Ninguna enseñanza', 'Agregue la primera con el formulario de arriba.')}`,
   });
   form.enganchar(z, recargar);

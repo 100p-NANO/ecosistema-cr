@@ -46,8 +46,8 @@
 | Requisito | Estado | Evidencia |
 |---|---|---|
 | 4.1.1 Se aplica en el servidor | ✅ | `identidad.puede` en cada acción; políticas por fila en cada tabla; `db/tests/aislamiento_rls.sql`, `rls_tablas_hijas.sql` |
-| 4.1.3 Mínimo privilegio | ✅ | Tablas nacen cerradas (migración 0023) y se publican con justificación (`registro_exposicion`) |
-| 4.2.1 Referencias directas inseguras | ✅ | Una ficha de otra sede responde 404; bancos de conectores (98 y 37 comprobaciones) |
+| 4.1.3 Mínimo privilegio | ✅ | Tablas nacen cerradas (migración 0023) y se publican con justificación (`registro_exposicion`). En la ficha de una persona, los campos por encima del nivel de la sesión no se devuelven ni se escriben (`clasificacion_columna`) |
+| 4.2.1 Referencias directas inseguras | ✅ | Una ficha de otra sede responde 404, y dentro de la sede la ficha se abre por ALCANCE (grupo, segmento, ministerio, caso, acudiente): `identidad.alcanza_persona`, banco `alcance_persona.sql` (22 casos). Hasta el 21 de septiembre un líder de grupo abría cualquier ficha de su sede. Bancos de conectores (98 y 48 comprobaciones) |
 | 4.3.1 Segundo factor para administrar | ✅ | Roles de administración con segundo factor obligatorio |
 
 ### V5 · Validación

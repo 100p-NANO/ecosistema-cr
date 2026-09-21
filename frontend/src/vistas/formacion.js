@@ -35,7 +35,7 @@ export function pintarFormacion(c) {
             { titulo: 'Programa', pintar: p => `<strong>${esc(p.nombre)}</strong>` },
             { titulo: 'Código', pintar: p => `<code>${esc(p.codigo)}</code>` },
             { titulo: 'Tipo', pintar: p => chip(p.tipo) },
-            { titulo: 'Semestres', pintar: p => p.semestres ?? '—' },
+            { titulo: 'Semestres', pintar: p => p.semestres ?? '·' },
             { titulo: 'Cursos', campo: 'cursos' },
           ])
         : vacio('📚', 'Ningún programa', 'La central todavía no ha cargado el catálogo.')}`,
@@ -118,7 +118,7 @@ export function pintarCohorte(c, id) {
                 i.estado === 'aprobado' ? '' : i.estado === 'reprobado' || i.estado === 'retirado' ? 'distintivo--aviso' : '') },
             { titulo: 'Pago', pintar: i => chip(String(i.estado_pago ?? '').replace('_', ' '),
                 i.estado_pago === 'pendiente' ? 'distintivo--aviso' : '') },
-            { titulo: 'Nota', pintar: i => i.nota_final ?? '—' },
+            { titulo: 'Nota', pintar: i => i.nota_final ?? '·' },
           ])
         : vacio('👥', 'Nadie inscrito', 'Busque arriba a la primera persona.')}`,
   });
