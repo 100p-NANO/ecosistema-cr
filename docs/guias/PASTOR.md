@@ -7,6 +7,7 @@
 2. **Analítica → «¿Quién se nos está perdiendo?».** Personas que venían seguido y dejaron de venir hace un mes. Es la lista para llamar esta semana.
 3. **Nuevos.** Primero lo atrasado. Cada llamada se registra con cómo reaccionó la persona y el siguiente paso; cuando ya está integrada, «Integrar como miembro».
 4. **Grupos.** Arriba, el grupo que lleva más tiempo sin reportar reunión. Un grupo sin reuniones es una lista.
+5. **Personas → la ficha.** Busque a alguien (aunque escriba mal el nombre) y pulse su nombre: sus datos, su historia en todos los módulos y quién podría estar registrado dos veces. «Corregir sus datos» guarda el cambio con el valor anterior. Abrir la ficha de un menor queda registrado con su nombre y la hora.
 
 ## El domingo
 - **Asistencia:** la secretaría abre el servicio; usted puede corregir el conteo de la puerta (la pantalla trae lo ya reportado).

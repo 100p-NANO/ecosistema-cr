@@ -11,3 +11,4 @@
 - **Requerimientos:** lo que se dañó o hace falta (sonido, aseo, mantenimiento), con su prioridad. El plazo lo pone el sistema: urgente 4 horas, alta 24, media 72, baja una semana.
 - **Calendario:** servicios, reuniones y eventos de la sede, en la hora de la sede.
 - **Tareas:** las suyas aparecen primero; «Hecha» las cierra.
+- **Personas:** busque por nombre, documento o teléfono y pulse el nombre para abrir la ficha. «Corregir sus datos» aparece si su rol puede editar; cada cambio queda en la auditoría con el valor anterior.
