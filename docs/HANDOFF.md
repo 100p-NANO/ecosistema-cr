@@ -1,28 +1,38 @@
 # HANDOFF · CasaRoca System AI
 ### Lo que se entrega, cómo se opera y qué falta
 
-> 19 de septiembre de 2026 · Para la mesa (Ps. Carlos Ricardo), desarrollo (Jhon) y calidad (Manuel).
+> Actualizado el 21 de septiembre de 2026 · Para la mesa (Ps. Carlos Ricardo), desarrollo (Jhon) y calidad (Manuel).
 
 ---
 
-## 1 · La tabla de tres columnas, sin suavizarla
+## 1 · La tabla de seis columnas, sin suavizarla
 
 | Columna | Estado | Evidencia |
 |---|---|---|
-| **Backend · datos** | ✅ | 60 migraciones + 22 semillas, aplicadas desde cero en máquina limpia · **16 bancos, 219 invariantes en verde** · `scripts/probar.sh` |
-| **Backend · API** | ✅ | Autenticación real con segundo factor · **21 pruebas de autenticación + 50 de la API** (humo, Drive 100p y extremo a extremo), las tres dentro de la compuerta · `openapi.yaml` con **70 rutas**, todas descritas · validación, límite de peticiones, cabeceras, traza y `/salud` · la API **se niega a arrancar** con un rol que pueda saltarse RLS |
-| **Frontend** | 🟠 | Aplicación real con entrada, segundo factor, navegación **por permiso**, búsqueda, check-in **sin conexión** y consola de catálogos. Verificada en navegador, móvil y escritorio, contraste AA medido. **Cubre 3 de los 22 módulos declarados** |
-| **Infraestructura** | 🔴 | **16 archivos de Terraform, validados de verdad** (`validate`, `fmt -check`, `test`: 6 casos) y **sin aplicar**. Copia y **restauración ejecutadas** (`backend/docs/EVIDENCIA-restauracion.txt`), integración continua escrita, **once compuertas** en `scripts/verificar.sh`. **Falta crear los proyectos de GCP y aplicar** |
+| **Backend · datos** | ✅ | 77 migraciones + 25 semillas aplicadas desde cero · **19 bancos, 265 invariantes en verde** (`scripts/probar.sh`) · migración desde 99-o **ensayada con 25.000 personas** (validación 3 s, aplicación 17 s, conciliación cuadrada por sede, reversión 4 s) |
+| **Backend · API** | ✅ | **197 rutas**, todas descritas en `openapi.yaml` · 22 pruebas de autenticación, 52 de la API, **98 conectores de la consola y 37 de los módulos nuevos** (cada uno pregunta a la base si el dato llegó) · terceros con tiempo de espera y cortacircuitos · Nest 12, **0 vulnerabilidades** en dependencias |
+| **Frontend** | 🟠 | **Los 22 módulos tienen pantalla** (21 en la app de las sedes, organización en la consola) y el **portal del congregante** · verificado en el navegador contra la API real, en móvil y escritorio, sin desbordes · demostración sin API para el teléfono. Falta: prueba automática de accesibilidad (axe) y prueba en teléfonos reales iOS y Android |
+| **Infraestructura** | 🔴 | Terraform **validado y probado** (6 casos) con alertas del negocio, **sin aplicar** · restauración **medida con el volumen de la red** (365 MB: copia 4 s, restauración verificada 6 s) · 16 compuertas en `scripts/verificar.sh` · Cloud Build construye y prueba las imágenes. **Falta la facturación de Google Cloud para aplicarla** |
+| **Seguridad** | 🟠 | `docs/SEGURIDAD-ASVS-L2.md`: 9 de los 13 capítulos que aplican en verde, con evidencia. Falta aplicar KMS, Secret Manager y TLS a la base (dependen de la infraestructura) y la **prueba de intrusión externa** |
+| **Cumplimiento** | 🟠 | Ley 1581 construida en la base: consentimiento por canal y finalidad, plazos legales con festivos, supresión, retención aplicada, bitácora de lectura, y el titular ejerce sus derechos solo en el portal. Los **documentos legales están en borrador** (`docs/legal/`): faltan los datos del Responsable y la revisión de un abogado |
+| **Adopción** | 🔴 | Guías por rol escritas (`docs/guias/`). No hay sede piloto, ni personas entrenadas, ni mesa de ayuda, y el conocimiento está en una sola persona |
 
-**Cómo se dice en la mesa:** el modelo de datos y la API están listos para producción. **El frontend NO está completo: tiene tres pantallas de veintidós módulos.** Cubre lo que se usa un domingo (buscar personas, check-in de RocaKids) y la consola de catálogos; lo demás se opera todavía por API o no se opera.
-
-> ⚠️ **Esta tabla decía antes «faltan las pantallas de Aportes, Consejería, Formación y Analítica»,
-> como si fueran cuatro.** Son diecinueve. Se corrige aquí porque un informe de entrega que
-> minimiza lo que falta es exactamente lo que un auditor busca, y con razón: la diferencia entre
-> «faltan cuatro pantallas» y «hay tres de veintidós» es la diferencia entre un remate y medio
-> proyecto de frontend.
+**Cómo se dice en la mesa:** el sistema está construido de punta a punta y probado en la máquina de desarrollo, **pero no está en producción y no está terminado**: la infraestructura está escrita y sin aplicar (falta la facturación de la nube), los documentos legales son borradores, y nadie en las sedes lo ha usado todavía. Lo que falta ya no es construir: son decisiones, llaves y un piloto.
 
 **La infraestructura está escrita y no aplicada, así que el sistema todavía no está en producción**, y eso no se suaviza. Aplicarla es media jornada con las llaves de Google Cloud en la mano, y el paso a paso está en `docs/PUESTA-EN-MARCHA-GCP.md`.
+
+## 1b · Lo que se construyó el 21 de septiembre de 2026
+
+| Frente | Qué | Dónde |
+|---|---|---|
+| Diez módulos que solo tenían nombre | Oración, peticiones internas, requerimientos, tareas, calendario, temáticas, legal, comunicaciones, construcción y analítica: tablas con aislamiento por sede, reglas en la base, API, pantallas y pruebas | Migración 0074, `backend/api/src/<módulo>`, `frontend/src/vistas` |
+| Pantallas que faltaban | Nuevos, aportes y Habeas Data tenían API y ninguna cara | `frontend/src/vistas` |
+| Portal del congregante | El titular ve sus datos, los corrige, maneja sus permisos, descarga todo, pide sus certificados y radica sus derechos | Migración 0075, `/api/v1/yo`, `frontend/portal` |
+| Salida de 99-o | Área de aterrizaje, validación explicada, aplicación por bloques, conciliación por sede, reversión exacta, ensayo de 25.000 | Migración 0076, `scripts/migrar-99o.sh`, `backend/db/migracion/MAPA-99o.md` |
+| Operación | Alertas del negocio, reversión del despliegue, gancho de pre-commit, Node fijado, restauración medida | `infra/gcp`, `scripts/revertir-despliegue.sh`, `docs/RUNBOOK.md` |
+| Documentos | Tres decisiones (tema, IA, migración), ASVS nivel 2, economía, legales en borrador, guías por rol | `docs/` |
+
+**Defectos que aparecieron al construir y se cerraron el mismo día:** la purga de retención nunca se había aplicado a dos tablas, habría borrado alergias de niños que siguen viniendo y habría abortado al chocar con la evidencia de entregas; cinco semillas sin clasificar tumbaban el despliegue a producción; la imagen del frontend no traía la consola ni el portal y en la nube habría llamado a `127.0.0.1`; nginx quitaba las cabeceras de seguridad del HTML; los acudientes al entregar un niño se leían solo de la memoria del equipo; el conteo de la puerta se reescribía en ceros al corregirlo.
 
 ## 2 · Lo que se cerró el 19 de septiembre de 2026
 
@@ -105,33 +115,35 @@ cd backend
 ## 5 · Lo que falta, en orden
 
 **Ola 1 · para que exista en producción (media jornada, necesita las llaves de GCP)**
-1. Crear `casaroca-staging` y `casaroca-prod` con facturación.
+1. Crear `casaroca-staging` y `casaroca-prod` con facturación, en la región que decida la mesa.
 2. `terraform apply` sobre staging y contrastar con `docs/INFRA.md`.
 3. Cargar los secretos y envolver la llave N4 con KMS.
-4. Primer despliegue, prueba de carga contra staging, despliegue a producción.
+4. Primer despliegue (Cloud Build construye, prueba y sube API, migrador y frontend), prueba de carga contra staging, despliegue a producción.
 
-**Ola 2 · para que se pueda entregar a las 36 sedes**
-5. **Las pantallas que faltan: 19 de 22 módulos.** Por orden de uso real, no de tamaño:
-   Aportes y Asistencia (todas las semanas), CRM Pastoral · 4C y Grupos (el seguimiento),
-   Consejería y Talento (con datos sensibles, exigen cuidado extra), Formación, Calendario,
-   Comunicaciones, Analítica, y el resto. **No es un remate: es un frente de trabajo completo**,
-   y conviene decirlo con ese nombre al presupuestarlo.
-6. Cablear las cuatro alertas que ya tienen su vista en la base.
-7. **Prueba de intrusión externa** (compuerta G5). Lo diseñado cubre los controles; esto certifica lo construido.
-8. Registro de las bases ante la SIC y publicación del aviso de privacidad.
+**Ola 2 · para entregar a las sedes**
+5. Sede piloto dos domingos, con la **exportación real de 99-o** de esa sede migrada, conciliada y corrida en paralelo.
+6. **Prueba de intrusión externa** sobre la infraestructura aplicada.
+7. Documentos legales con los datos del Responsable, revisados por abogado, y el registro ante la SIC si la iglesia está obligada.
+8. La mesa ratifica en la consola, con acta, los permisos propuestos para los módulos nuevos.
+9. Prueba automática de accesibilidad y en teléfonos reales.
 
 **Ola 3 · para que sobreviva**
-9. Capacitación con **una persona entrenada por sede**.
-10. Mesa de ayuda con horario y tiempo de respuesta.
-11. **Bus factor:** hoy es 1. Al menos una persona más tiene que poder levantar esto.
+10. **Una persona entrenada por sede**, con las guías de `docs/guias/`.
+11. Mesa de ayuda con horario y tiempo de respuesta.
+12. **Bus factor:** hoy es 1. Al menos una persona más tiene que poder levantar esto (Jhon: aceptar la invitación al repositorio antes del 25 de septiembre).
 
-## 6 · Decisiones que esperan a la mesa
+## 6 · Decisiones que esperan a la mesa (o a Daniel)
 
-1. **Región de la nube.** São Paulo cuesta ~575.000 COP/mes más que `us-east1` y depende de la cláusula de residencia de datos.
-2. **Traslados** (`docs/DECISIONES/ADR-002`): ¿quién aprueba, el pastor que recibe o el que entrega? ¿La consejería viaja con la persona? La recomendación técnica es que **no viaje** sin consentimiento nuevo.
-3. **Quién es el Responsable del Tratamiento** ante la ley: la corporación central o cada iglesia. Cambia el modelo de consentimiento completo.
-4. **Quién asume el RPO de 15 minutos.** Es una decisión de la mesa, no del ingeniero.
+1. **Alcance y precio firmados**, y qué módulos entran en la primera ola y si el portal va desde el inicio.
+2. **Quién es el Responsable del Tratamiento** ante la ley (la corporación central o cada iglesia), con razón social y NIT.
+3. **Facturación y región de Google Cloud.** São Paulo cuesta ~575.000 COP/mes más que `us-east1` y depende de la residencia de datos.
+4. **La exportación de 99-o, el mapa de las 36 iglesias y la fecha de fin del contrato**: sin eso no hay cronograma honesto de migración.
+5. **Quién asume el RPO de 15 minutos** y quién aprueba los traslados entre sedes (`ADR-002`).
+6. **Qué inteligencia artificial y cuándo** (`ADR-005`): hoy no hay ninguna, a propósito.
+7. **PayU** (cuenta de la iglesia) y los **certificados de donación** con su firma, y el **DNS de casaroca.org** para la API y la aplicación.
+8. **Sede piloto** (propuesta: Chía) y quién la acompaña.
+9. **La cifra de costo que se presenta**: la fase 2 de la nube cuesta 526 USD al mes (unos 2,1 millones de COP), no 1,5 millones como dice el documento de retorno (`docs/ECONOMIA.md`).
 
 ## 7 · La advertencia que sigue vigente
 
-Esto certifica que **lo diseñado** cubre los controles y que **lo construido** pasa 219 invariantes de base, 21 pruebas de autenticación, 50 de la API y una prueba de carga. **No certifica que lo desplegado los cumpla en producción**, porque todavía no hay producción. Eso lo certifica la prueba de intrusión externa de la compuerta G5, sobre la infraestructura aplicada.
+Esto certifica que **lo diseñado** cubre los controles y que **lo construido** pasa 265 invariantes de base, 22 pruebas de autenticación, 52 de la API, 135 conectores entre pantalla y base, un ensayo de migración de 25.000 personas y una restauración medida. **No certifica que lo desplegado los cumpla en producción**, porque todavía no hay producción. Eso lo certifica la prueba de intrusión externa, sobre la infraestructura aplicada.
