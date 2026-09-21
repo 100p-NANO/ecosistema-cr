@@ -12,11 +12,7 @@
     .sr-solo { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
                overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
   </style>
-  <script>
-    /* La API y la versión se inyectan al desplegar. En desarrollo apuntan al local. */
-    window.CASAROCA_API = window.CASAROCA_API ?? 'http://127.0.0.1:3000';
-    window.CASAROCA_VERSION = window.CASAROCA_VERSION ?? 'dev';
-  </script>
+  <script src="config.js"></script>
 </head>
 <body>
   <div id="app">

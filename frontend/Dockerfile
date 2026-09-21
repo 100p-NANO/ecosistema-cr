@@ -6,9 +6,17 @@
 # y una politica de cache que no deje a nadie con la version de ayer.
 FROM nginx:1.27-alpine
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY index.html /usr/share/nginx/html/index.html
-COPY src        /usr/share/nginx/html/src
+COPY nginx.conf               /etc/nginx/conf.d/default.conf
+COPY cabeceras-seguridad.conf /etc/nginx/cabeceras-seguridad.conf
+COPY index.html               /usr/share/nginx/html/index.html
+COPY config.js                /usr/share/nginx/html/config.js
+COPY src                      /usr/share/nginx/html/src
+# ⛔ 21 sep 2026 · La imagen copiaba solo index.html y src/: la consola del
+#    Sistema Master y el portal del congregante NO existían en producción.
+COPY master                   /usr/share/nginx/html/master
+COPY portal                   /usr/share/nginx/html/portal
+# Escribe /config.js al arrancar, desde CASAROCA_API y CASAROCA_VERSION.
+COPY --chmod=0755 40-configuracion.sh /docker-entrypoint.d/40-configuracion.sh
 
 # Cloud Run manda el puerto por $PORT, y por omision es 8080.
 EXPOSE 8080

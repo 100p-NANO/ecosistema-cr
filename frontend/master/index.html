@@ -12,14 +12,11 @@
     .sr-solo { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
                overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
   </style>
-  <script>
-    /* ⛔ ESTA CONSOLA NO ES LA APLICACIÓN DE LOS PASTORES. Es el comando
+  <!-- ⛔ ESTA CONSOLA NO ES LA APLICACIÓN DE LOS PASTORES. Es el comando
        central: desde aquí se despliegan iglesias, se crean accesos y se
        otorgan permisos de toda la red. Por eso vive en su propia dirección
-       y con su propio visual: quien entra aquí tiene que saber dónde está. */
-    window.CASAROCA_API = window.CASAROCA_API ?? 'http://127.0.0.1:3000';
-    window.CASAROCA_VERSION = window.CASAROCA_VERSION ?? 'dev';
-  </script>
+       y con su propio visual: quien entra aquí tiene que saber dónde está. -->
+  <script src="../config.js"></script>
 </head>
 <body>
   <div id="app">

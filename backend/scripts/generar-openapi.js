@@ -260,7 +260,9 @@ async function main() {
   const app = await NestFactory.create(AppModule, { logger: false });
   await app.init();
   const servidor = app.getHttpAdapter().getInstance();
-  const capa = servidor._router?.stack ?? [];
+  /* Express 5 (Nest 11 en adelante) expone el enrutador como `router`;
+     Express 4 lo tenía en `_router`. Sin esto el contrato salía VACÍO. */
+  const capa = (servidor.router ?? servidor._router)?.stack ?? [];
 
   const rutas = [];
   for (const c of capa) {

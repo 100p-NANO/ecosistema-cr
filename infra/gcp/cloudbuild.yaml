@@ -113,6 +113,40 @@ steps:
       - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_PREFIJO}/migrador:$BUILD_ID
       - backend
 
+  # ⛔ 21 sep 2026 · El frontend no se construía aquí: su imagen dejaba
+  #    fuera la consola y el portal, y la política de seguridad bloqueaba
+  #    la configuración en línea. Ahora se construye Y se prueba arrancada.
+  - id: construir-frontend
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['freno-domingo']
+    args:
+      - build
+      - --pull
+      - --label=org.opencontainers.image.revision=$COMMIT_SHA
+      - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_PREFIJO}/frontend:$BUILD_ID
+      - frontend
+
+  - id: probar-frontend
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['construir-frontend']
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        IMG=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_PREFIJO}/frontend:$BUILD_ID
+        # Sin CASAROCA_API el contenedor NO debe arrancar.
+        if docker run --rm -e CASAROCA_API= "$$IMG" nginx -t 2>/dev/null; then echo "arrancó sin API"; exit 1; fi
+        docker run -d --name front -p 8080:8080 -e CASAROCA_API=https://api.ejemplo.org -e CASAROCA_VERSION=$BUILD_ID "$$IMG"
+        for i in $$(seq 1 20); do curl -sf http://127.0.0.1:8080/salud >/dev/null && break; sleep 1; done
+        curl -sf http://127.0.0.1:8080/config.js | grep -q 'https://api.ejemplo.org'
+        curl -sfI http://127.0.0.1:8080/ | grep -qi 'content-security-policy'
+        curl -sfI http://127.0.0.1:8080/ | grep -qi 'x-frame-options: deny'
+        curl -sf http://127.0.0.1:8080/master/ | grep -q 'master.js'
+        curl -sf http://127.0.0.1:8080/portal/ | grep -q 'portal.js'
+        docker rm -f front >/dev/null
+        echo "frontend: config, cabeceras, consola y portal en la imagen"
+
   # ── 2. Subida ───────────────────────────────────────────────────────
   - id: subir-api
     name: gcr.io/cloud-builders/docker
@@ -123,6 +157,11 @@ steps:
     name: gcr.io/cloud-builders/docker
     waitFor: ['construir-migrador']
     args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_PREFIJO}/migrador:$BUILD_ID']
+
+  - id: subir-frontend
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['probar-frontend']
+    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_PREFIJO}/frontend:$BUILD_ID']
 
   # ── 3. Migraciones ──────────────────────────────────────────────────
   # `jobs execute --wait` devuelve error si la ejecución falla, y con eso

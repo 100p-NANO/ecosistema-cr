@@ -212,7 +212,7 @@ por un total de <strong>${esc(cert.moneda)} ${dinero(cert.total_certificado)}</s
 ${detalle.map(r => `<tr><td>${fecha(r.fecha_aporte)}</td><td>${esc(r.tipo_aporte)}</td><td>${esc(r.metodo_pago)}</td><td class="v">${dinero(r.monto)}</td></tr>`).join('')}
 <tr class="total"><td colspan="3">Total</td><td class="v">${dinero(cert.total_certificado)}</td></tr></table>
 <p>Expedido en ${esc(s?.ciudad)} el ${fecha(cert.fecha_expedicion, true)}.</p>
-<p class="nover"><button onclick="print()">Imprimir o guardar como PDF</button></p>
+<p class="nover" style="color:#555;font-size:13px">Para guardarlo, use «Imprimir» en su navegador y elija «Guardar como PDF».</p>
 </body></html>`;
 }
 

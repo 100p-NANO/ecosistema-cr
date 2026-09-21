@@ -251,6 +251,12 @@ comprobar "un correo mal escrito se rechaza y se dice en castellano" "400|1" "$C
 pedir "$TMB" GET /oracion
 comprobar "el miembro no usa la API de las sedes (sin sede asignada)" "403" "$COD"
 
+echo "· Errores que se dicen en castellano"
+salida=$(curl -s -w $'\n%{http_code}' -X POST -H "$H" -H "Authorization: Bearer $TP" -d '{mal json' "$A/tareas")
+COD="${salida##*$'\n'}"; RES="${salida%$'\n'*}"
+comprobar "un JSON mal formado · 400 y la frase en castellano, no la del intérprete" "400|1|0" \
+  "$COD|$(tiene 'no es un JSON válido')|$(tiene 'position')"
+
 # ── Dejar todo como estaba ───────────────────────────────────────────
 limpiar() { sql "$1" >/dev/null 2>&1 || true; }
 for m in $MODS; do

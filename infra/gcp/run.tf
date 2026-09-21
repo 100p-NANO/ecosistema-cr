@@ -325,6 +325,12 @@ resource "google_cloud_run_v2_service" "frontend" {
 
     containers {
       image = var.imagen_frontend
+      # El frontend escribe su /config.js al arrancar con esto; sin
+      # CASAROCA_API no arranca (ver frontend/40-configuracion.sh).
+      env {
+        name  = "CASAROCA_API"
+        value = var.dominio_api != "" ? "https://${var.dominio_api}" : google_cloud_run_v2_service.api.uri
+      }
       resources {
         limits = {
           cpu    = local.cpu_texto.front

@@ -90,6 +90,21 @@ export class FiltroDeErrores implements ExceptionFilter {
     const id = (req as any).peticionId ?? 'sin-id';
 
     if (e instanceof HttpException) {
+      /* ⛔ 21 sep 2026 · Desde Nest 11 el intérprete del cuerpo lanza
+         excepciones HTTP con su texto en inglés («Expected property name or
+         '}' in JSON at position 1»), que llegaban tal cual a la pantalla.
+         Se dicen en castellano, igual que antes. */
+      const causa = (e as any).cause ?? (e as any).getResponse?.()?.cause;
+      const crudoHttp = String((e.getResponse() as any)?.message ?? e.message ?? '');
+      if (e.getStatus() === 400 && (causa?.type === 'entity.parse.failed'
+          || /in JSON at position|Unexpected token|Unexpected end of JSON|Expected property name/i.test(crudoHttp))) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          error: true, mensaje: 'El contenido enviado no es un JSON válido.', peticionId: id });
+      }
+      if (e.getStatus() === 413) {
+        return res.status(HttpStatus.PAYLOAD_TOO_LARGE).json({
+          error: true, mensaje: 'El contenido enviado es demasiado grande.', peticionId: id });
+      }
       const cuerpo = e.getResponse();
       const mensaje = typeof cuerpo === 'string' ? cuerpo : (cuerpo as any)?.mensaje ?? (cuerpo as any)?.message ?? 'Error';
       /* ⛔ 20 de septiembre de 2026. Aquí se reconstruía el cuerpo con TRES
