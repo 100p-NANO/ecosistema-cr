@@ -69,6 +69,17 @@ async function crudo(ruta, opciones = {}, reintentar = true) {
   }
 
   const peticionId = r.headers.get('X-Peticion-Id');
+  /* Un documento (el certificado imprimible) viaja como HTML, con la misma
+     sesión: abrirlo por enlace directo no llevaría el token. */
+  if (opciones.comoTexto) {
+    const texto = await r.text();
+    if (!r.ok) {
+      let mensaje = null;
+      try { mensaje = JSON.parse(texto)?.mensaje; } catch { /* no era JSON */ }
+      throw new ErrorApi(mensaje ?? `Error ${r.status}`, r.status, peticionId);
+    }
+    return texto;
+  }
   let cuerpo = null;
   try { cuerpo = await r.json(); } catch { /* sin cuerpo */ }
 
@@ -81,6 +92,7 @@ async function crudo(ruta, opciones = {}, reintentar = true) {
 
 export const api = {
   obtener: (ruta) => crudo(ruta),
+  obtenerTexto: (ruta) => crudo(ruta, { comoTexto: true }),
   enviar:  (ruta, datos) => crudo(ruta, { method: 'POST', body: JSON.stringify(datos ?? {}) }),
   cambiar: (ruta, datos) => crudo(ruta, { method: 'PUT',  body: JSON.stringify(datos ?? {}) }),
   /* ⛔ Un DELETE con cuerpo. No es un capricho: revocar un rol exige el

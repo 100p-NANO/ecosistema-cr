@@ -179,6 +179,16 @@ export class DonacionesService {
     const { rows: detalle } = await c.query(
       `SELECT fecha_aporte, tipo_aporte, metodo_pago, monto FROM modelo100p.donaciones
         WHERE certificado_id = $1 ORDER BY fecha_aporte`, [id]);
+    return htmlCertificado(cert, p, s, detalle);
+  }
+}
+
+/**
+ * El certificado imprimible, sin acceso a la base: recibe los datos ya
+ * leídos. Lo usan Tesorería (con su permiso) y el portal del titular (que
+ * solo puede pedir el suyo). Una sola plantilla: dos copias se desfasarían.
+ */
+export function htmlCertificado(cert: any, p: any, s: any, detalle: any[]): string {
     const dinero = (v: any) => Number(v).toLocaleString('es-CO', { minimumFractionDigits: 2 });
     const anulado = cert.estado === 'ANULADO';
     return `<!doctype html><html lang="es"><head><meta charset="utf-8">
@@ -204,7 +214,6 @@ ${detalle.map(r => `<tr><td>${fecha(r.fecha_aporte)}</td><td>${esc(r.tipo_aporte
 <p>Expedido en ${esc(s?.ciudad)} el ${fecha(cert.fecha_expedicion, true)}.</p>
 <p class="nover"><button onclick="print()">Imprimir o guardar como PDF</button></p>
 </body></html>`;
-  }
 }
 
 function esc(v: any): string {

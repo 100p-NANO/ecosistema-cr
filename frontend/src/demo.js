@@ -411,6 +411,24 @@ const N = {
       recibida_en: d(-3), vence_en: d(11), vencida: false, dias_restantes: 11 },
   ],
 };
+
+/* ── Portal del congregante: una miembro de ejemplo ── */
+const YO = {
+  persona: { nombre: 'Camila Rojas Mejía', primer_nombre: 'Camila', email: 'camila@example.org', telefono: '300 555 0199',
+             direccion: 'Calle 12 # 8-40, Chía', sede: 'Chía (demo)', sede_codigo: 'CHIA', documento: 'CC ···4821', es_menor: false },
+  grupos: [{ grupo: 'Familias de Chía centro', tipo: 'Familiar', dia: 'jueves', hora: '19:30', rol: 'miembro', desde: d(-120) }],
+  formacion: [{ curso: 'Fundamentos de la fe', cohorte: '2026-2', inicia: d(-30), estado: 'cursando', pago: 'pagado', nota: null }],
+  aportes_del_anio: { cantidad: 9, total: 3150000 },
+  certificados: [],
+  hijos: [{ nombre: 'Samuel', edad: 7, parentesco: 'MADRE', puede_retirar: true, en_sala_ahora: true }],
+  peticiones: [],
+  consentimientos: [
+    ...['email', 'whatsapp', 'sms', 'llamada'].map(canal => ({ finalidad: 'convocatoria', finalidad_nombre: 'Convocatoria a actividades',
+      descripcion: 'Invitaciones a servicios, cursos y eventos.', canal, otorgado: canal === 'whatsapp', desde: canal === 'whatsapp' ? d(-60) : null })),
+    ...['email', 'whatsapp', 'sms', 'llamada'].map(canal => ({ finalidad: 'pastoral', finalidad_nombre: 'Acompañamiento pastoral',
+      descripcion: 'Contacto de seguimiento, oración y cuidado.', canal, otorgado: false, desde: null })),
+  ],
+};
 const buscar = (lista, x) => lista.find(e => e.id === x);
 const demoGuarda = (mensaje) => ({ mensaje: mensaje + ' (demostración: vive solo en esta pestaña)' });
 
@@ -437,6 +455,17 @@ function responder(metodo, ruta, cuerpo = null) {
       modulos: MODULOS_DEMO
         .map(m => ({ modulo: m.codigo, nombre: m.nombre, nivel_dato: m.nivel_dato })),
     }),
+    'GET /yo/resumen': () => YO,
+    'POST /yo/datos': () => { Object.assign(YO.persona, Object.fromEntries(Object.entries(cuerpo ?? {}).filter(([, v]) => v)));
+      return { persona: YO.persona, ...demoGuarda('Sus datos quedaron actualizados.') }; },
+    'POST /yo/consentimientos': () => { const c = YO.consentimientos.find(x => x.canal === cuerpo?.canal && x.finalidad === cuerpo?.finalidad);
+      if (c) { c.otorgado = !!cuerpo?.otorgar; c.desde = d(0); }
+      return { otorgado: !!cuerpo?.otorgar, ...demoGuarda(cuerpo?.otorgar ? 'Listo: autorizó este tipo de mensaje por ese canal.' : 'Listo: ya no le escribiremos por ese canal para eso.') }; },
+    'POST /yo/peticiones': () => { const r = 'HD-DEMO-' + String(YO.peticiones.length + 1).padStart(3, '0');
+      YO.peticiones.unshift({ radicado: r, tipo: cuerpo?.tipo, estado: 'recibida', recibida: d(0), vence: d(14), respuesta: null });
+      return { radicado: r, vence: d(14), ...demoGuarda(`Su petición quedó radicada con el número ${r}.`) }; },
+    'GET /yo/mis-datos': () => ({ generado_en: new Date().toISOString(), persona: YO.persona, grupos: YO.grupos,
+      no_incluido: 'En la demostración no hay datos reales que descargar.' }),
     // ── Los trece módulos con pantalla nueva ────────────────────────
     'GET /oracion': () => ({ total_filas: N.oracion.length, desde: 0, puede_registrar: true,
       peticiones: N.oracion.filter(x => !q.get('estado') || x.estado === q.get('estado')) }),

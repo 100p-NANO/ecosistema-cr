@@ -1710,6 +1710,60 @@ paths:
         "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "429": { description: "demasiadas peticiones" }
         "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/yo/certificados/:id/documento:
+    get:
+      summary: "Mi certificado de donacion"
+      description: "El imprimible, solo si el certificado es del titular de la sesion."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/yo/consentimientos:
+    post:
+      summary: "Autorizar o revocar un contacto"
+      description: "Por canal y finalidad, solo para lo que se apoya en el consentimiento. Queda con la fecha del acto."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/yo/datos:
+    post:
+      summary: "Actualizar mis datos"
+      description: "Correo, telefono y direccion del propio titular. Queda en la auditoria con el motivo."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/yo/mis-datos:
+    get:
+      summary: "Descargar mis datos"
+      description: "N1 y N2 en un archivo JSON. Lo N3 y N4 se pide con una consulta. Deja rastro en la bitacora de lectura."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/yo/peticiones:
+    post:
+      summary: "Radicar una peticion de Habeas Data"
+      description: "A nombre del titular, por la web, con el plazo legal calculado en dias habiles. Cinco por hora."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/yo/resumen:
+    get:
+      summary: "Mi resumen"
+      description: "Lo del titular de la sesion: sus datos basicos, grupos, cursos, aportes del ano, certificados, permisos de contacto, peticiones e hijos. No recibe el identificador de nadie."
+      responses:
+        "200": { description: correcto }
+        "401": { description: "sin sesion valida", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: "demasiadas peticiones" }
+        "500": { description: "error inesperado", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /salud/detalle:
     get:
       summary: "Salud detallada"

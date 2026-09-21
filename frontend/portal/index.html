@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Mi iglesia: sus datos, sus permisos de contacto, sus grupos, sus certificados y sus derechos.">
+  <title>Mi iglesia · Casa Sobre la Roca</title>
+  <link rel="stylesheet" href="../src/styles/variables.css">
+  <link rel="stylesheet" href="../src/styles/editorial.css">
+  <style>
+    .sr-solo { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+               overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+    .permisos { display:grid; gap:var(--cr-sp-3); }
+    .permiso { border:1px solid var(--cr-borde); border-radius:var(--cr-radio-md); padding:var(--cr-sp-3) var(--cr-sp-4); background:var(--cr-superficie); }
+    .permiso h3 { margin:0 0 var(--cr-sp-1); font-size:var(--cr-tx-md); }
+    .permiso p { margin:0 0 var(--cr-sp-2); color:var(--cr-texto-suave); font-size:var(--cr-tx-sm); max-width:62ch; }
+    .canales { display:flex; gap:var(--cr-sp-2); flex-wrap:wrap; }
+    .canal { display:flex; align-items:center; gap:var(--cr-sp-2); min-height:44px; padding:0 var(--cr-sp-3);
+             border:1px solid var(--cr-borde-fuerte); border-radius:var(--cr-radio-sm); cursor:pointer; font-size:var(--cr-tx-sm); background:var(--cr-superficie); }
+    .canal input { width:20px; height:20px; accent-color:var(--cr-azul-700); margin:0; }
+    .canal small { color:var(--cr-texto-tenue); }
+  </style>
+  <script>
+    window.CASAROCA_API = window.CASAROCA_API ?? 'http://127.0.0.1:3000';
+    window.CASAROCA_VERSION = window.CASAROCA_VERSION ?? 'dev';
+  </script>
+</head>
+<body>
+  <div id="app">
+    <noscript><div style="padding:2rem;font-family:system-ui"><h1>Necesita JavaScript</h1>
+      <p>Este portal necesita JavaScript para funcionar. Actívelo en su navegador.</p></div></noscript>
+  </div>
+  <script type="module" src="portal.js"></script>
+</body>
+</html>

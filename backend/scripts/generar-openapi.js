@@ -242,6 +242,14 @@ const DESCRIPCIONES = {
   'GET /api/v1/analitica/tablero': ['Tablero de la sede o de la red', 'N2. Toda cifra menor de 5 sale como <5: un conteo pequeno identifica a las personas. Corre con el RLS de quien pregunta.'],
   'GET /api/v1/crm/se-estan-perdiendo': ['Quien se nos esta perdiendo', 'Personas que vinieron al menos 3 veces entre hace 12 y hace 5 semanas y ninguna en las ultimas 4. Para llamarlas esta semana.'],
 
+  // ── 21 sep 2026 · El portal del congregante ────────────────────────────
+  'GET /api/v1/yo/resumen': ['Mi resumen', 'Lo del titular de la sesion: sus datos basicos, grupos, cursos, aportes del ano, certificados, permisos de contacto, peticiones e hijos. No recibe el identificador de nadie.'],
+  'POST /api/v1/yo/datos': ['Actualizar mis datos', 'Correo, telefono y direccion del propio titular. Queda en la auditoria con el motivo.'],
+  'POST /api/v1/yo/consentimientos': ['Autorizar o revocar un contacto', 'Por canal y finalidad, solo para lo que se apoya en el consentimiento. Queda con la fecha del acto.'],
+  'POST /api/v1/yo/peticiones': ['Radicar una peticion de Habeas Data', 'A nombre del titular, por la web, con el plazo legal calculado en dias habiles. Cinco por hora.'],
+  'GET /api/v1/yo/mis-datos': ['Descargar mis datos', 'N1 y N2 en un archivo JSON. Lo N3 y N4 se pide con una consulta. Deja rastro en la bitacora de lectura.'],
+  'GET /api/v1/yo/certificados/:id/documento': ['Mi certificado de donacion', 'El imprimible, solo si el certificado es del titular de la sesion.'],
+
   'GET /salud': ['Salud para el balanceador', 'Comprueba la base de verdad.'],
   'GET /salud/detalle': ['Salud detallada', 'Base, particiones, fugas de lectura y ultimo mantenimiento.'],
 };

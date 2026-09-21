@@ -37,6 +37,7 @@ BANCOS=(
   cumplimiento
   bandeja_de_salida
   modulos_nuevos
+  portal
 )
 
 rojos=(); verdes=0; total_pruebas=0

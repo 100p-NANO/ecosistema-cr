@@ -107,6 +107,7 @@ async function arrancar() {
   RAIZ.innerHTML = cargando(3);
   try {
     sesion = await api.obtener('/api/v1/sesion/yo');
+    if (esSoloMiembro(sesion)) return irAlPortal();
     pintarMarco();
   } catch (e) {
     if (e.estado === 401) { borrarTokens(); return pintarEntrar(RAIZ, entrarYa); }
@@ -120,8 +121,20 @@ async function arrancar() {
 
 async function entrarYa() {
   sesion = await api.obtener('/api/v1/sesion/yo');
+  if (esSoloMiembro(sesion)) return irAlPortal();
   location.hash = '#/panel';
   pintarMarco();
+}
+
+/* ⛔ 21 sep 2026 · Un miembro (alcance «persona propia», sin sede ni
+   módulos) que entraba por aquí veía un panel vacío que decía «no tiene
+   módulos asignados». Lo suyo es el portal: se le lleva allá, con la
+   misma sesión (sessionStorage es del mismo origen). */
+function esSoloMiembro(s) {
+  return !s?.alcance?.todaLaRed && !(s?.alcance?.sedes ?? []).length && !(s?.modulos ?? []).length;
+}
+function irAlPortal() {
+  location.replace(new URL('portal/', location.href.split('#')[0]).href);
 }
 
 /* ⛔ 20 sep 2026 · LA BARRA DE ABAJO NO CRECE INDEFINIDAMENTE.

@@ -230,6 +230,27 @@ pedir "$TD" POST "/administracion/sedes/$CHIA/modulos" '{"modulo":"tematicas","a
 pedir "$TP" GET /tematicas
 comprobar "apagado en la sede · la ruta lo dice (403)" "403|1" "$COD|$(tiene 'apagado')"
 
+echo "· El portal del congregante (/api/v1/yo)"
+MIEMBRO=$(sql "INSERT INTO nucleo.personas (sede_id, primer_nombre, primer_apellido, email_principal, telefono_movil)
+               VALUES ('$CHIA','Miembro','Portal$SX','miembro.portal$SX@example.org','300 000 $SX') RETURNING id" | head -1)
+sql "INSERT INTO identidad.asignaciones (persona_id, rol, alcance_tipo, alcance_id, nivel_max, otorgado_por, acta_referencia)
+     VALUES ('$MIEMBRO','MIEMBRO','persona_propia',NULL,2,'$DG','Banco de modulos · portal')" >/dev/null
+sql "INSERT INTO grupos.membresias (grupo_id, persona_id, rol, fecha_ingreso)
+     SELECT '$GRUPO', '$MIEMBRO', (SELECT codigo FROM sistema.catalogo_valores WHERE catalogo='rol_membresia' AND vigente ORDER BY orden LIMIT 1), CURRENT_DATE" >/dev/null
+TMB=$(PGUSER="$ADMIN" node scripts/token-para.js "$MIEMBRO")
+pedir "$TMB" GET /yo/resumen
+comprobar "el miembro entra sin sede y ve su grupo" "200|1" "$COD|$(tiene 'Grupo banco modulos')"
+pedir "$TMB" POST /yo/consentimientos '{"canal":"email","finalidad":"convocatoria","otorgar":true}'
+comprobar "autorizar desde el portal · llega como acto del titular" "t|titular|portal del congregante" \
+  "$(sql "SELECT plataforma.puede_contactar('$MIEMBRO','email','convocatoria')")|$(sql "SELECT calidad||'|'||evidencia_ref FROM plataforma.consentimientos WHERE persona_id='$MIEMBRO' ORDER BY registrado_en DESC LIMIT 1")"
+pedir "$TMB" POST /yo/peticiones '{"tipo":"consulta","detalle":"Quiero saber que datos mios tiene la iglesia y para que los usa."}'
+comprobar "radicar desde el portal · a su nombre y por la web" "$MIEMBRO|web" \
+  "$(sql "SELECT titular_id||'|'||canal FROM plataforma.peticiones_titular WHERE titular_id='$MIEMBRO' ORDER BY recibida_en DESC LIMIT 1")"
+pedir "$TMB" POST /yo/datos '{"email":"no-es-un-correo"}'
+comprobar "un correo mal escrito se rechaza y se dice en castellano" "400|1" "$COD|$(tiene 'forma de un correo')"
+pedir "$TMB" GET /oracion
+comprobar "el miembro no usa la API de las sedes (sin sede asignada)" "403" "$COD"
+
 # ── Dejar todo como estaba ───────────────────────────────────────────
 limpiar() { sql "$1" >/dev/null 2>&1 || true; }
 for m in $MODS; do
@@ -248,6 +269,7 @@ limpiar "UPDATE identidad.asignaciones SET revocada_en=now(), vigente_hasta=CURR
 limpiar "UPDATE identidad.cuentas SET estado='suspendida', motivo_estado='Fin del banco de modulos' WHERE persona_id='$INTER'"
 limpiar "UPDATE grupos.grupos SET cerrado_en=CURRENT_DATE WHERE id='$GRUPO'"
 limpiar "UPDATE sistema.frenos SET activo=false WHERE codigo='comunicaciones_masivas'"
+limpiar "UPDATE identidad.asignaciones SET revocada_en=now(), vigente_hasta=CURRENT_DATE, motivo_revocacion='Fin del banco de modulos' WHERE persona_id='$MIEMBRO' AND revocada_en IS NULL"
 
 echo ""
 echo "═══ MÓDULOS: $PASAN de $N ═══"

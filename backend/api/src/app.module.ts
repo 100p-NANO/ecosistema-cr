@@ -29,6 +29,7 @@ import { LegalModule } from './legal/legal';
 import { ComunicacionesModule } from './comunicaciones/comunicaciones';
 import { ConstruccionModule } from './construccion/construccion';
 import { AnaliticaModule } from './analitica/analitica';
+import { PortalModule } from './portal/portal';
 import { trazaYRegistro, cabecerasDeSeguridad } from './comun/peticion';
 
 /**
@@ -64,7 +65,10 @@ import { trazaYRegistro, cabecerasDeSeguridad } from './comun/peticion';
                construir bien». Nacen con tablas, reglas en la base y rutas. */
             OracionModule, PeticionesModule, RequerimientosModule, TareasModule,
             CalendarioModule, TematicasModule, LegalModule, ComunicacionesModule,
-            ConstruccionModule, AnaliticaModule],
+            ConstruccionModule, AnaliticaModule,
+            /* ⛔ 21 sep 2026 · Los derechos del titular solo se ejercían
+               pidiéndoselos a alguien de la iglesia. El portal es suyo. */
+            PortalModule],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
