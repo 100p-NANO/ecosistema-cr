@@ -36,6 +36,7 @@ BANCOS=(
   salvaguarda_menores
   cumplimiento
   bandeja_de_salida
+  modulos_nuevos
 )
 
 rojos=(); verdes=0; total_pruebas=0

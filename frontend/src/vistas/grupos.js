@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { pantalla, formulario, tabla, chip, sedes, esc, vacio, avisar } from './comun.js';
+import { pantalla, formulario, tabla, chip, sedes, valoresDe, esc, vacio, avisar } from './comun.js';
 
 /** Grupos y hogares. Se ordena por el que lleva más tiempo sin reunirse:
     lo que hay que mirar primero no es el grupo grande, es el callado. */
@@ -26,15 +26,17 @@ export function pintarGrupos(c) {
       : vacio('🏠', 'Ningún grupo todavía', 'Cree el primero con el formulario de arriba.')),
   });
 
-  sedes().then(op => {
+  /* ⛔ 21 sep 2026 · Los tipos estaban escritos aquí, y dos de los cuatro
+     («hogar» y «ministerio») no existen en el catálogo `tipo_grupo`: quien
+     los elegía recibía siempre «no está en la lista». Salen del catálogo,
+     que es lo que la base acepta. */
+  Promise.all([sedes(), valoresDe('tipo_grupo')]).then(([op, tipos]) => {
     form = formulario({
-      titulo: '+ Crear un grupo',
+      titulo: 'Crear un grupo',
       campos: [
         { nombre: 'sedeId', etiqueta: 'Sede', opciones: op, obligatorio: true },
         { nombre: 'nombre', etiqueta: 'Nombre', obligatorio: true, minimo: 3 },
-        { nombre: 'tipo', etiqueta: 'Tipo', obligatorio: true,
-          opciones: [{ valor: 'pequeno', texto: 'Grupo pequeño' }, { valor: 'hogar', texto: 'Hogar' },
-                     { valor: 'discipulado', texto: 'Discipulado' }, { valor: 'ministerio', texto: 'De ministerio' }] },
+        { nombre: 'tipo', etiqueta: 'Tipo', obligatorio: true, opciones: tipos },
         { nombre: 'diaReunion', etiqueta: 'Día de reunión',
           opciones: ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'].map(d => ({ valor: d, texto: d })) },
         { nombre: 'hora', etiqueta: 'Hora', tipo: 'time' },
@@ -43,7 +45,7 @@ export function pintarGrupos(c) {
       al: (d) => api.enviar('/api/v1/grupos', d),
     });
     recargar().then(() => form.enganchar(c, recargar));
-  }).catch(e => avisar('No se pudieron cargar las sedes: ' + e.message, 'error'));
+  }).catch(e => avisar('No se pudo preparar el formulario: ' + e.message, 'error'));
 }
 
 /** La ficha de un grupo: quién está, quién se fue y cuándo se reunieron. */
@@ -64,7 +66,7 @@ export function pintarGrupo(c, id) {
       </div>
 
       <details class="tarjeta" style="margin-bottom:1rem">
-        <summary style="cursor:pointer;font-weight:600">+ Reportar una reunión</summary>
+        <summary style="cursor:pointer;font-weight:600">Reportar una reunión</summary>
         <form id="reunion" style="margin-top:1rem;display:grid;gap:.75rem">
           <div class="campo"><label for="r-fecha">Fecha</label>
             <input id="r-fecha" name="fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
@@ -83,14 +85,16 @@ export function pintarGrupo(c, id) {
       <div id="sug-g"></div>
       ${d.miembros.lista.length
         ? tabla(d.miembros.lista, [
-            { titulo: 'Nombre', pintar: m => `<strong>${esc(m.nombre_completo)}</strong>` },
+            /* ⛔ «Sacar» vivía en la ÚLTIMA columna: en el teléfono esa
+               columna empieza fuera de la pantalla y el botón no existía
+               (regla de docs/DISENO.md). Va en la primera celda. */
+            { titulo: 'Nombre', pintar: m => `<strong>${esc(m.nombre_completo)}</strong>${m.hasta ? '' : `
+                <div class="acciones" style="margin:.4rem 0 0"><button class="boton boton--suave" data-salir="${esc(m.persona_id)}">Sacar del grupo</button></div>`}` },
             { titulo: 'Rol', pintar: m => chip(m.rol) },
             { titulo: 'Desde', campo: 'desde' },
             { titulo: 'Estado', pintar: m => m.hasta
                 ? `<span class="ayuda">salió ${esc(m.hasta)}${m.motivo_salida ? ' · ' + esc(m.motivo_salida) : ''}</span>`
                 : chip('activo') },
-            { titulo: '', pintar: m => m.hasta ? '' :
-                `<button class="boton boton--suave" data-salir="${esc(m.persona_id)}">Sacar</button>` },
           ])
         : vacio('👥', 'Nadie en el grupo', 'Busque arriba a la primera persona.')}
 

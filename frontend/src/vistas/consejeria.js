@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { pantalla, formulario, tabla, chip, sedes, esc, vacio, avisar } from './comun.js';
+import { pantalla, formulario, tabla, chip, sedes, campoPersona, buscadorPersona, esc, vacio, avisar } from './comun.js';
 
 /**
  * Consejería · lo más delicado que guarda esta iglesia.
@@ -32,11 +32,11 @@ export function pintarConsejeria(c) {
 
   Promise.all([sedes(), api.obtener('/api/v1/consejeria/topicos')]).then(([op, t]) => {
     form = formulario({
-      titulo: '+ Abrir un caso',
+      titulo: 'Abrir un caso',
       campos: [
         { nombre: 'sedeId', etiqueta: 'Sede', opciones: op, obligatorio: true },
-        { nombre: 'consultanteId', etiqueta: 'Identificador de la persona', obligatorio: true,
-          ayuda: 'Búsquela en Personas y pegue aquí su identificador.' },
+        /* ⛔ 21 sep 2026 · Pedía «pegue aquí su identificador». */
+        campoPersona('consultanteId', 'Quién pide acompañamiento', { obligatorio: true }),
         { nombre: 'topico', etiqueta: 'Tópico', obligatorio: true,
           opciones: t.topicos.map(x => ({ valor: x.codigo, texto: `${x.nombre}${x.requiere_profesional ? ' (profesional)' : ''}` })) },
       ],
@@ -50,6 +50,7 @@ export function pintarConsejeria(c) {
 export function pintarCaso(c, id) {
   c.innerHTML = `<p><a href="#/consejeria">← Volver a consejería</a></p><div id="k"></div>`;
   const z = c.querySelector('#k');
+  const consejero = buscadorPersona('consejeroId', 'Consejero', { obligatorio: true });
 
   const { recargar } = pantalla(z, {
     titulo: 'Caso de consejería',
@@ -64,13 +65,36 @@ export function pintarCaso(c, id) {
           ${esc(d.caso.estado)}${d.caso.derivado_a ? ' · derivado a ' + esc(d.caso.derivado_a) : ''}</p>
       </div>
 
-      ${d.caso.cerrado_en ? '' : `
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
-        <button class="boton boton--suave" id="b-asignar">Asignar consejero</button>
+      ${d.caso.cerrado_en ? `<div class="tarjeta" style="margin-bottom:1rem"><p class="etiqueta">Cerrado</p>
+          <p class="texto-largo">${esc(d.caso.desenlace ?? '')}</p></div>` : `
+      <div class="acciones">
         <button class="boton boton--suave" id="b-sesion">Registrar sesión</button>
-        <button class="boton boton--suave" id="b-nota">Escribir nota</button>
-        <button class="boton boton--suave" id="b-cerrar">Cerrar o derivar</button>
-      </div>`}
+      </div>
+      <!-- ⛔ 21 sep 2026 · Asignar pedía el identificador en un prompt, la
+           nota larga se escribía en un prompt de una línea, y cerrar no
+           pedía el desenlace que la base exige: siempre fallaba. -->
+      <details class="tarjeta" style="margin-bottom:.75rem">
+        <summary style="cursor:pointer;font-weight:600">Asignar consejero</summary>
+        <form id="f-asignar" style="margin-top:1rem;display:grid;gap:.75rem">${consejero.html}
+          <button class="boton" type="submit">Asignar</button></form>
+      </details>
+      <details class="tarjeta" style="margin-bottom:.75rem">
+        <summary style="cursor:pointer;font-weight:600">Escribir una nota</summary>
+        <form id="f-nota" style="margin-top:1rem;display:grid;gap:.75rem">
+          <div class="campo"><label for="k-nota">Nota (queda solo dentro de este caso)</label>
+            <textarea id="k-nota" name="texto" rows="5" minlength="5" required></textarea></div>
+          <button class="boton" type="submit">Guardar nota</button></form>
+      </details>
+      <details class="tarjeta" style="margin-bottom:1rem">
+        <summary style="cursor:pointer;font-weight:600">Cerrar o derivar el caso</summary>
+        <form id="f-cerrar" style="margin-top:1rem;display:grid;gap:.75rem">
+          <div class="campo"><label for="k-des">Cómo terminó</label>
+            <textarea id="k-des" name="desenlace" rows="3" maxlength="400" placeholder="Retomó su grupo y ya no necesita acompañamiento"></textarea>
+            <span class="ayuda">Obligatorio si se cierra. Si se deriva, basta con decir a dónde.</span></div>
+          <div class="campo"><label for="k-der">Derivado a (solo si se deriva)</label>
+            <input id="k-der" name="derivadoA" maxlength="200" placeholder="Psicología · Fundación …"></div>
+          <button class="boton" type="submit">Cerrar el caso</button></form>
+      </details>`}
 
       <h2>Consejeros</h2>
       ${d.asignaciones.length
@@ -103,33 +127,38 @@ export function pintarCaso(c, id) {
         : vacio('📝', 'Ninguna nota', 'Lo que se escriba aquí no sale de aquí.')}`,
   });
 
-  z.addEventListener('click', async ev => {
-    const b = ev.target.closest('button[id^="b-"]');
-    if (!b) return;
+  consejero.enganchar(z);
+  z.addEventListener('submit', async ev => {
+    const f = ev.target;
+    if (!['f-asignar', 'f-nota', 'f-cerrar'].includes(f.id)) return;
+    ev.preventDefault();
     try {
-      if (b.id === 'b-asignar') {
-        const p = prompt('Identificador de la persona que será consejero:');
-        if (!p) return;
-        const r = await api.enviar(`/api/v1/consejeria/casos/${id}/asignar`, { consejeroId: p.trim() });
-        avisar(r.mensaje, 'exito');
-      } else if (b.id === 'b-sesion') {
-        const min = prompt('¿Cuántos minutos duró la sesión? (deje vacío si no lo sabe)');
-        const d = {}; if (min && Number(min) > 0) d.duracionMin = Number(min);
-        const r = await api.enviar(`/api/v1/consejeria/casos/${id}/sesiones`, d);
-        avisar(r.mensaje, 'exito');
-      } else if (b.id === 'b-nota') {
-        const t = prompt('Escriba la nota (queda solo dentro de este caso):');
-        if (!t || t.trim().length < 5) return avisar('La nota necesita al menos 5 caracteres.', 'error');
-        const r = await api.enviar(`/api/v1/consejeria/casos/${id}/notas`, { texto: t.trim() });
-        avisar(r.mensaje, 'exito');
-      } else if (b.id === 'b-cerrar') {
-        const a = prompt('Si lo DERIVA, escriba a dónde. Si solo lo cierra, deje vacío y acepte:');
-        if (a === null) return;
-        const r = await api.enviar(`/api/v1/consejeria/casos/${id}/cerrar`,
-          a.trim() ? { derivadoA: a.trim() } : {});
-        avisar(r.mensaje, 'exito');
+      let r;
+      if (f.id === 'f-asignar') {
+        if (!f.elements.consejeroId.value) return avisar('Busque y elija al consejero.', 'error');
+        r = await api.enviar(`/api/v1/consejeria/casos/${id}/asignar`, { consejeroId: f.elements.consejeroId.value });
+      } else if (f.id === 'f-nota') {
+        const texto = f.elements.texto.value.trim();
+        if (texto.length < 5) return avisar('La nota necesita al menos 5 caracteres.', 'error');
+        r = await api.enviar(`/api/v1/consejeria/casos/${id}/notas`, { texto });
+      } else {
+        const desenlace = f.elements.desenlace.value.trim(), derivadoA = f.elements.derivadoA.value.trim();
+        if (!derivadoA && desenlace.length < 5) return avisar('Escriba cómo terminó el caso (al menos 5 caracteres).', 'error');
+        if (!confirm(derivadoA ? `¿Derivar el caso a «${derivadoA}»?` : '¿Cerrar el caso?')) return;
+        r = await api.enviar(`/api/v1/consejeria/casos/${id}/cerrar`,
+          { ...(desenlace ? { desenlace } : {}), ...(derivadoA ? { derivadoA } : {}) });
       }
-      recargar();
+      avisar(r.mensaje, 'exito'); recargar();
+    } catch (e) { avisar(e.message, 'error'); }
+  });
+  z.addEventListener('click', async ev => {
+    if (!ev.target.closest('#b-sesion')) return;
+    const min = prompt('¿Cuántos minutos duró la sesión? (deje vacío si no lo sabe)');
+    if (min === null) return;
+    const d = {}; if (min && Number(min) > 0) d.duracionMin = Number(min);
+    try {
+      const r = await api.enviar(`/api/v1/consejeria/casos/${id}/sesiones`, d);
+      avisar(r.mensaje, 'exito'); recargar();
     } catch (e) { avisar(e.message, 'error'); }
   });
 }

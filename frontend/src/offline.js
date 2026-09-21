@@ -214,8 +214,18 @@ export const memoria = {
   leer(clave) {
     try {
       const v = JSON.parse(localStorage.getItem('cr.mem.' + clave) ?? 'null');
-      return v?.datos ?? null;
+      /* Lo guardado por una versión anterior no traía el sobre {en, datos}:
+         se devuelve tal cual en vez de perderlo como «vacío». */
+      if (v && typeof v === 'object' && !Array.isArray(v) && 'datos' in v) return v.datos ?? null;
+      return v ?? null;
     } catch { return null; }
+  },
+  /** ⛔ Para lo que se recorre con `.filter`/`.map`: si lo guardado no es
+      una lista (dañado, de otra versión), es null y no una excepción que
+      tumba la pantalla de RocaKids en pleno domingo. */
+  lista(clave) {
+    const v = memoria.leer(clave);
+    return Array.isArray(v) ? v : null;
   },
   cuando(clave) {
     try { return JSON.parse(localStorage.getItem('cr.mem.' + clave) ?? 'null')?.en ?? null; }

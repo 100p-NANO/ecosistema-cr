@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { pantalla, formulario, tabla, chip, sedes, esc, vacio, avisar } from './comun.js';
+import { pantalla, formulario, tabla, chip, sedes, valoresDe, esc, vacio, avisar } from './comun.js';
 
 /**
  * Asistencia · el domingo.
@@ -34,20 +34,23 @@ export function pintarAsistencia(c) {
     },
   });
 
-  sedes().then(op => {
+  /* ⛔ 21 sep 2026 · El tipo era texto libre («dominical, oración…») y la
+     base solo acepta los valores del catálogo `tipo_servicio`: escribirlo
+     a mano fallaba casi siempre. Ahora es la lista de la base. */
+  Promise.all([sedes(), valoresDe('tipo_servicio')]).then(([op, tipos]) => {
     form = formulario({
-      titulo: '+ Abrir un servicio',
+      titulo: 'Abrir un servicio',
       campos: [
         { nombre: 'sedeId', etiqueta: 'Sede', opciones: op, obligatorio: true },
-        { nombre: 'fecha', etiqueta: 'Fecha', tipo: 'date', obligatorio: true },
+        { nombre: 'fecha', etiqueta: 'Fecha', tipo: 'date', obligatorio: true, valor: new Date().toISOString().slice(0, 10) },
         { nombre: 'hora', etiqueta: 'Hora de inicio', tipo: 'time', obligatorio: true },
-        { nombre: 'tipo', etiqueta: 'Tipo', obligatorio: true, placeholder: 'dominical, oración, jóvenes…' },
+        { nombre: 'tipo', etiqueta: 'Tipo', obligatorio: true, opciones: tipos },
         { nombre: 'nombre', etiqueta: 'Nombre (opcional)' },
       ],
       al: (d) => api.enviar('/api/v1/asistencia/servicios', d),
     });
     recargar().then(() => form.enganchar(c, recargar));
-  }).catch(e => avisar('No se pudieron cargar las sedes: ' + e.message, 'error'));
+  }).catch(e => avisar('No se pudo preparar el formulario: ' + e.message, 'error'));
 }
 
 /** La pantalla de UN servicio: marcar gente y reportar el conteo. */
@@ -65,13 +68,20 @@ export function pintarServicio(c, id) {
       </form>`,
     cargar: () => api.obtener(`/api/v1/asistencia/servicios/${id}/marcados`),
     pintar: (d) => `
+      ${d.servicio ? `<p style="margin:0 0 .75rem"><strong>${esc(d.servicio.nombre || d.servicio.tipo)}</strong>
+        · ${esc(d.servicio.fecha)} ${esc(d.servicio.hora ?? '')} · ${esc(d.servicio.sede)}</p>` : ''}
       <details class="tarjeta" style="margin-bottom:1rem">
-        <summary style="cursor:pointer;font-weight:600">Reportar el conteo de la puerta</summary>
+        <summary style="cursor:pointer;font-weight:600">${d.servicio?.total == null ? 'Reportar el conteo de la puerta'
+          : `Conteo de la puerta: ${esc(d.servicio.total)} (corregir)`}</summary>
+        ${d.servicio?.conteo_reportado_en ? `<p class="ayuda" style="margin:.5rem 0 0">Reportado ${esc(d.servicio.conteo_reportado_en)}. Corregir reemplaza los cuatro números.</p>` : ''}
         <form id="conteo" style="margin-top:1rem;display:grid;gap:.75rem;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
-          ${['adultos', 'jovenes', 'ninos', 'primeraVez'].map(k => `
+          ${/* ⛔ 21 sep 2026 · Arrancaba siempre en cero: al corregir UN número
+               se guardaban ceros en los otros tres. Ahora trae lo reportado. */
+            [['adultos', 'Adultos', 'adultos'], ['jovenes', 'Jóvenes', 'jovenes'], ['ninos', 'Niños', 'ninos'],
+             ['primeraVez', 'Primera vez', 'primera_vez']].map(([k, etiqueta, col]) => `
             <div class="campo">
-              <label for="c-${k}">${k === 'primeraVez' ? 'Primera vez' : k[0].toUpperCase() + k.slice(1)}</label>
-              <input id="c-${k}" name="${k}" type="number" min="0" inputmode="numeric" value="0">
+              <label for="c-${k}">${etiqueta}</label>
+              <input id="c-${k}" name="${k}" type="number" min="0" inputmode="numeric" value="${esc(d.servicio?.[col] ?? 0)}">
             </div>`).join('')}
           <div style="grid-column:1/-1"><button class="boton" type="submit">Guardar el conteo</button></div>
         </form>

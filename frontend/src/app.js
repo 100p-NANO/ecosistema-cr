@@ -1,14 +1,6 @@
 import { api, hayTokens, borrarTokens, guardarTokens } from './api.js';
 import { pintarEntrar } from './vistas/entrar.js';
 import { pintarPanel } from './vistas/panel.js';
-import { pintarPersonas } from './vistas/personas.js';
-import { pintarCheckin } from './vistas/checkin.js';
-import { pintarCatalogos } from './vistas/catalogos.js';
-import { pintarAsistencia, pintarServicio } from './vistas/asistencia.js';
-import { pintarGrupos, pintarGrupo } from './vistas/grupos.js';
-import { pintarConsejeria, pintarCaso } from './vistas/consejeria.js';
-import { pintarFormacion, pintarCohorte } from './vistas/formacion.js';
-import { pintarTalento, pintarAntecedentes } from './vistas/talento.js';
 import { esc, cargando, error, engancharReintentar, avisar } from './ui.js';
 import { cola } from './offline.js';
 import { demoActivo } from './demo.js';
@@ -24,24 +16,61 @@ import { demoActivo } from './demo.js';
 const RAIZ = document.getElementById('app');
 let sesion = null;
 
+/* ⛔ 21 sep 2026 · CARGA DIFERIDA. La aplicación importaba las veintidós
+   pantallas al arrancar: treinta módulos antes de pintar nada. En el
+   teléfono de un maestro de RocaKids, con la red del salón, eso es el
+   arranque lento; y con un servidor que corta conexiones concurrentes, la
+   página quedaba EN BLANCO si fallaba una sola pantalla que ni se iba a
+   abrir. Ahora cada pantalla se baja cuando se abre, una vez. */
+const modulosCargados = new Map();
+function perezosa(archivo, funcion) {
+  return async (...args) => {
+    if (!modulosCargados.has(archivo)) {
+      modulosCargados.set(archivo, import(`./vistas/${archivo}.js`).catch(e => {
+        modulosCargados.delete(archivo);   // que el reintento vuelva a pedirla
+        throw new Error('No se pudo cargar esta pantalla. Revise la conexión y pulse «Reintentar».');
+      }));
+    }
+    const m = await modulosCargados.get(archivo);
+    return m[funcion](...args);
+  };
+}
+
 /* Cada vista declara QUÉ MÓDULO necesita. Si la sesión no lo alcanza, ni
    siquiera aparece en el menú, y entrar por la URL tampoco la abre. */
 const VISTAS = {
   panel:      { titulo: 'Panel',      icono: '◈', modulo: null,          pintar: pintarPanel },
-  personas:   { titulo: 'Personas',   icono: '☺', modulo: 'personas',    pintar: pintarPersonas, ficha: null },
-  asistencia: { titulo: 'Asistencia', icono: '✓', modulo: 'asistencia',  pintar: pintarAsistencia, ficha: pintarServicio },
-  grupos:     { titulo: 'Grupos',     icono: '⬡', modulo: 'grupos',      pintar: pintarGrupos,   ficha: pintarGrupo },
-  checkin:    { titulo: 'Niños',      icono: '✦', modulo: 'rocakids',    pintar: pintarCheckin },
-  consejeria: { titulo: 'Consejería', icono: '🕊', modulo: 'consejeria', pintar: pintarConsejeria, ficha: pintarCaso },
-  formacion:  { titulo: 'Formación',  icono: '✎', modulo: 'formacion',   pintar: pintarFormacion, ficha: pintarCohorte },
-  talento:    { titulo: 'Talento',    icono: '⚑', modulo: 'talento',     pintar: pintarTalento,  ficha: pintarAntecedentes },
+  personas:   { titulo: 'Personas',   icono: '☺', modulo: 'personas',    pintar: perezosa('personas', 'pintarPersonas'), ficha: null },
+  asistencia: { titulo: 'Asistencia', icono: '✓', modulo: 'asistencia',  pintar: perezosa('asistencia', 'pintarAsistencia'), ficha: perezosa('asistencia', 'pintarServicio') },
+  grupos:     { titulo: 'Grupos',     icono: '⬡', modulo: 'grupos',      pintar: perezosa('grupos', 'pintarGrupos'),   ficha: perezosa('grupos', 'pintarGrupo') },
+  checkin:    { titulo: 'Niños',      icono: '✦', modulo: 'rocakids',    pintar: perezosa('checkin', 'pintarCheckin') },
+  /* ⛔ 21 sep 2026 · Trece módulos tenían permisos en la matriz y ninguna
+     pantalla aquí: diez porque no tenían ni tablas (oración decía de sí
+     misma «el más urgente de construir bien») y tres (nuevos, aportes,
+     Habeas Data) porque su API existía y nadie le había puesto cara. */
+  nuevos:     { titulo: 'Nuevos',     icono: '✚', modulo: 'crm',         pintar: perezosa('nuevos', 'pintarNuevos'),   ficha: perezosa('nuevos', 'pintarNuevo') },
+  oracion:    { titulo: 'Oración',    icono: '♡', modulo: 'oracion',     pintar: perezosa('oracion', 'pintarOracion'),  ficha: perezosa('oracion', 'pintarPeticionOracion') },
+  consejeria: { titulo: 'Consejería', icono: '🕊', modulo: 'consejeria', pintar: perezosa('consejeria', 'pintarConsejeria'), ficha: perezosa('consejeria', 'pintarCaso') },
+  formacion:  { titulo: 'Formación',  icono: '✎', modulo: 'formacion',   pintar: perezosa('formacion', 'pintarFormacion'), ficha: perezosa('formacion', 'pintarCohorte') },
+  calendario: { titulo: 'Calendario', icono: '▦', modulo: 'calendario',  pintar: perezosa('calendario', 'pintarCalendario') },
+  tematicas:  { titulo: 'Temáticas',  icono: '¶', modulo: 'tematicas',   pintar: perezosa('tematicas', 'pintarTematicas'), ficha: perezosa('tematicas', 'pintarSerie') },
+  tareas:     { titulo: 'Tareas',     icono: '☑', modulo: 'tareas',      pintar: perezosa('tareas', 'pintarTareas') },
+  talento:    { titulo: 'Talento',    icono: '⚑', modulo: 'talento',     pintar: perezosa('talento', 'pintarTalento'),  ficha: perezosa('talento', 'pintarAntecedentes') },
+  comunicaciones: { titulo: 'Comunicaciones', icono: '✉', modulo: 'comunicaciones', pintar: perezosa('comunicaciones', 'pintarComunicaciones'), ficha: perezosa('comunicaciones', 'pintarComunicacion') },
+  peticiones: { titulo: 'Peticiones', icono: '⇪', modulo: 'peticiones',  pintar: perezosa('peticiones', 'pintarPeticiones'), ficha: perezosa('peticiones', 'pintarPeticion') },
+  requerimientos: { titulo: 'Requerimientos', icono: '⚙', modulo: 'requerimientos', pintar: perezosa('requerimientos', 'pintarRequerimientos'), ficha: perezosa('requerimientos', 'pintarRequerimiento') },
+  aportes:    { titulo: 'Aportes',    icono: '¤', modulo: 'aportes',     pintar: perezosa('aportes', 'pintarAportes') },
+  construccion: { titulo: 'Construcción', icono: '⌂', modulo: 'construccion', pintar: perezosa('construccion', 'pintarConstruccion'), ficha: perezosa('construccion', 'pintarObra') },
+  legal:      { titulo: 'Legal',      icono: '§', modulo: 'legal',       pintar: perezosa('legal', 'pintarLegal'),    ficha: perezosa('legal', 'pintarAsuntoLegal') },
+  cumplimiento: { titulo: 'Habeas Data', icono: '⚖', modulo: 'cumplimiento', pintar: perezosa('cumplimiento', 'pintarCumplimiento') },
+  analitica:  { titulo: 'Analítica',  icono: '▤', modulo: 'analitica',   pintar: perezosa('analitica', 'pintarAnalitica') },
   /* ⛔ 20 sep 2026 · Catálogos declaraba el módulo «sistemas», que NO
      EXISTE en `sistema.modulos` (el que existe es «identidad»). Resultado:
      a quien no tuviera alcance de toda la red, la pantalla no le aparecía
      nunca, y nadie lo había notado porque se probó siempre con el Pastor
      Director General. Una lista escrita a mano que nadie contrasta con la
      base se equivoca en silencio. */
-  catalogos:  { titulo: 'Catálogos',  icono: '☰', modulo: 'identidad',   pintar: pintarCatalogos },
+  catalogos:  { titulo: 'Catálogos',  icono: '☰', modulo: 'identidad',   pintar: perezosa('catalogos', 'pintarCatalogos') },
 };
 
 /* ⛔ 20 sep 2026 · LA ADMINISTRACIÓN NO VIVE AQUÍ, y no es un detalle de
@@ -225,8 +254,14 @@ window.addEventListener('cr:cola-cambio', pintarPendientes);
 
 async function pintarVista() {
   const { vista: r, id } = rutaActual();
-  const zona = document.getElementById('vista');
-  if (!zona) return pintarMarco();
+  const vieja = document.getElementById('vista');
+  if (!vieja) return pintarMarco();
+  /* ⛔ Cada vista recibe un contenedor NUEVO. Antes se reutilizaba `#vista`
+     y cada pantalla le colgaba sus escuchadores: tras cuatro idas y vueltas
+     a Grupos había 16 de `submit`, y un envío se disparaba varias veces. Un
+     nodo nuevo no arrastra nada del anterior. */
+  const zona = vieja.cloneNode(false);
+  vieja.replaceWith(zona);
   /* ⛔ `toggleAttribute` dejaba `aria-current=""`, que segun la
      especificacion equivale a FALSE, y el CSS busca [aria-current="page"]:
      ni el lector de pantalla ni el ojo sabian en que seccion estaban. */

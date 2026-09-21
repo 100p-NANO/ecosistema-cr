@@ -19,6 +19,16 @@ import { ConsejeriaModule } from './consejeria/consejeria';
 import { FormacionModule } from './formacion/formacion';
 import { TalentoModule } from './talento/talento';
 import { AdministracionModule } from './administracion/administracion';
+import { OracionModule } from './oracion/oracion';
+import { PeticionesModule } from './peticiones/peticiones';
+import { RequerimientosModule } from './requerimientos/requerimientos';
+import { TareasModule } from './tareas/tareas';
+import { CalendarioModule } from './calendario/calendario';
+import { TematicasModule } from './tematicas/tematicas';
+import { LegalModule } from './legal/legal';
+import { ComunicacionesModule } from './comunicaciones/comunicaciones';
+import { ConstruccionModule } from './construccion/construccion';
+import { AnaliticaModule } from './analitica/analitica';
 import { trazaYRegistro, cabecerasDeSeguridad } from './comun/peticion';
 
 /**
@@ -47,7 +57,14 @@ import { trazaYRegistro, cabecerasDeSeguridad } from './comun/peticion';
             /* ⛔ 20 sep 2026 · No habia panel de administracion: el primer
                Pastor Director General se creaba con un comando en la
                terminal y los roles de las 36 sedes se otorgaban por SQL. */
-            AdministracionModule],
+            AdministracionModule,
+            /* ⛔ 21 sep 2026 · Diez modulos que solo tenian NOMBRE: la consola
+               dejaba encenderlos y la matriz les daba permisos, pero no habia
+               tablas ni rutas. Oracion decia de si misma «el mas urgente de
+               construir bien». Nacen con tablas, reglas en la base y rutas. */
+            OracionModule, PeticionesModule, RequerimientosModule, TareasModule,
+            CalendarioModule, TematicasModule, LegalModule, ComunicacionesModule,
+            ConstruccionModule, AnaliticaModule],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

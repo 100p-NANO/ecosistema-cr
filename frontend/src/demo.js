@@ -70,6 +70,11 @@ const MODULOS_DEMO = [
   { codigo: 'oracion',    nombre: 'Peticiones de oración', esquema: 'oracion',   nivel_dato: 3, es_nucleo: false, exige_compuerta_legal: true,  depende_de: 'personas', orden: 16 },
   { codigo: 'comunicaciones', nombre: 'Comunicaciones',    esquema: 'notificaciones', nivel_dato: 2, es_nucleo: false, exige_compuerta_legal: false, depende_de: null, orden: 17 },
   { codigo: 'construccion', nombre: 'Construcción',        esquema: 'construccion', nivel_dato: 1, es_nucleo: false, exige_compuerta_legal: false, depende_de: null,   orden: 18 },
+  { codigo: 'peticiones', nombre: 'Peticiones internas',   esquema: 'sistema',   nivel_dato: 2, es_nucleo: false, exige_compuerta_legal: false, depende_de: null,       orden: 19 },
+  { codigo: 'requerimientos', nombre: 'Requerimientos',    esquema: 'sistema',   nivel_dato: 1, es_nucleo: false, exige_compuerta_legal: false, depende_de: null,       orden: 20 },
+  { codigo: 'tematicas',  nombre: 'Temáticas y enseñanza', esquema: 'formacion', nivel_dato: 1, es_nucleo: false, exige_compuerta_legal: false, depende_de: null,       orden: 21 },
+  { codigo: 'legal',      nombre: 'Legal',                 esquema: 'plataforma',nivel_dato: 3, es_nucleo: false, exige_compuerta_legal: true,  depende_de: null,       orden: 22 },
+  { codigo: 'cumplimiento', nombre: 'Habeas Data',         esquema: 'plataforma',nivel_dato: 2, es_nucleo: false, exige_compuerta_legal: false, depende_de: 'personas', orden: 23 },
 ];
 
 const ACCIONES_DEMO = [
@@ -260,6 +265,36 @@ const CATALOGOS = [
       { codigo: 'N0', etiqueta: 'Público' }, { codigo: 'N1', etiqueta: 'Interno' },
       { codigo: 'N2', etiqueta: 'Personal' }, { codigo: 'N3', etiqueta: 'Sensible' },
       { codigo: 'N4', etiqueta: 'Menores y lo más delicado' }] },
+  { codigo: 'tipo_grupo', nombre: 'Tipos de grupo', descripcion: 'Cómo se reúne la gente.',
+    editable_por_sede: false, cerrado: false, motivo_cerrado: null, valores_vigentes: 4, valores_retirados: 0,
+    valores: [{ codigo: 'familiar', etiqueta: 'Familiar' }, { codigo: 'pequeno', etiqueta: 'Grupo pequeño' }, { codigo: 'discipulado', etiqueta: 'Discipulado' }, { codigo: 'ministerial', etiqueta: 'Ministerial' }] },
+  { codigo: 'tipo_servicio', nombre: 'Tipos de servicio', descripcion: 'Qué clase de reunión se abre para marcar asistencia.',
+    editable_por_sede: false, cerrado: false, motivo_cerrado: null, valores_vigentes: 5, valores_retirados: 0,
+    valores: [{ codigo: 'dominical', etiqueta: 'Dominical' }, { codigo: 'entre_semana', etiqueta: 'Entre semana' }, { codigo: 'oracion', etiqueta: 'Oración' }, { codigo: 'especial', etiqueta: 'Especial' }, { codigo: 'celula', etiqueta: 'Célula' }] },
+  { codigo: 'modalidad_formacion', nombre: 'Modalidades de formación', descripcion: 'Presencial, virtual o mixta.',
+    editable_por_sede: false, cerrado: false, motivo_cerrado: null, valores_vigentes: 3, valores_retirados: 0,
+    valores: [{ codigo: 'presencial', etiqueta: 'Presencial' }, { codigo: 'virtual', etiqueta: 'Virtual' }, { codigo: 'mixta', etiqueta: 'Mixta' }] },
+  { codigo: 'tipo_aporte', nombre: 'Tipos de aporte', descripcion: 'Diezmo, ofrenda y los demás.',
+    editable_por_sede: false, cerrado: false, motivo_cerrado: null, valores_vigentes: 5, valores_retirados: 0,
+    valores: [{ codigo: 'diezmo', etiqueta: 'Diezmo' }, { codigo: 'ofrenda', etiqueta: 'Ofrenda' }, { codigo: 'primicia', etiqueta: 'Primicia' }, { codigo: 'proyecto', etiqueta: 'Proyecto' }, { codigo: 'donacion', etiqueta: 'Donación' }] },
+  { codigo: 'categoria_oracion', nombre: 'Categorías de oración', descripcion: 'Para dirigir la petición a quien intercede por ese tema.',
+    editable_por_sede: false, cerrado: false, motivo_cerrado: null, valores_vigentes: 6, valores_retirados: 0,
+    valores: [{ codigo: 'salud', etiqueta: 'Salud' }, { codigo: 'familia', etiqueta: 'Familia y hogar' }, { codigo: 'duelo', etiqueta: 'Duelo' }, { codigo: 'trabajo', etiqueta: 'Trabajo y finanzas' }, { codigo: 'espiritual', etiqueta: 'Vida espiritual' }, { codigo: 'gratitud', etiqueta: 'Gratitud' }] },
+  { codigo: 'tipo_evento', nombre: 'Tipos de evento', descripcion: 'Qué clase de cosa se agenda.',
+    editable_por_sede: false, cerrado: false, motivo_cerrado: null, valores_vigentes: 5, valores_retirados: 0,
+    valores: [{ codigo: 'servicio', etiqueta: 'Servicio' }, { codigo: 'reunion', etiqueta: 'Reunión' }, { codigo: 'retiro', etiqueta: 'Retiro' }, { codigo: 'conferencia', etiqueta: 'Conferencia' }, { codigo: 'capacitacion', etiqueta: 'Capacitación' }] },
+  { codigo: 'categoria_requerimiento', nombre: 'Categorías de requerimiento', descripcion: 'Las áreas de la mesa de servicio.',
+    editable_por_sede: false, cerrado: false, motivo_cerrado: null, valores_vigentes: 5, valores_retirados: 0,
+    valores: [{ codigo: 'mantenimiento', etiqueta: 'Mantenimiento' }, { codigo: 'tecnologia', etiqueta: 'Tecnología' }, { codigo: 'sonido_video', etiqueta: 'Sonido y video' }, { codigo: 'compras', etiqueta: 'Compras' }, { codigo: 'logistica', etiqueta: 'Logística' }] },
+  { codigo: 'tipo_peticion_interna', nombre: 'Tipos de petición interna', descripcion: 'Lo que se le pide a la dirección.',
+    editable_por_sede: false, cerrado: false, motivo_cerrado: null, valores_vigentes: 4, valores_retirados: 0,
+    valores: [{ codigo: 'permiso', etiqueta: 'Permiso' }, { codigo: 'presupuesto', etiqueta: 'Presupuesto' }, { codigo: 'compra', etiqueta: 'Compra' }, { codigo: 'autorizacion', etiqueta: 'Autorización' }] },
+  { codigo: 'tipo_asunto_legal', nombre: 'Tipos de asunto legal', descripcion: 'La clase de asunto jurídico.',
+    editable_por_sede: false, cerrado: false, motivo_cerrado: null, valores_vigentes: 5, valores_retirados: 0,
+    valores: [{ codigo: 'contrato', etiqueta: 'Contrato' }, { codigo: 'arrendamiento', etiqueta: 'Arrendamiento' }, { codigo: 'laboral', etiqueta: 'Laboral' }, { codigo: 'derecho_peticion', etiqueta: 'Derecho de petición' }, { codigo: 'tutela', etiqueta: 'Tutela' }] },
+  { codigo: 'tipo_obra', nombre: 'Tipos de obra', descripcion: 'La clase de obra física.',
+    editable_por_sede: false, cerrado: false, motivo_cerrado: null, valores_vigentes: 4, valores_retirados: 0,
+    valores: [{ codigo: 'construccion', etiqueta: 'Construcción' }, { codigo: 'ampliacion', etiqueta: 'Ampliación' }, { codigo: 'remodelacion', etiqueta: 'Remodelación' }, { codigo: 'mantenimiento_mayor', etiqueta: 'Mantenimiento mayor' }] },
 ];
 
 const SERVICIOS = [
@@ -290,6 +325,95 @@ const VOLUNTARIADOS = [
   { id: id(602), persona_id: id(104), nombre_completo: 'Elena Vargas Toro', funcion: 'Ujier', estado: 'activo', desde: d(-90), hasta: null, trabaja_con_menores: false, apto_para_menores: false, ministerio: 'Servicio', sede: 'CHIA' },
 ];
 
+
+/* ── 21 sep 2026 · Datos de ejemplo de los trece módulos que estrenan
+   pantalla. Inventados, en la memoria de esta pestaña, y reaccionan: lo
+   que se registra aparece en la lista hasta cerrar la pestaña. ── */
+const hace = (h) => new Date(hoy.getTime() - h * 3600000).toISOString();
+const N = {
+  oracion: [
+    { id: id(800), sede: 'BOG-NORTE', categoria: 'salud', categoria_nombre: 'Salud', resumen: 'Cirugía de su hija el jueves', quien: 'Marta Quiroga Peña',
+      confidencial: false, compartida: true, estado: 'en_oracion', origen: 'interno', fecha: d(-3), veces_orada: 4, ultima_oracion: d(-1),
+      detalle: 'La operan el jueves a las 7 a. m. Pide oración por los médicos y por la calma de la familia.', contacto: '300 000 0000' },
+    { id: id(801), sede: 'MED', categoria: 'familia', categoria_nombre: 'Familia y hogar', resumen: 'Restauración de su matrimonio', quien: 'Hermana de Medellín',
+      confidencial: true, compartida: false, estado: 'abierta', origen: 'formulario_publico', fecha: d(-1), veces_orada: 0, ultima_oracion: null,
+      detalle: 'Solo para los pastores.', contacto: null },
+    { id: id(802), sede: 'CHIA', categoria: 'trabajo', categoria_nombre: 'Trabajo y finanzas', resumen: 'Entrevista de trabajo el lunes', quien: 'Tomás Ibarra Cano',
+      confidencial: false, compartida: true, estado: 'respondida', origen: 'interno', fecha: d(-12), veces_orada: 7, ultima_oracion: d(-6),
+      detalle: 'Lleva ocho meses sin empleo.', contacto: null, respuesta: 'Lo contrataron. Empieza el 1 de octubre.' },
+  ],
+  oraciones: { [id(800)]: [{ cuando: d(-1) + ' 21:10', quien: 'Rosa Cifuentes Lara', nota: 'Oramos en la vigilia del jueves' }] },
+  peticiones: [
+    { id: id(810), sede: 'MED', tipo: 'presupuesto', tipo_nombre: 'Presupuesto', asunto: 'Dos micrófonos inalámbricos', prioridad: 'alta', estado: 'enviada',
+      solicitante: 'Pastor de Medellín', fecha: d(-9), dias: 9, detalle: 'Se dañaron dos micrófonos del culto de jóvenes.', es_mia: false },
+    { id: id(811), sede: 'CHIA', tipo: 'permiso', tipo_nombre: 'Permiso', asunto: 'Usar el salón para un retiro de parejas', prioridad: 'normal', estado: 'aprobada',
+      solicitante: 'Pastores de Chía', fecha: d(-20), dias: 20, detalle: 'Retiro de un día el 18 de octubre.', decision: 'Aprobado. Coordinar el aseo con logística.',
+      decidida_por: 'Director General', decidida_en: d(-15), es_mia: false },
+  ],
+  requerimientos: [
+    { id: id(820), sede: 'BOG-NORTE', categoria: 'sonido_video', categoria_nombre: 'Sonido y video', asunto: 'Se cayó la consola de sonido', prioridad: 'urgente',
+      estado: 'en_curso', asignado: 'Andrés Beltrán Ruiz', reportado: d(0) + ' 08:10', vence: d(0) + ' 12:10', vencido: false },
+    { id: id(821), sede: 'MED', categoria: 'mantenimiento', categoria_nombre: 'Mantenimiento', asunto: 'Gotera en el salón infantil', prioridad: 'alta',
+      estado: 'nuevo', asignado: null, reportado: d(-2) + ' 10:00', vence: d(-1) + ' 10:00', vencido: true },
+  ],
+  tareas: [
+    { id: id(830), sede: 'BOG-NORTE', titulo: 'Llamar a los 12 nuevos del domingo', prioridad: 'alta', estado: 'pendiente', asignada: 'Visitante de la demostración', es_mia: true, vence: d(1), vencida: false },
+    { id: id(831), sede: 'CHIA', titulo: 'Enviar el informe de asistencia de septiembre', prioridad: 'normal', estado: 'pendiente', asignada: 'Elena Vargas Toro', es_mia: false, vence: d(-2), vencida: true },
+  ],
+  eventos: [
+    { id: id(840), sede: 'BOG-NORTE', alcance_red: true, tipo: 'conferencia', tipo_nombre: 'Conferencia', titulo: 'Conferencia anual de la red', lugar: 'Sede principal',
+      inicia: d(20) + ' 09:00', termina: d(20) + ' 17:00', estado: 'programado', responsable: 'Director General' },
+    { id: id(841), sede: 'MED', alcance_red: false, tipo: 'servicio', tipo_nombre: 'Servicio', titulo: 'Culto de jóvenes', lugar: 'Auditorio',
+      inicia: d(5) + ' 18:00', termina: d(5) + ' 20:00', estado: 'programado', responsable: 'Julián Espinosa Mora' },
+  ],
+  series: [
+    { id: id(850), sede: 'BOG-NORTE', alcance_red: true, titulo: 'Fundamentos', descripcion: 'Ocho semanas sobre la roca firme.', estado: 'en_curso',
+      inicia: d(-21), termina: d(35), ensenanzas: 3, ultima: d(-7) },
+  ],
+  ensenanzas: { [id(850)]: [
+    { titulo: 'La roca firme', fecha: d(-21), predicador: 'Pastor principal', pasaje: 'Mateo 7:24-27', resumen: 'Oír y hacer.' },
+    { titulo: 'La casa en orden', fecha: d(-14), predicador: 'Pastora principal', pasaje: 'Josué 24:15', resumen: '' },
+    { titulo: 'Servir con gozo', fecha: d(-7), predicador: 'Pastor invitado', pasaje: 'Gálatas 5:13', resumen: '' },
+  ] },
+  legal: [
+    { id: id(860), sede: 'MED', tipo: 'arrendamiento', tipo_nombre: 'Arrendamiento', titulo: 'Renovación del arriendo del local', estado: 'en_tramite',
+      responsable: 'Director General', vence: d(10), vence_pronto: true, actuaciones: 2, contraparte: 'Inmobiliaria del ejemplo' },
+  ],
+  actuaciones: { [id(860)]: [
+    { cuando: d(-10) + ' 09:00', autor: 'Director General', contenido: 'Se pidió la propuesta de renovación.' },
+    { cuando: d(-3) + ' 16:30', autor: 'Director General', contenido: 'Llegó la propuesta: incremento del IPC.' },
+  ] },
+  comunicaciones: [
+    { id: id(870), sede: 'BOG-NORTE', asunto: 'Retiro de grupos del 18 de octubre', finalidad: 'convocatoria', destinatarios: 'miembros_sede', grupo: null,
+      estado: 'borrador', autor: 'Andrés Beltrán Ruiz', aprobo: null, es_mia: false, creada: d(-1), encolados: null, omitidos_sin_consentimiento: null,
+      cuerpo: 'Los esperamos el sábado 18 de octubre en el retiro de grupos.\n\nInscripciones con su líder.' },
+  ],
+  obras: [
+    { id: id(880), sede: 'MED', nombre: 'Ampliación del salón infantil', tipo: 'ampliacion', tipo_nombre: 'Ampliación', estado: 'en_curso', avance_pct: 40,
+      presupuesto: 80000000, ejecutado: 44000000, moneda: 'COP', ejecutado_pct: 55, termina_estimado: d(90), responsable: 'Damián Rueda Silva' },
+  ],
+  hitos: { [id(880)]: [
+    { fecha: d(-40), descripcion: 'Cimientos terminados', avance_pct: 20, gasto: 24000000, registro: 'Damián Rueda Silva' },
+    { fecha: d(-10), descripcion: 'Muros levantados', avance_pct: 40, gasto: 20000000, registro: 'Damián Rueda Silva' },
+  ] },
+  nuevos: [
+    { id: id(890), nombre: 'Camila Rojas', telefono: '300 111 2233', email: null, estado: 'nuevo', prioridad: 'alta', proxima_accion: 'ATRASADO',
+      contactos: 0, ultimo_contacto: null, registrado_en: d(-4), como_supo: 'Un amigo' },
+    { id: id(891), nombre: 'Felipe Duarte', telefono: '310 222 3344', email: 'felipe@example.org', estado: 'contactado', prioridad: 'media',
+      proxima_accion: 'Invitarlo a un grupo', contactos: 1, ultimo_contacto: d(-2), registrado_en: d(-9), como_supo: 'Redes sociales' },
+  ],
+  aportes: [
+    { id: id(900), nombre_completo: 'Marta Quiroga Peña', tipo_aporte: 'DIEZMO', monto: '350000.00', moneda: 'COP', fecha_aporte: d(-2), metodo_pago: 'TRANSFERENCIA', estado: 'REGISTRADO', inmutable: false, referencia: 'TRX-4471' },
+    { id: id(901), nombre_completo: null, tipo_aporte: 'OFRENDA', monto: '1250000.00', moneda: 'COP', fecha_aporte: d(-2), metodo_pago: 'EFECTIVO', estado: 'CONFIRMADO', inmutable: true, referencia: 'Sobre 12' },
+  ],
+  titulares: [
+    { id: id(910), radicado: 'HD-2026-0007', tipo: 'consulta', estado: 'recibida', titular_nombre: 'Titular del ejemplo', titular_contacto: 'titular@example.org',
+      recibida_en: d(-3), vence_en: d(11), vencida: false, dias_restantes: 11 },
+  ],
+};
+const buscar = (lista, x) => lista.find(e => e.id === x);
+const demoGuarda = (mensaje) => ({ mensaje: mensaje + ' (demostración: vive solo en esta pestaña)' });
+
 /** Respuestas por ruta. La clave es «MÉTODO ruta» con los identificadores
     sustituidos por `:id`, igual que las declara el servidor. */
 function responder(metodo, ruta, cuerpo = null) {
@@ -311,9 +435,135 @@ function responder(metodo, ruta, cuerpo = null) {
          daba a Aportes un nivel de dato 2 cuando es 3. Los nombres y los
          niveles ya están en `MODULOS_DEMO`, en este mismo fichero. */
       modulos: MODULOS_DEMO
-        .filter(m => m.codigo !== 'construccion')
         .map(m => ({ modulo: m.codigo, nombre: m.nombre, nivel_dato: m.nivel_dato })),
     }),
+    // ── Los trece módulos con pantalla nueva ────────────────────────
+    'GET /oracion': () => ({ total_filas: N.oracion.length, desde: 0, puede_registrar: true,
+      peticiones: N.oracion.filter(x => !q.get('estado') || x.estado === q.get('estado')) }),
+    'POST /oracion': () => { const n = { id: id(800 + N.oracion.length + 10), sede: 'BOG-NORTE', categoria: cuerpo?.categoria, categoria_nombre: cuerpo?.categoria,
+        resumen: cuerpo?.resumen, quien: cuerpo?.nombreContacto ?? 'Persona registrada', confidencial: !!cuerpo?.confidencial, compartida: !!cuerpo?.compartir,
+        estado: 'abierta', origen: 'interno', fecha: d(0), veces_orada: 0, detalle: cuerpo?.detalle ?? '', contacto: cuerpo?.contacto ?? null };
+      N.oracion.unshift(n); return { id: n.id, ...demoGuarda('Petición registrada.') }; },
+    'GET /oracion/:id': () => { const p = buscar(N.oracion, trozos[1]); if (!p) throw Object.assign(new Error('Esa petición no existe.'), { estado: 404 });
+      return { peticion: { ...p, creada: p.fecha, registrada_por: 'Equipo de oración' },
+               oraciones: N.oraciones[p.id] ?? [], puede_responder: true }; },
+    'POST /oracion/:id/orar': () => { (N.oraciones[trozos[1]] ??= []).unshift({ cuando: d(0) + ' ahora', quien: 'Visitante de la demostración', nota: cuerpo?.nota ?? null });
+      const p = buscar(N.oracion, trozos[1]); if (p) { p.veces_orada++; p.ultima_oracion = d(0); if (p.estado === 'abierta') p.estado = 'en_oracion'; }
+      return demoGuarda('Quedó registrado que oró por esta petición.'); },
+    'POST /oracion/:id/estado': () => { const p = buscar(N.oracion, trozos[1]); if (p) { p.estado = cuerpo?.estado; if (cuerpo?.respuesta) { p.respuesta = cuerpo.respuesta; p.respondida_en = d(0); } }
+      return demoGuarda('Estado actualizado.'); },
+    'GET /peticiones': () => ({ total_filas: N.peticiones.length, desde: 0, peticiones: N.peticiones, puede_decidir: true }),
+    'POST /peticiones': () => { N.peticiones.unshift({ id: id(815 + N.peticiones.length), sede: 'BOG-NORTE', tipo: cuerpo?.tipo, tipo_nombre: cuerpo?.tipo, asunto: cuerpo?.asunto,
+        prioridad: cuerpo?.prioridad ?? 'normal', estado: 'enviada', solicitante: 'Visitante de la demostración', fecha: d(0), dias: 0, detalle: cuerpo?.detalle, es_mia: true });
+      return demoGuarda('Petición enviada a la dirección.'); },
+    'GET /peticiones/:id': () => { const p = buscar(N.peticiones, trozos[1]);
+      return { peticion: { ...p, decidida_por_nombre: p?.decidida_por }, es_mia: !!p?.es_mia, puede_decidir: true }; },
+    'POST /peticiones/:id/decidir': () => { const p = buscar(N.peticiones, trozos[1]); if (p) { p.estado = cuerpo?.estado; p.decision = cuerpo?.decision ?? p.decision; p.decidida_por = 'Visitante de la demostración'; p.decidida_en = d(0); }
+      return demoGuarda('Petición ' + (cuerpo?.estado ?? '') + '.'); },
+    'POST /peticiones/:id/cancelar': () => { const p = buscar(N.peticiones, trozos[1]); if (p) p.estado = 'cancelada'; return demoGuarda('Petición retirada.'); },
+    'GET /requerimientos': () => ({ total_filas: N.requerimientos.length, desde: 0, puede_atender: true,
+      requerimientos: N.requerimientos.filter(r => q.get('abiertos') !== 'si' || !['resuelto', 'cerrado', 'cancelado'].includes(r.estado)),
+      aviso: N.requerimientos.some(r => r.vencido) ? '1 requerimiento(s) vencidos sin resolver.' : null }),
+    'POST /requerimientos': () => { N.requerimientos.unshift({ id: id(825 + N.requerimientos.length), sede: 'BOG-NORTE', categoria: cuerpo?.categoria, categoria_nombre: cuerpo?.categoria,
+        asunto: cuerpo?.asunto, prioridad: cuerpo?.prioridad ?? 'media', estado: 'nuevo', asignado: null, reportado: d(0), vence: d(3), vencido: false });
+      return demoGuarda('Requerimiento reportado.'); },
+    'GET /requerimientos/:id': () => { const r = buscar(N.requerimientos, trozos[1]);
+      return { requerimiento: { ...r, reportado_por_nombre: 'Secretaría', vence_en: new Date().toISOString() }, puede_atender: true }; },
+    'POST /requerimientos/:id/atender': () => { const r = buscar(N.requerimientos, trozos[1]); if (r) { r.estado = cuerpo?.estado; if (cuerpo?.solucion) r.solucion = cuerpo.solucion; }
+      return demoGuarda('Requerimiento actualizado.'); },
+    'GET /tareas': () => ({ total_filas: N.tareas.length, desde: 0,
+      tareas: N.tareas.filter(t => (q.get('mias') !== 'si' || t.es_mia) && (q.get('abiertas') !== 'si' || ['pendiente', 'en_curso'].includes(t.estado))) }),
+    'POST /tareas': () => { N.tareas.unshift({ id: id(835 + N.tareas.length), sede: 'BOG-NORTE', titulo: cuerpo?.titulo, prioridad: cuerpo?.prioridad ?? 'normal',
+        estado: 'pendiente', asignada: 'Visitante de la demostración', es_mia: true, vence: cuerpo?.venceEn ?? null, vencida: false });
+      return demoGuarda('Tarea creada.'); },
+    'POST /tareas/:id/estado': () => { const t = buscar(N.tareas, trozos[1]); if (t) t.estado = cuerpo?.estado; return demoGuarda('Tarea actualizada.'); },
+    'GET /calendario': () => ({ total_filas: N.eventos.length, desde: 0, eventos: N.eventos, puede_crear: true }),
+    'POST /calendario': () => { N.eventos.push({ id: id(845 + N.eventos.length), sede: 'BOG-NORTE', alcance_red: !!cuerpo?.alcanceRed, tipo: cuerpo?.tipo, tipo_nombre: cuerpo?.tipo,
+        titulo: cuerpo?.titulo, lugar: cuerpo?.lugar ?? null, inicia: String(cuerpo?.inicia ?? '').replace('T', ' '), termina: String(cuerpo?.termina ?? '').replace('T', ' '),
+        estado: 'programado', responsable: null }); return demoGuarda('Evento agendado.'); },
+    'POST /calendario/:id/cancelar': () => { const e = buscar(N.eventos, trozos[1]); if (e) { e.estado = 'cancelado'; e.motivo_cancelacion = cuerpo?.motivo; } return demoGuarda('Evento cancelado.'); },
+    'POST /calendario/:id/realizado': () => { const e = buscar(N.eventos, trozos[1]); if (e) e.estado = 'realizado'; return demoGuarda('Evento marcado como realizado.'); },
+    'GET /tematicas': () => ({ total_filas: N.series.length, desde: 0, series: N.series, puede_crear: true }),
+    'POST /tematicas': () => { N.series.unshift({ id: id(855 + N.series.length), sede: 'BOG-NORTE', alcance_red: !!cuerpo?.alcanceRed, titulo: cuerpo?.titulo,
+        descripcion: cuerpo?.descripcion ?? '', estado: 'planeada', inicia: cuerpo?.inicia ?? null, termina: cuerpo?.termina ?? null, ensenanzas: 0, ultima: null });
+      return demoGuarda('Serie creada.'); },
+    'GET /tematicas/:id': () => ({ serie: buscar(N.series, trozos[1]), ensenanzas: N.ensenanzas[trozos[1]] ?? [], puede_editar: true }),
+    'POST /tematicas/:id/ensenanzas': () => { (N.ensenanzas[trozos[1]] ??= []).push({ titulo: cuerpo?.titulo, fecha: cuerpo?.fecha, predicador: cuerpo?.predicador ?? null,
+        pasaje: cuerpo?.pasaje ?? null, resumen: cuerpo?.resumen ?? '' }); return demoGuarda('Enseñanza agregada a la serie.'); },
+    'POST /tematicas/:id/estado': () => { const x = buscar(N.series, trozos[1]); if (x) x.estado = cuerpo?.estado; return demoGuarda('Serie actualizada.'); },
+    'GET /legal': () => ({ total_filas: N.legal.length, desde: 0, asuntos: N.legal, puede_crear: true,
+      aviso: '1 asunto(s) con término en los próximos 15 días o ya vencido.' }),
+    'POST /legal': () => { N.legal.unshift({ id: id(865 + N.legal.length), sede: 'BOG-NORTE', tipo: cuerpo?.tipo, tipo_nombre: cuerpo?.tipo, titulo: cuerpo?.titulo,
+        estado: 'abierto', responsable: null, vence: cuerpo?.venceEn ?? null, vence_pronto: false, actuaciones: 0, contraparte: cuerpo?.contraparte ?? null });
+      return demoGuarda('Asunto legal abierto.'); },
+    'GET /legal/:id': () => { const a = buscar(N.legal, trozos[1]);
+      return { asunto: { ...a, vence_en: a?.vence }, actuaciones: N.actuaciones[trozos[1]] ?? [], puede_editar: true }; },
+    'POST /legal/:id/actuaciones': () => { (N.actuaciones[trozos[1]] ??= []).push({ cuando: d(0) + ' ahora', autor: 'Visitante de la demostración', contenido: cuerpo?.contenido });
+      const a = buscar(N.legal, trozos[1]); if (a) a.actuaciones++; return demoGuarda('Actuación registrada. No se puede editar después.'); },
+    'POST /legal/:id/estado': () => { const a = buscar(N.legal, trozos[1]); if (a) { a.estado = cuerpo?.estado; if (cuerpo?.resultado) a.resultado = cuerpo.resultado; }
+      return demoGuarda('Asunto actualizado.'); },
+    'GET /comunicaciones': () => ({ total_filas: N.comunicaciones.length, desde: 0, comunicaciones: N.comunicaciones,
+      freno: { activo: !!N.freno, motivo: N.freno ?? null }, puede_aprobar: true,
+      aviso: N.freno ? `El freno de envíos masivos está puesto: ${N.freno}. No sale nada.` : null }),
+    'POST /comunicaciones': () => { N.comunicaciones.unshift({ id: id(875 + N.comunicaciones.length), sede: 'BOG-NORTE', asunto: cuerpo?.asunto, finalidad: cuerpo?.finalidad,
+        destinatarios: cuerpo?.destinatarios, grupo: null, estado: 'borrador', autor: 'Visitante de la demostración', aprobo: null, es_mia: true, creada: d(0),
+        cuerpo: cuerpo?.cuerpo }); return demoGuarda('Borrador guardado. Para enviarlo, lo aprueba otra persona.'); },
+    'GET /comunicaciones/:id': () => { const k = buscar(N.comunicaciones, trozos[1]);
+      return { comunicacion: k, alcance: { personas: 214, recibirian: 171, sin_correo: 12, sin_autorizacion: 31 },
+               puede_aprobar: !k?.es_mia, es_mia: !!k?.es_mia }; },
+    'POST /comunicaciones/:id/aprobar': () => { const k = buscar(N.comunicaciones, trozos[1]);
+      if (k?.es_mia) throw Object.assign(new Error('Quien escribe un envío masivo no se lo aprueba: lo aprueba otra persona.'), { estado: 400 });
+      if (k) { k.estado = 'aprobada'; k.aprobo = 'Visitante de la demostración'; } return demoGuarda('Aprobada. Ya se puede enviar.'); },
+    'POST /comunicaciones/:id/enviar': () => { if (N.freno) throw Object.assign(new Error('El freno de envíos masivos está puesto: no sale nada hasta que la central lo quite.'), { estado: 400 });
+      const k = buscar(N.comunicaciones, trozos[1]); if (k) { k.estado = 'enviada'; k.encolados = 171; k.omitidos_sin_consentimiento = 31; k.enviada_en = d(0); }
+      return { encolados: 171, omitidos_sin_consentimiento: 31, sin_correo: 12,
+               mensaje: 'En cola para 171 persona(s). 31 no autorizaron este tipo de comunicación y no la reciben. (demostración)' }; },
+    'POST /comunicaciones/:id/devolver': () => { const k = buscar(N.comunicaciones, trozos[1]); if (k) { k.estado = 'borrador'; k.aprobo = null; } return demoGuarda('Devuelta a borrador.'); },
+    'POST /comunicaciones/:id/editar': () => { const k = buscar(N.comunicaciones, trozos[1]); if (k) { k.asunto = cuerpo?.asunto; k.cuerpo = cuerpo?.cuerpo; } return demoGuarda('Borrador actualizado.'); },
+    'POST /comunicaciones/:id/cancelar': () => { const k = buscar(N.comunicaciones, trozos[1]); if (k) k.estado = 'cancelada'; return demoGuarda('Comunicación cancelada.'); },
+    'POST /comunicaciones/freno': () => { N.freno = cuerpo?.activo ? cuerpo?.motivo : null; return demoGuarda(cuerpo?.activo ? 'Freno puesto.' : 'Freno quitado.'); },
+    'GET /construccion': () => ({ total_filas: N.obras.length, desde: 0, obras: N.obras, puede_crear: true,
+      aviso: '1 obra(s) gastan más de lo que avanzan (más de 15 puntos de diferencia).' }),
+    'POST /construccion': () => { N.obras.unshift({ id: id(885 + N.obras.length), sede: 'BOG-NORTE', nombre: cuerpo?.nombre, tipo: cuerpo?.tipo, tipo_nombre: cuerpo?.tipo,
+        estado: 'planeada', avance_pct: 0, presupuesto: Number(cuerpo?.presupuesto ?? 0), ejecutado: 0, moneda: cuerpo?.moneda ?? 'COP', ejecutado_pct: 0,
+        termina_estimado: cuerpo?.terminaEstimado ?? null, responsable: null }); return demoGuarda('Obra registrada.'); },
+    'GET /construccion/:id': () => ({ obra: buscar(N.obras, trozos[1]), hitos: N.hitos[trozos[1]] ?? [], puede_editar: true }),
+    'POST /construccion/:id/hitos': () => { const o = buscar(N.obras, trozos[1]);
+      (N.hitos[trozos[1]] ??= []).push({ fecha: cuerpo?.fecha, descripcion: cuerpo?.descripcion, avance_pct: cuerpo?.avancePct ?? null, gasto: cuerpo?.gasto ?? null, registro: 'Visitante de la demostración' });
+      if (o) { o.avance_pct = Math.max(o.avance_pct, Number(cuerpo?.avancePct ?? 0)); o.ejecutado += Number(cuerpo?.gasto ?? 0); o.estado = o.estado === 'planeada' ? 'en_curso' : o.estado; }
+      return { ...demoGuarda('Hito registrado.'), obra: o }; },
+    'POST /construccion/:id/estado': () => { const o = buscar(N.obras, trozos[1]); if (o) { o.estado = cuerpo?.estado; if (o.estado === 'terminada') o.avance_pct = 100; } return demoGuarda('Obra actualizada.'); },
+    'GET /analitica/tablero': () => ({
+      asistencia_por_semana: Array.from({ length: 12 }, (_, k) => ({ semana: d(-7 * (11 - k)), contados: 380 + Math.round(40 * Math.sin(k)) + k * 6 })),
+      personas_activas: '1284', grupos_activos: '86', grupos_sin_reunion_45_dias: '7', peticiones_oracion_abiertas: '<5',
+      requerimientos_vencidos: '<5', tareas_vencidas: '0',
+      ninos_por_domingo: [0, 1, 2, 3].map(k => ({ fecha: d(-7 * (3 - k)), ninos: String(88 + k * 3) })),
+      generado_en: new Date().toISOString(), nota: 'Las cifras menores de 5 se muestran como «<5»: un conteo pequeño identifica a las personas.' }),
+    'GET /crm/se-estan-perdiendo': () => ({ total_filas: 2, criterio: 'Vino al menos 3 veces entre hace 12 y hace 5 semanas, y ninguna en las últimas 4.',
+      personas: [
+        { persona_id: id(103), nombre: 'Tomás Ibarra Cano', sede: 'CHIA', veces_antes: 6, ultima_vez: d(-33), dias_sin_venir: 33, telefono: '300 555 0101' },
+        { persona_id: id(106), nombre: 'Rosa Cifuentes Lara', sede: 'MED', veces_antes: 4, ultima_vez: d(-40), dias_sin_venir: 40, telefono: null }],
+      aviso: '2 persona(s) dejaron de venir. Una llamada esta semana cambia la historia.' }),
+    'GET /nuevos/dashboard': () => ({ total: N.nuevos.length, nuevos: N.nuevos.filter(n => !q.get('estado') || n.estado === q.get('estado')) }),
+    'GET /nuevos/:id/historial': () => { const n = buscar(N.nuevos, trozos[1]);
+      return { ...n, comentarios: 'Llenó el formulario después del culto.', historial_contactos: n?.historial ?? [], linea_tiempo: [] }; },
+    'POST /nuevos/:id/registrar-contacto': () => { const n = buscar(N.nuevos, trozos[1]);
+      if (n) { (n.historial ??= []).unshift({ ocurrido_en: new Date().toISOString(), tipo: cuerpo?.tipo_contacto, reaccion: cuerpo?.reaccion, resumen: cuerpo?.resumen,
+        siguiente_paso: cuerpo?.siguiente_paso ?? null }); n.contactos++; n.estado = 'contactado'; n.proxima_accion = cuerpo?.siguiente_paso ?? 'Seguimiento'; }
+      return demoGuarda('Contacto registrado.'); },
+    'POST /nuevos/:id/convertir-miembro': () => { const n = buscar(N.nuevos, trozos[1]); if (n) n.estado = 'convertido'; return demoGuarda('Integrado como miembro.'); },
+    'GET /aportes': () => ({ total_filas: N.aportes.length, total_monto: N.aportes.reduce((a, x) => a + Number(x.monto), 0), donaciones: N.aportes }),
+    'POST /aportes': () => { N.aportes.unshift({ id: id(905 + N.aportes.length), nombre_completo: cuerpo?.es_anonimo ? null : 'Persona elegida', tipo_aporte: String(cuerpo?.tipo_aporte ?? '').toUpperCase(),
+        monto: String(cuerpo?.monto ?? 0), moneda: cuerpo?.moneda ?? 'COP', fecha_aporte: cuerpo?.fecha_aporte ?? d(0), metodo_pago: String(cuerpo?.metodo_pago ?? 'efectivo').toUpperCase(),
+        estado: 'REGISTRADO', inmutable: false, referencia: cuerpo?.referencia ?? null }); return demoGuarda('Donación registrada.'); },
+    'POST /aportes/:id/confirmar': () => { const a = buscar(N.aportes, trozos[1]); if (a) { a.estado = 'CONFIRMADO'; a.inmutable = true; } return demoGuarda('Aporte confirmado.'); },
+    'GET /cumplimiento/peticiones': () => ({ total_filas: N.titulares.length, vencidas: 0, aviso: null,
+      peticiones: N.titulares.filter(p => q.get('vencidas') !== 'si' || p.vencida) }),
+    'POST /cumplimiento/peticiones': () => { N.titulares.unshift({ id: id(915 + N.titulares.length), radicado: 'HD-2026-00' + (10 + N.titulares.length), tipo: cuerpo?.tipo,
+        estado: 'recibida', titular_nombre: cuerpo?.titularNombre, titular_contacto: cuerpo?.titularContacto, recibida_en: d(0), vence_en: d(14), vencida: false, dias_restantes: 14 });
+      return demoGuarda('Petición radicada. El plazo legal empieza a contar hoy.'); },
+    'POST /cumplimiento/peticiones/:id/responder': () => { const p = buscar(N.titulares, trozos[2]); if (p) p.estado = 'atendida'; return demoGuarda('Respondida.'); },
+    'POST /cumplimiento/peticiones/:id/prorrogar': () => { const p = buscar(N.titulares, trozos[2]); if (p) p.estado = 'prorrogada'; return demoGuarda('Prorrogada.'); },
     'GET /organizacion/sedes': () => SEDES,
     'GET /organizacion/ministerios': () => [
       { id: id(700), nombre: 'RocaKids' }, { id: id(701), nombre: 'Servicio' }, { id: id(702), nombre: 'Alabanza' }],
@@ -920,6 +1170,14 @@ function responder(metodo, ruta, cuerpo = null) {
         ruta no casaba con ningún patrón y la consola de demostración
         contestaba «esta pantalla todavía no trae datos de ejemplo» al
         marcar un módulo. Ahora se prueba sustituyendo CADA segmento. */
+  /* ⛔ 21 sep 2026 · Una ruta con DOS identificadores («/grupos/:id/
+     miembros/:id2/salir») nunca casaba: la genérica sustituye ambos por
+     `:id` y la clave decía `:id2`. «Sacar del grupo» no funcionaba en la
+     demostración. Las claves se normalizan: todo `:idN` es `:id`. */
+  for (const k of Object.keys(M)) {
+    const n = k.replace(/:id\d+/g, ':id');
+    if (n !== k && !M[n]) M[n] = M[k];
+  }
   const exacta = `${metodo} ${p}`;
   if (M[exacta]) return M[exacta]();
   const generica = `${metodo} /` + trozos.map(t =>

@@ -13,9 +13,13 @@ export interface Correo { asunto: string; html: string }
 const esc = (v: any) => String(v ?? '').replace(/[&<>"']/g, ch =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[ch]);
 
-const marco = (cuerpo: string) => `<!doctype html><html lang="es"><body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:560px;margin:auto;padding:24px">
+const PIE_TRANSACCION = 'Este correo responde a una solicitud o transacción suya.';
+/* Un envío masivo NO responde a una solicitud: decirlo sería falso. Dice
+   por qué le llega y cómo dejar de recibirlo (Ley 1581 de 2012). */
+const PIE_COMUNICACION = 'Recibe este correo porque autorizó que su iglesia le escribiera para este tipo de comunicación.';
+const marco = (cuerpo: string, pie: string = PIE_TRANSACCION) => `<!doctype html><html lang="es"><body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:560px;margin:auto;padding:24px">
 ${cuerpo}
-<p style="color:#777;font-size:12px;margin-top:32px">Casa Sobre la Roca · Este correo responde a una solicitud o transacción suya.
+<p style="color:#777;font-size:12px;margin-top:32px">Casa Sobre la Roca · ${pie}
 Para dejar de recibir comunicaciones escríbanos y lo retiramos (Ley 1581 de 2012).</p></body></html>`;
 
 export const PLANTILLAS: Record<string, (d: Datos) => Correo> = {
@@ -41,6 +45,15 @@ export const PLANTILLAS: Record<string, (d: Datos) => Correo> = {
     html: marco(`<h2>Gracias por tu aporte</h2>
 <p>Confirmamos tu ${esc(d.tipo)} por <strong>${esc(d.moneda)} ${Number(d.monto).toLocaleString('es-CO')}</strong>
 del ${esc(d.fecha)}.</p><p>Referencia interna: ${esc(d.aporte_id)}</p>`),
+  }),
+  /* El texto lo escribió la sede y lo aprobó otra persona: se escapa
+     entero y se respetan sus párrafos, nada más. */
+  Comunicacion_general: d => ({
+    asunto: String(d.asunto ?? 'Casa Sobre la Roca').slice(0, 160),
+    html: marco(String(d.cuerpo ?? '').split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('\n'),
+                d.finalidad === 'emergencia'
+                  ? 'Este aviso se envía por una situación de emergencia que puede afectar su seguridad.'
+                  : PIE_COMUNICACION),
   }),
   Certificado_expedido: d => ({
     asunto: `Tu certificado de donación ${d.numero}`,

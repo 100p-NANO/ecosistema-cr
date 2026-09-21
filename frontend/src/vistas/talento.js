@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { pantalla, formulario, tabla, chip, sedes, esc, vacio, avisar } from './comun.js';
+import { pantalla, formulario, tabla, chip, sedes, esc, vacio, avisar, campoPersona } from './comun.js';
 
 /**
  * Talento y voluntariado.
@@ -65,10 +65,11 @@ export function pintarTalento(c) {
     const ministerios = (Array.isArray(mi) ? mi : mi?.ministerios ?? [])
       .map(m => ({ valor: m.id, texto: m.nombre }));
     form = formulario({
-      titulo: '+ Registrar un voluntariado',
+      titulo: 'Registrar un voluntariado',
       campos: [
-        { nombre: 'personaId', etiqueta: 'Identificador de la persona', obligatorio: true,
-          ayuda: 'Búsquela en Personas y pegue aquí su identificador.' },
+        /* ⛔ 21 sep 2026 · Pedía «pegue aquí su identificador»: una
+           instrucción imposible desde el teléfono. Ahora se busca por nombre. */
+        campoPersona('personaId', 'Persona', { obligatorio: true }),
         { nombre: 'sedeId', etiqueta: 'Sede', opciones: op, obligatorio: true },
         { nombre: 'ministerioId', etiqueta: 'Ministerio', opciones: ministerios, obligatorio: true },
         { nombre: 'funcion', etiqueta: 'Función', obligatorio: true, minimo: 3 },
@@ -111,10 +112,13 @@ export function pintarAntecedentes(c, personaId) {
       </div>
 
       <details class="tarjeta" style="margin-bottom:1rem">
-        <summary style="cursor:pointer;font-weight:600">+ Registrar un antecedente</summary>
+        <summary style="cursor:pointer;font-weight:600">Registrar un antecedente</summary>
         <form id="ant" style="margin-top:1rem;display:grid;gap:.75rem">
           <div class="campo"><label for="a-tipo">Tipo</label>
-            <input id="a-tipo" name="tipo" placeholder="DELITOS_SEXUALES, JUDICIALES…" required></div>
+            <select id="a-tipo" name="tipo" required>
+              <option value="">Elija…</option>
+              ${(d.tipos ?? []).map(t => `<option value="${esc(t.codigo)}">${esc(t.nombre)}${t.exigido_para_menores ? ' · exigido para menores' : ''}</option>`).join('')}
+            </select></div>
           <div class="campo"><label for="a-res">Resultado</label>
             <select id="a-res" name="resultado" required>
               <option value="apto">Apto</option><option value="no_apto">No apto</option>
@@ -144,6 +148,7 @@ export function pintarAntecedentes(c, personaId) {
     if (ev.target.id !== 'ant') return;
     ev.preventDefault();
     const f = ev.target;
+    if (!f.elements.tipo.value) return avisar('Elija el tipo de antecedente.', 'error');
     try {
       const r = await api.enviar('/api/v1/talento/antecedentes', {
         personaId,

@@ -145,10 +145,15 @@ export class TalentoController {
                              WHERE a.persona_id = $1 AND a.tipo = t.codigo
                                AND a.resultado = 'apto'
                                AND (a.vence_en IS NULL OR a.vence_en >= CURRENT_DATE))`, [p]);
+      /* Los tipos viajan con la ficha: el formulario los ofrece como lista
+         en vez de pedir que se escriba «DELITOS_SEXUALES» a mano. */
+      const { rows: tipos } = await c.query(
+        `SELECT codigo, nombre, exigido_para_menores FROM talento.tipos_antecedente ORDER BY exigido_para_menores DESC, nombre`);
       return {
         antecedentes: rows,
         apto_para_menores: apto.apto,
         le_faltan: faltan,
+        tipos,
         aviso: apto.apto ? null
           : `No está apto para estar con menores. Falta: ${faltan.map(f => f.nombre).join(', ') || 'revisar los vencidos'}.`,
       };

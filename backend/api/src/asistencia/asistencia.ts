@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Body, Controller, Get, Module, Param, Post, Query, Req } from '@nestjs/common';
+import { NotFoundException, BadRequestException, ForbiddenException, Body, Controller, Get, Module, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { DbModule } from '../db/db.module';
 import { DbService } from '../db/db.service';
@@ -116,7 +116,21 @@ export class AsistenciaController {
            JOIN nucleo.v_personas p ON p.id = e.persona_id
           WHERE e.servicio_id = $1
           ORDER BY e.marcada_en DESC`, [uuid(id, 'id')]);
-      return { total_filas: rows.length, marcados: rows };
+      /* ⛔ 21 sep 2026 · La pantalla del servicio no recibía el conteo ya
+         reportado: el formulario de la puerta arrancaba en ceros y, al
+         corregir un solo número, guardaba ceros en los demás. Ahora viaja
+         el servicio con su conteo, y la pantalla lo precarga. */
+      const { rows: [servicio] } = await c.query(
+        `SELECT s.id, to_char(s.fecha,'YYYY-MM-DD') AS fecha, to_char(s.hora_inicio,'HH24:MI') AS hora,
+                s.tipo, s.nombre, se.codigo AS sede,
+                cn.adultos, cn.jovenes, cn.ninos, cn.primera_vez, cn.total,
+                to_char(cn.reportado_en,'YYYY-MM-DD HH24:MI') AS conteo_reportado_en
+           FROM asistencia.servicios s
+           JOIN org.sedes se ON se.id = s.sede_id
+           LEFT JOIN asistencia.conteos cn ON cn.servicio_id = s.id
+          WHERE s.id = $1`, [uuid(id, 'id')]);
+      if (!servicio) throw new NotFoundException('Ese servicio no existe o no está a su alcance.');
+      return { total_filas: rows.length, marcados: rows, servicio };
     });
   }
 

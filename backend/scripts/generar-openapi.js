@@ -192,6 +192,56 @@ const DESCRIPCIONES = {
   'POST /api/v1/identidad/catalogos/:catalogo/valores': ['Agregar un valor', 'Sin migracion y sin despliegue. Exige alcance de organizacion. Una maquina de estados lo rechaza y dice por que.'],
   'POST /api/v1/identidad/catalogos/:catalogo/valores/:codigo/retirar': ['Retirar un valor', 'Retira, no borra: las filas historicas siguen legibles y lo que se impide es usarlo en filas nuevas. Exige motivo.'],
 
+  // ── 21 sep 2026 · Los diez modulos que solo tenian nombre ──────────────
+  'GET /api/v1/oracion': ['Peticiones de oracion', 'N3. Sin detalle ni contacto: eso solo sale en la ficha. Lo confidencial solo lo ven quien lo registro y los pastores; el intercesor ve lo que se le compartio. Toda lista deja rastro de lectura.'],
+  'POST /api/v1/oracion': ['Registrar una peticion', 'Exige crear o REGISTRAR_PETICION_ORACION. Una peticion confidencial no se comparte con los intercesores: la base lo impide.'],
+  'GET /api/v1/oracion/:id': ['La ficha de una peticion', 'Con detalle, contacto y las oraciones registradas. Deja rastro en la bitacora de lectura ANTES de devolver.'],
+  'POST /api/v1/oracion/:id/orar': ['Ore por esta peticion', 'El intercesor deja constancia, con una nota opcional. Es lo que convierte una lista en un ministerio.'],
+  'POST /api/v1/oracion/:id/estado': ['Cambiar el estado de una peticion', 'Maquina de estados en la base. Respondida exige la respuesta (el testimonio); cerrada es final.'],
+  'POST /api/v1/oracion/publica': ['Formulario publico de oracion', 'Sin sesion, con reCAPTCHA y cinco envios por direccion cada diez minutos. La sede tiene que tener el modulo encendido. Se guarda y no se devuelve.'],
+  'GET /api/v1/peticiones': ['Peticiones internas', 'Lo que las sedes y equipos le piden a la direccion. Primero lo pendiente, por prioridad; avisa lo que lleva mas de una semana sin decision.'],
+  'POST /api/v1/peticiones': ['Enviar una peticion a la direccion', 'Tipo del catalogo, asunto, detalle y prioridad. Queda quien la pidio.'],
+  'GET /api/v1/peticiones/:id': ['La ficha de una peticion interna', 'Con la decision, quien la tomo y cuando.'],
+  'POST /api/v1/peticiones/:id/decidir': ['Decidir una peticion', 'Exige DECIDIR_PETICION. Aprobar o rechazar exige escribir la decision, y nadie decide lo que el mismo pidio: la base lo rechaza.'],
+  'POST /api/v1/peticiones/:id/cancelar': ['Retirar una peticion', 'Solo quien la pidio, y solo mientras no se haya decidido.'],
+  'GET /api/v1/requerimientos': ['Mesa de servicio', 'Ordenada por lo que vence primero. El plazo lo pone la base segun la prioridad: urgente 4 h, alta 24 h, media 72 h, baja 7 dias.'],
+  'POST /api/v1/requerimientos': ['Reportar un requerimiento', 'Categoria del catalogo, asunto y prioridad. Responde cuando vence.'],
+  'GET /api/v1/requerimientos/:id': ['La ficha de un requerimiento', 'Con quien lo atiende, la solucion y si esta vencido.'],
+  'POST /api/v1/requerimientos/:id/atender': ['Atender un requerimiento', 'Exige ATENDER_REQUERIMIENTO (cancelar tambien lo puede quien edita). Resolver exige escribir que se hizo; reabrir borra la fecha de resuelto.'],
+  'GET /api/v1/tareas': ['Tareas', 'Primero las de quien pregunta; despues las de la sede, por vencimiento.'],
+  'POST /api/v1/tareas': ['Crear una tarea', 'Con responsable de su alcance, fecha y prioridad. Puede nacer de otro modulo (origen).'],
+  'POST /api/v1/tareas/:id/estado': ['Actualizar una tarea', 'Quien la tiene puede marcarla aunque su rol no edite tareas: es suya. Hecha sella la fecha en la base.'],
+  'GET /api/v1/calendario': ['Agenda', 'Eventos de las sedes a su alcance y los de toda la red, en la hora de cada sede.'],
+  'POST /api/v1/calendario': ['Agendar un evento', 'La hora se escribe como la vive la sede y se guarda con su zona. Un evento de toda la red solo lo publica quien alcanza la red.'],
+  'POST /api/v1/calendario/:id/cancelar': ['Cancelar un evento', 'Exige el motivo, que queda escrito.'],
+  'POST /api/v1/calendario/:id/realizado': ['Marcar un evento como realizado', 'Estado final.'],
+  'GET /api/v1/tematicas': ['Series de ensenanza', 'Las de su sede y las de la red, con cuantas ensenanzas lleva cada una.'],
+  'POST /api/v1/tematicas': ['Crear una serie', 'Una serie de la red la publica quien alcanza la red.'],
+  'GET /api/v1/tematicas/:id': ['La ficha de una serie', 'Con sus ensenanzas en orden.'],
+  'POST /api/v1/tematicas/:id/ensenanzas': ['Agregar una ensenanza', 'Titulo, fecha, predicador y pasaje. Toma la sede de su serie: el cliente no la elige.'],
+  'POST /api/v1/tematicas/:id/estado': ['Cambiar el estado de una serie', 'Planeada, en curso o terminada.'],
+  'GET /api/v1/legal': ['Asuntos legales', 'N3. Ordenados por termino; avisa lo que vence en quince dias. La lista deja rastro de lectura.'],
+  'POST /api/v1/legal': ['Abrir un asunto legal', 'Tipo del catalogo, titulo, contraparte y termino.'],
+  'GET /api/v1/legal/:id': ['La ficha de un asunto legal', 'Con sus actuaciones. Deja rastro en la bitacora de lectura antes de devolver.'],
+  'POST /api/v1/legal/:id/actuaciones': ['Registrar una actuacion', 'Se agrega y no se puede editar ni borrar despues: la base no lo permite.'],
+  'POST /api/v1/legal/:id/estado': ['Cambiar el estado de un asunto', 'Cerrar exige escribir como termino.'],
+  'GET /api/v1/comunicaciones': ['Comunicaciones', 'Borradores, aprobadas y enviadas, con el estado del freno de envios masivos.'],
+  'POST /api/v1/comunicaciones': ['Escribir una comunicacion', 'Nace en borrador. Finalidad convocatoria, pastoral o emergencia; nunca administrativa, que no pide consentimiento.'],
+  'GET /api/v1/comunicaciones/:id': ['La ficha de una comunicacion', 'Con el ALCANCE antes de aprobar: a cuantos les llega y cuantos se quedan fuera por no haber autorizado o no tener correo.'],
+  'POST /api/v1/comunicaciones/:id/aprobar': ['Aprobar un envio', 'Exige APROBAR_COMUNICACION y ser otra persona: quien escribe no se aprueba. Lo aprobado queda congelado.'],
+  'POST /api/v1/comunicaciones/:id/devolver': ['Devolver a borrador', 'Para corregir el texto. La aprobacion se pierde.'],
+  'POST /api/v1/comunicaciones/:id/editar': ['Editar un borrador', 'Solo en borrador: la base rechaza editar lo aprobado.'],
+  'POST /api/v1/comunicaciones/:id/cancelar': ['Cancelar una comunicacion', 'Estado final.'],
+  'POST /api/v1/comunicaciones/:id/enviar': ['Enviar', 'Solo lo aprobado y con el freno quieto. Encola a cada persona SOLO si su consentimiento lo permite, y cuenta a quien no.'],
+  'POST /api/v1/comunicaciones/freno': ['El freno de envios masivos', 'Lo pone o lo quita quien administra, con motivo. Puesto, no sale ningun envio masivo.'],
+  'GET /api/v1/construccion': ['Obras', 'Con avance contra ejecutado; avisa la obra que gasta mas de lo que avanza.'],
+  'POST /api/v1/construccion': ['Registrar una obra', 'Tipo del catalogo, presupuesto, fechas y responsable.'],
+  'GET /api/v1/construccion/:id': ['La ficha de una obra', 'Con sus hitos en orden.'],
+  'POST /api/v1/construccion/:id/hitos': ['Registrar un hito', 'El avance y lo ejecutado de la obra salen de sus hitos: nadie los escribe a mano. Una obra terminada no recibe hitos.'],
+  'POST /api/v1/construccion/:id/estado': ['Cambiar el estado de una obra', 'Terminada pone el avance en 100.'],
+  'GET /api/v1/analitica/tablero': ['Tablero de la sede o de la red', 'N2. Toda cifra menor de 5 sale como <5: un conteo pequeno identifica a las personas. Corre con el RLS de quien pregunta.'],
+  'GET /api/v1/crm/se-estan-perdiendo': ['Quien se nos esta perdiendo', 'Personas que vinieron al menos 3 veces entre hace 12 y hace 5 semanas y ninguna en las ultimas 4. Para llamarlas esta semana.'],
+
   'GET /salud': ['Salud para el balanceador', 'Comprueba la base de verdad.'],
   'GET /salud/detalle': ['Salud detallada', 'Base, particiones, fugas de lectura y ultimo mantenimiento.'],
 };
@@ -249,7 +299,11 @@ async function main() {
   y += 'security:\n  - portador: []\n';
   y += 'paths:\n';
 
-  const publicas = new Set(['/salud', '/salud/detalle', '/api/v1/auth/entrar', '/api/v1/auth/refrescar']);
+  /* ⛔ Hasta el 21 sep 2026 el formulario de nuevos y el webhook de la
+     pasarela figuraban en el contrato como si exigieran sesion: quien
+     integrara con ellos habria mandado un token que no existe. */
+  const publicas = new Set(['/salud', '/salud/detalle', '/api/v1/auth/entrar', '/api/v1/auth/refrescar',
+                            '/api/v1/nuevos/registrar', '/api/v1/aportes/pasarela/webhook', '/api/v1/oracion/publica']);
 
   for (const [ruta, metodos] of porRuta) {
     y += '  ' + ruta + ':\n';

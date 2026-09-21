@@ -28,7 +28,7 @@ import { esc, vacio, unaVez, avisar, cargando } from '../ui.js';
  */
 export async function pintarCheckin(c, sesion) {
   const quien = { personaId: sesion?.persona?.id, usuario: sesion?.persona?.correo };
-  let salas = memoria.leer('salas') ?? [];
+  let salas = memoria.lista('salas') ?? [];
   let salaActual = null, roster = [], acudientes = [], menorElegido = null;
 
   c.innerHTML = `
@@ -102,7 +102,7 @@ export async function pintarCheckin(c, sesion) {
     if (!salaId) { panel.innerHTML = ''; zonaEstado.innerHTML = ''; return; }
     salaActual = salas.find(s => s.id === salaId) ?? null;
 
-    roster = memoria.leer('roster.' + salaId) ?? [];
+    roster = memoria.lista('roster.' + salaId) ?? [];
     if (roster.length) pintarPanel(); else panel.innerHTML = cargando(2);
 
     try {
@@ -189,7 +189,7 @@ export async function pintarCheckin(c, sesion) {
 
     async function elegirMenor(menorId) {
       menorElegido = roster.find(m => m.menor_id === menorId);
-      acudientes = memoria.leer('acu.' + menorId) ?? [];
+      acudientes = memoria.lista('acu.' + menorId) ?? [];
       forma.innerHTML = cargando(1);
       try {
         const a = await api.obtener(`/api/v1/rocakids/menores/${menorId}/acudientes`);
@@ -302,13 +302,31 @@ export async function pintarCheckin(c, sesion) {
 
   async function pedirEntrega(menorId) {
     const m = roster.find(x => x.menor_id === menorId);
-    const puede = (memoria.leer('acu.' + menorId) ?? []).filter(a => a.autoriza_retiro);
+    /* ⛔ 21 sep 2026 · Los acudientes se leían SOLO de la memoria del
+       equipo: si no se había «preparado sin conexión», o si la familia
+       registró hoy a la abuela, la lista salía vacía y NADIE podía retirar
+       al niño aunque estuviera autorizado. Primero la base; la memoria
+       solo cuando no hay conexión. */
+    let lista = null;
+    try {
+      lista = await api.obtener(`/api/v1/rocakids/menores/${menorId}/acudientes`);
+      memoria.guardar('acu.' + menorId, lista);
+    } catch { lista = memoria.lista('acu.' + menorId); }
+    const puede = (Array.isArray(lista) ? lista : []).filter(a => a.autoriza_retiro);
+    if (!puede.length) {
+      avisar(`No hay nadie autorizado para retirar a ${m.menor} registrado${lista ? '' : ' en este equipo, y no hay conexión'}. `
+        + 'No se entrega: llame a la dirección de RocaKids.', 'error');
+      return;
+    }
     const codigo = prompt(`Código de entrega de ${m.menor}:`);
     if (!codigo) return;
-    const quienRetira = puede.length === 1 ? puede[0].acudiente_id
-      : prompt(`¿Quién lo retira?\n${puede.map((a, i) => `${i + 1}. ${a.acudiente} (${a.parentesco})`).join('\n')}\n\nEscriba el número:`);
-    const elegido = puede.length === 1 ? quienRetira : puede[Number(quienRetira) - 1]?.acudiente_id;
-    if (!elegido) { avisar('No se eligió a nadie autorizado para retirar.', 'error'); return; }
+    let elegido = puede[0].acudiente_id;
+    if (puede.length > 1) {
+      const n = prompt(`¿Quién lo retira?\n${puede.map((a, i) => `${i + 1}. ${a.acudiente} (${a.parentesco})`).join('\n')}\n\nEscriba el número:`);
+      if (n === null) return;
+      elegido = puede[Number(n) - 1]?.acudiente_id;
+    }
+    if (!elegido) { avisar('Ese número no está en la lista de autorizados.', 'error'); return; }
 
     try {
       const r = await api.enviar('/api/v1/rocakids/entregar', {

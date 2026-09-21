@@ -58,6 +58,29 @@ function esParaElUsuario(codigo: string, mensaje?: string): boolean {
   return ['P0001', 'P0002', '02000', '23514', '42501'].includes(codigo);
 }
 
+/* Reglas con nombre: una CHECK que falla sale del motor con jerga
+   («violates check constraint "comunicacion_cuatro_ojos"») y el filtro la
+   convertía en «los datos no cumplen una regla del sistema», que no le
+   dice a nadie qué hacer. La regla tiene nombre: aquí se dice en humano. */
+export const REGLAS_CON_NOMBRE: Record<string, string> = {
+  oracion_quien_pide: 'Diga quién pide la oración: una persona registrada o un nombre de contacto.',
+  oracion_respondida_con_respuesta: 'Para marcarla respondida, escriba la respuesta: es el testimonio.',
+  oracion_confidencial_no_se_comparte: 'Una petición confidencial no se comparte con el equipo de intercesión.',
+  peticion_decision_completa: 'Para aprobar o rechazar, escriba la decisión.',
+  peticion_nadie_decide_lo_suyo: 'Nadie aprueba ni rechaza lo que él mismo pidió: la decide otra persona.',
+  requerimiento_resuelto_con_solucion: 'Para resolver o cerrar un requerimiento, escriba la solución.',
+  requerimiento_asignado_con_persona: 'Para asignar un requerimiento, diga a quién.',
+  evento_termina_despues: 'El evento debe terminar después de empezar.',
+  evento_cancelado_con_motivo: 'Para cancelar un evento, escriba el motivo.',
+  serie_fechas: 'La fecha final no puede ser anterior a la inicial.',
+  obra_fechas: 'La fecha estimada de fin no puede ser anterior al inicio.',
+  asunto_cerrado_con_resultado: 'Para cerrar un asunto legal, escriba cómo terminó.',
+  comunicacion_grupo_si_es_grupo: 'Si el envío es a un grupo, diga a cuál; si no es a un grupo, no indique ninguno.',
+  comunicacion_aprobada_por_alguien: 'Una comunicación aprobada necesita a quien la aprobó.',
+  comunicacion_cuatro_ojos: 'Quien escribe un envío masivo no se lo aprueba: lo aprueba otra persona.',
+  obra_terminada_al_cien: 'Una obra se marca terminada cuando su avance llega al 100 %.',
+};
+
 @Catch()
 export class FiltroDeErrores implements ExceptionFilter {
   catch(e: unknown, host: ArgumentsHost) {
@@ -117,6 +140,12 @@ export class FiltroDeErrores implements ExceptionFilter {
       return res.status(HttpStatus.FORBIDDEN).json({
         error: true, peticionId: id,
         mensaje: 'Eso está fuera de su alcance: no se escribe sobre personas ni datos de otra sede.' });
+    }
+
+    const regla = (e as any)?.constraint as string | undefined;
+    if (codigo === '23514' && regla && REGLAS_CON_NOMBRE[regla]) {
+      log.warn(`${id} ${req.method} ${req.path} · regla ${regla}`);
+      return res.status(HttpStatus.BAD_REQUEST).json({ error: true, mensaje: REGLAS_CON_NOMBRE[regla], peticionId: id });
     }
 
     const mensajeDeLaBase = (e as any)?.message as string | undefined;

@@ -362,3 +362,61 @@ details.tarjeta > summary:focus-visible { outline: 2px solid var(--cr-azul-700);
   }
   .tabla thead th:first-child { background: var(--cr-superficie-2); }
 }
+
+/* ============================================================
+   21 sep 2026 · Piezas de los módulos nuevos (oración, legal,
+   comunicaciones, construcción, analítica…). Solo tokens: los radios
+   y la ausencia de sombra los manda `docs/DISENO.md`.
+   ============================================================ */
+.campo--casilla { margin-bottom: var(--cr-sp-2); }
+.casilla { display: flex; align-items: center; gap: var(--cr-sp-2); min-height: 44px; cursor: pointer; font-weight: 500; font-size: var(--cr-tx-sm); }
+.casilla input { width: 20px; height: 20px; flex: none; accent-color: var(--cr-azul-700); margin: 0; }
+
+.buscador__lista { display: grid; gap: 2px; margin-top: 2px; }
+.buscador__lista:empty { display: none; }
+.buscador__opcion { text-align: left; min-height: 44px; padding: var(--cr-sp-2) var(--cr-sp-3); font: inherit; font-size: var(--cr-tx-sm);
+  border: 1px solid var(--cr-borde); border-radius: var(--cr-radio-sm); background: var(--cr-superficie); color: var(--cr-texto); cursor: pointer; }
+.buscador__opcion:hover { background: var(--cr-azul-50); border-color: var(--cr-azul-100); }
+
+.filtros { display: flex; gap: var(--cr-sp-2); flex-wrap: wrap; align-items: center; }
+.filtros select { min-height: 40px; border: 1px solid var(--cr-borde-fuerte); border-radius: var(--cr-radio-sm); padding: 0 var(--cr-sp-3); font: inherit; background: var(--cr-superficie); }
+
+.cabeza-ficha { display: grid; gap: var(--cr-sp-2); margin-bottom: var(--cr-sp-4); }
+.cabeza-ficha h2 { margin: 0; text-wrap: balance; }
+.cabeza-ficha .chips { display: flex; gap: var(--cr-sp-1); flex-wrap: wrap; }
+.texto-largo { white-space: pre-wrap; max-width: 68ch; line-height: var(--cr-linea); margin: 0; }
+.acciones { display: flex; gap: var(--cr-sp-2); flex-wrap: wrap; margin: var(--cr-sp-3) 0; }
+
+.historial { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.historial li { display: grid; grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr); gap: var(--cr-sp-3);
+  padding: var(--cr-sp-3) 0; border-bottom: 1px solid var(--cr-borde); }
+.historial li:last-child { border-bottom: 0; }
+.historial time { font-family: var(--cr-fuente-mono); font-size: var(--cr-tx-xs); color: var(--cr-texto-suave); font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .historial li { grid-template-columns: minmax(0, 1fr); gap: var(--cr-sp-1); } }
+
+/* Avance contra ejecutado: dos barras con la misma escala, para que se lea
+   de un vistazo si una obra gasta más de lo que avanza. */
+.progreso { display: grid; gap: 4px; min-width: 9rem; }
+.progreso__fila { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr) 2.8rem; gap: var(--cr-sp-2); align-items: center; font-size: var(--cr-tx-xs); }
+.progreso__barra { height: 8px; border-radius: var(--cr-radio-sm); background: var(--cr-superficie-2); overflow: hidden; }
+.progreso__barra > span { display: block; height: 100%; background: var(--cr-azul-700); }
+.progreso__barra--gasto > span { background: var(--cr-mostaza-500); }
+.progreso__fila b { font-variant-numeric: tabular-nums; text-align: right; font-weight: 500; }
+
+.cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: var(--cr-sp-3); margin: var(--cr-sp-3) 0 var(--cr-sp-5); }
+.cifra { border: 1px solid var(--cr-borde); border-radius: var(--cr-radio-md); padding: var(--cr-sp-3) var(--cr-sp-4); background: var(--cr-superficie); }
+.cifra b { display: block; font-size: var(--cr-tx-2xl); line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--cr-azul-900); }
+.cifra span { font-size: var(--cr-tx-xs); color: var(--cr-texto-suave); }
+.cifra--alerta b { color: var(--cr-peligro); }
+
+.barras { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: end; gap: 4px; height: 9rem;
+  padding: var(--cr-sp-3); border: 1px solid var(--cr-borde); border-radius: var(--cr-radio-md); background: var(--cr-superficie); }
+.barras__col { display: grid; grid-template-rows: minmax(0, 1fr) auto; height: 100%; gap: 4px; text-align: center; }
+.barras__col > i { align-self: end; display: block; background: var(--cr-azul-500); border-radius: 3px 3px 0 0; min-height: 2px; }
+.barras__col > small { font-family: var(--cr-fuente-mono); font-size: .625rem; color: var(--cr-texto-tenue); white-space: nowrap; overflow: hidden; }
+
+.freno { display: flex; gap: var(--cr-sp-3); align-items: center; justify-content: space-between; flex-wrap: wrap;
+  padding: var(--cr-sp-3) var(--cr-sp-4); border: 1px solid var(--cr-borde-fuerte); border-radius: var(--cr-radio-md); margin-bottom: var(--cr-sp-3); background: var(--cr-superficie); }
+.freno--puesto { border-color: var(--cr-peligro); background: var(--cr-peligro-bg); }
+.vista-previa { border: 1px solid var(--cr-borde); border-radius: var(--cr-radio-md); padding: var(--cr-sp-4); background: var(--cr-superficie); }
+.vista-previa h3 { margin: 0 0 var(--cr-sp-2); }

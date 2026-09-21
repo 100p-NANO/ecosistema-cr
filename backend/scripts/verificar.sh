@@ -15,6 +15,18 @@ fi
 if "$RAIZ/scripts/migrar.sh" >/tmp/cr-migrar.log 2>&1; then ok "migraciones y semillas aplicadas en base limpia"
 else mal "la migración desde cero falla (ver /tmp/cr-migrar.log)"; fi
 
+echo "══ 1b · Toda semilla sabe si va a produccion"
+# ⛔ 21 sep 2026 · Las semillas 019 a 023 no estaban en ninguna lista de
+#    `migrar-produccion.sh`, y ese script se niega a correr si encuentra una
+#    sin clasificar: el primer despliegue real se habria caido en el paso 0.
+sin_lista=""
+for f in "$RAIZ"/db/seeds/*.sql; do
+  n="$(basename "$f")"
+  grep -q "^  $n\$" "$RAIZ/scripts/migrar-produccion.sh" || sin_lista="$sin_lista $n"
+done
+if [ -z "$sin_lista" ]; then ok "todas las semillas estan clasificadas (produccion o demostracion)"
+else mal "semillas sin clasificar en migrar-produccion.sh:$sin_lista"; fi
+
 echo "══ 2 · Invariantes de la base"
 if "$RAIZ/scripts/probar.sh" --rapido >/tmp/cr-probar.log 2>&1; then
   ok "$(grep -o 'TODOS LOS BANCOS EN VERDE.*' /tmp/cr-probar.log | head -1)"
@@ -59,6 +71,15 @@ echo "══ 4d · Los conectores de la consola llegan a la base"
 if "$RAIZ/api/test/conectores.sh" >/tmp/cr-conectores.log 2>&1; then
   ok "conectores: $(grep -o 'CONECTORES: [0-9]* de [0-9]*' /tmp/cr-conectores.log | tail -1)"
 else mal "hay conectores rotos entre la consola y la base (ver /tmp/cr-conectores.log)"; fi
+
+echo "══ 4f · Los diez modulos nuevos: pantalla, API y base de acuerdo"
+# ⛔ 21 sep 2026 · Oracion, legal, comunicaciones y los otros siete nacieron
+#    este dia. El banco manda lo que manda cada pantalla y le pregunta a la
+#    base: la peticion confidencial que el intercesor no ve, el envio que su
+#    autor no aprueba, el freno que frena, la lectura N3 que deja huella.
+if "$RAIZ/api/test/modulos.sh" >/tmp/cr-modulos.log 2>&1; then
+  ok "modulos: $(grep -o 'MÓDULOS: [0-9]* de [0-9]*' /tmp/cr-modulos.log | tail -1)"
+else mal "hay conectores rotos en los modulos nuevos (ver /tmp/cr-modulos.log)"; fi
 
 echo "══ 4e · Las llamadas a terceros aguantan (tiempo, clase y cortacircuitos)"
 # ⛔ 21 sep 2026 · Cada fetch a un tercero salía sin tiempo de espera ni

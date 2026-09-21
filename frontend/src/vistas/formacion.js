@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { pantalla, formulario, tabla, chip, sedes, esc, vacio, avisar } from './comun.js';
+import { pantalla, formulario, tabla, chip, sedes, valoresDe, esc, vacio, avisar } from './comun.js';
 
 /** Formación · el catálogo es de la red, las cohortes son de cada sede. */
 export function pintarFormacion(c) {
@@ -41,17 +41,16 @@ export function pintarFormacion(c) {
         : vacio('📚', 'Ningún programa', 'La central todavía no ha cargado el catálogo.')}`,
   });
 
-  Promise.all([sedes(), api.obtener('/api/v1/formacion/cursos')]).then(([op, cur]) => {
+  Promise.all([sedes(), api.obtener('/api/v1/formacion/cursos'), valoresDe('modalidad_formacion')]).then(([op, cur, modalidades]) => {
     form = formulario({
-      titulo: '+ Abrir una cohorte',
+      titulo: 'Abrir una cohorte',
       campos: [
         { nombre: 'sedeId', etiqueta: 'Sede', opciones: op, obligatorio: true },
         { nombre: 'cursoId', etiqueta: 'Curso', obligatorio: true,
           opciones: cur.cursos.map(u => ({ valor: u.id, texto: `${u.nombre} (${u.programa})` })) },
         { nombre: 'codigo', etiqueta: 'Código de la cohorte', obligatorio: true, placeholder: '2026-2' },
-        { nombre: 'modalidad', etiqueta: 'Modalidad', obligatorio: true,
-          opciones: [{ valor: 'presencial', texto: 'Presencial' }, { valor: 'virtual', texto: 'Virtual' },
-                     { valor: 'mixta', texto: 'Mixta' }] },
+        /* La modalidad sale del catálogo `modalidad_formacion`, que es lo que la base acepta. */
+        { nombre: 'modalidad', etiqueta: 'Modalidad', obligatorio: true, opciones: modalidades },
         { nombre: 'inicia', etiqueta: 'Inicia', tipo: 'date', obligatorio: true },
         { nombre: 'termina', etiqueta: 'Termina', tipo: 'date' },
         { nombre: 'cupo', etiqueta: 'Cupo', tipo: 'number', numero: true },
@@ -81,35 +80,69 @@ export function pintarCohorte(c, id) {
            ${d.cohorte.otorga_certificado ? chip('otorga certificado') : ''}</p>
       </div>
 
-      <form id="inscribir" style="display:flex;gap:.5rem;margin-bottom:1rem">
+      <form id="inscribir" style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
         <label class="sr-solo" for="qf">Buscar persona</label>
-        <input id="qf" type="search" placeholder="Buscar a quien se inscribe" autocomplete="off" style="flex:1">
+        <input id="qf" type="search" placeholder="Buscar a quien se inscribe" autocomplete="off" style="flex:1;min-width:200px">
+        ${Number(d.cohorte.valor) > 0 ? `
+        <!-- ⛔ 21 sep 2026 · Con la cohorte de pago, la base exige el estado
+             del pago y este formulario no lo mandaba: inscribir fallaba siempre. -->
+        <label class="sr-solo" for="qf-pago">Pago al inscribir</label>
+        <select id="qf-pago" style="min-height:40px">
+          <option value="pendiente">Pago pendiente</option><option value="pagado">Ya pagó</option>
+          <option value="parcial">Pagó una parte</option><option value="exonerado">Exonerado</option>
+        </select>` : ''}
       </form>
+      ${Number(d.cohorte.valor) > 0 ? `<p class="ayuda" style="margin-top:-.5rem">Valor de la cohorte:
+        ${esc(Number(d.cohorte.valor).toLocaleString('es-CO'))} ${esc(d.cohorte.moneda ?? 'COP')}</p>` : ''}
       <div id="sug-f"></div>
 
       ${d.inscritos.length
         ? tabla(d.inscritos, [
-            { titulo: 'Nombre', pintar: i => `<strong>${esc(i.nombre_completo)}</strong>` },
+            /* ⛔ 21 sep 2026 · «Calificar» estaba en la última columna (fuera de
+               la pantalla en el teléfono) y pedía el estado escribiéndolo en un
+               prompt. Ahora va en la primera celda, con lista y campo de nota. */
+            { titulo: 'Nombre', pintar: i => `<strong>${esc(i.nombre_completo)}</strong>
+                <form class="acciones" data-calificar="${esc(i.id)}" style="margin:.4rem 0 0;align-items:center">
+                  <label class="sr-solo" for="cal-${esc(i.id)}">Estado</label>
+                  <select id="cal-${esc(i.id)}" name="estado" style="min-height:40px">
+                    ${['inscrito', 'cursando', 'aprobado', 'reprobado', 'retirado'].map(e =>
+                      `<option value="${e}"${e === i.estado ? ' selected' : ''}>${e}</option>`).join('')}
+                  </select>
+                  <label class="sr-solo" for="nota-${esc(i.id)}">Nota</label>
+                  <input id="nota-${esc(i.id)}" name="nota" type="number" step="0.1" min="0" max="5" placeholder="Nota"
+                         value="${esc(i.nota_final ?? '')}" style="width:5.5rem;min-height:40px">
+                  <button class="boton boton--suave" type="submit">Guardar</button>
+                  ${['pendiente', 'parcial'].includes(i.estado_pago) ? `<button class="boton boton--suave" type="button" data-pago="${esc(i.id)}">Registrar pago</button>` : ''}
+                </form>` },
             { titulo: 'Estado', pintar: i => chip(i.estado,
                 i.estado === 'aprobado' ? '' : i.estado === 'reprobado' || i.estado === 'retirado' ? 'distintivo--aviso' : '') },
-            { titulo: 'Pago', pintar: i => chip(i.estado_pago,
+            { titulo: 'Pago', pintar: i => chip(String(i.estado_pago ?? '').replace('_', ' '),
                 i.estado_pago === 'pendiente' ? 'distintivo--aviso' : '') },
             { titulo: 'Nota', pintar: i => i.nota_final ?? '—' },
-            { titulo: '', pintar: i => `<button class="boton boton--suave" data-calificar="${esc(i.id)}">Calificar</button>` },
           ])
         : vacio('👥', 'Nadie inscrito', 'Busque arriba a la primera persona.')}`,
   });
 
-  z.addEventListener('click', async ev => {
-    const b = ev.target.closest('[data-calificar]');
-    if (!b) return;
-    const estado = prompt('Estado: inscrito, cursando, aprobado, reprobado o retirado');
-    if (!estado) return;
-    const nota = prompt('Nota final (deje vacío si no aplica)');
+  z.addEventListener('submit', async ev => {
+    const f = ev.target.closest('[data-calificar]');
+    if (!f) return;
+    ev.preventDefault();
+    const d = { estado: f.elements.estado.value };
+    /* Sin nota escrita, la base conserva la anterior (no la borra). */
+    if (f.elements.nota.value.trim()) d.nota = f.elements.nota.value.trim();
     try {
-      const d = { estado: estado.trim() };
-      if (nota && nota.trim()) d.nota = Number(nota.trim());
-      const r = await api.enviar(`/api/v1/formacion/inscripciones/${b.dataset.calificar}/calificar`, d);
+      const r = await api.enviar(`/api/v1/formacion/inscripciones/${f.dataset.calificar}/calificar`, d);
+      avisar(r.mensaje, 'exito'); recargar();
+    } catch (e) { avisar(e.message, 'error'); }
+  });
+  z.addEventListener('click', async ev => {
+    const b = ev.target.closest('[data-pago]');
+    if (!b) return;
+    const total = confirm('¿Pagó el valor completo? Aceptar = pagado · Cancelar = pagó una parte');
+    const referencia = prompt('Referencia o número de recibo (opcional)') ?? '';
+    try {
+      const r = await api.enviar(`/api/v1/formacion/inscripciones/${b.dataset.pago}/pago`,
+        { estadoPago: total ? 'pagado' : 'parcial', ...(referencia.trim() ? { referencia: referencia.trim() } : {}) });
       avisar(r.mensaje, 'exito'); recargar();
     } catch (e) { avisar(e.message, 'error'); }
   });
@@ -132,7 +165,9 @@ export function pintarCohorte(c, id) {
           : `<p class="ayuda">Nadie coincide.</p>`;
         sug.querySelectorAll('[data-inscribir]').forEach(b => b.addEventListener('click', async () => {
           try {
-            const r = await api.enviar(`/api/v1/formacion/cohortes/${id}/inscribir`, { personaId: b.dataset.inscribir });
+            const pago = z.querySelector('#qf-pago')?.value;
+            const r = await api.enviar(`/api/v1/formacion/cohortes/${id}/inscribir`,
+              { personaId: b.dataset.inscribir, ...(pago ? { estadoPago: pago } : {}) });
             avisar(r.repetido ? r.mensaje : 'Inscrito.', r.repetido ? 'aviso' : 'exito');
             if (r.aviso) avisar(r.aviso, 'aviso');
             z.querySelector('#qf').value = ''; sug.innerHTML = ''; recargar();

@@ -73,6 +73,14 @@ SEMILLAS_PRODUCCION=(
   016_fondos_aportes.sql
   017_cargos_talento.sql
   018_modelo_drive_100p.sql
+  # ⛔ 21 sep 2026 · 019 a 022 existían y NO estaban en ninguna lista: este
+  #    script se negaba a correr («semilla sin clasificar») y el primer
+  #    despliegue a producción se habría caído en el paso 0.
+  019_catalogos_que_faltaban.sql
+  020_central_y_regiones.sql
+  021_salvaguarda_menores.sql
+  022_festivos_colombia.sql
+  024_acciones_modulos_nuevos.sql
 )
 # «@sede_maestra» no es un archivo: es el paso que ocupa el lugar de la
 # 002 en producción. La 002 crea la sede Y una persona inventada con
@@ -92,6 +100,11 @@ SEMILLAS_DEMO=(
   002_sedes_demo.sql
   004_iglesias_demo.sql
   014_atributo_ejemplo.sql
+  # Sube a N3 a los pastores SEMBRADOS de demostración; en producción el
+  # nivel de cada pastor lo decide la dirección al asignarlo.
+  023_pastores_con_su_consejeria.sql
+  # Propuesta de permisos de los módulos nuevos: en producción la ratifica la mesa.
+  025_matriz_modulos_nuevos_propuesta.sql
 )
 
 PLAN=0
