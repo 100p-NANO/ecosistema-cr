@@ -1,0 +1,722 @@
+[
+ {
+  "fuente": "00",
+  "titulo": "La fusión de duplicados pierde los consentimientos, también la revocación (Ley 1581)",
+  "gravedad": "alta",
+  "donde": "nucleo.fusionar (migración 0047) y la regla consentimientos_no_update ... DO INSTEAD NOTHING de plataforma.consentimientos",
+  "reproduccion": "En cr_pob_nucleo: SELECT f.principal_id, f.referencias_movidas, plataforma.puede_contactar(f.principal_id,'whatsapp','convocatoria') FROM nucleo.fusiones f; La primera fusión: el registro duplicado tenía WhatsApp convocatoria 'otorgado' y después 'revocado' (la persona pidió que no le escribieran más). fusionar() mueve las referencias con UPDATE, pero la regla convierte el UPDATE de consentimientos en nada: no falla, referencias_movidas = {}, los consentimientos quedan en la lápida y la persona principal sigue contactable (puede_contactar = true). Genérico: registrar un duplicado con un consentimiento, fusionar y comprobar que SELECT count(*) FROM plataforma.consentimientos WHERE persona_id = <duplicada> no cambia.",
+  "id": "P01"
+ },
+ {
+  "fuente": "00",
+  "titulo": "Los accesos heredados de un equipo nunca entran en la recertificación",
+  "gravedad": "media",
+  "donde": "identidad.v_accesos_por_recertificar, identidad.recertificar(uuid,text,text,smallint), GET y POST /api/v1/administracion/recertificar",
+  "reproduccion": "SELECT count(*) FROM identidad.v_permiso_efectivo WHERE vigente AND origen='equipo' AND nivel_efectivo>=3; da 16 accesos (Finanzas CONTABILIDAD N3 en toda la red, Talento Humano N3, Legal AUDITOR N3 y las parejas supervisoras de región con PASTOR_CONGREGACIONAL N4) y ninguno aparece en v_accesos_por_recertificar. La tabla identidad.recertificaciones tiene asignacion_unidad_id, pero ninguna función ni ruta lo escribe: los permisos más amplios no los revisa el comité trimestral.",
+  "id": "P02"
+ },
+ {
+  "fuente": "00",
+  "titulo": "Buscar por un solo apellido no encuentra a quien tiene nombre largo",
+  "gravedad": "media",
+  "donde": "nucleo.buscar_personas (migración 0047), pantalla Personas",
+  "reproduccion": "SELECT count(*) FROM nucleo.buscar_personas('Gómez', 500); devuelve 14 de las 31 personas que se apellidan Gómez: compara similarity() contra el nombre completo con umbral 0,3 y con dos nombres y dos apellidos la similitud cae a 0,20. El pastor de Bogotá Norte (Luis Fernando Zamora Hoyos) busca 'Zamora' en la aplicación y no se encuentra a sí mismo. Es el duplicado que la búsqueda quería evitar; word_similarity (<%) lo resolvería.",
+  "id": "P03"
+ },
+ {
+  "fuente": "00",
+  "titulo": "Todo visitante nace 'miembro' de la sede",
+  "gravedad": "media",
+  "donde": "nucleo.tg_persona_nace_con_membresia (y la conversión desde la bandeja de nuevos, migración 0024)",
+  "reproduccion": "BEGIN; INSERT INTO nucleo.personas (sede_id, primer_nombre, primer_apellido) VALUES ((SELECT id FROM org.sedes WHERE codigo='BOG-NORTE'),'Prueba','Visitante'); SELECT p.nivel_compromiso, m.tipo FROM nucleo.personas p JOIN nucleo.membresias_sede m ON m.persona_id=p.id WHERE p.primer_apellido='Visitante'; ROLLBACK; da nivel 'visitante' y membresía 'miembro' ('Congrega en esta sede y es su casa'): el disparador decide el tipo por el estado (activa) y no por el nivel de compromiso. El núcleo corrige el tipo de sus visitantes después del alta.",
+  "id": "P04"
+ },
+ {
+  "fuente": "00",
+  "titulo": "Dos caminos para abrir una iglesia que no hacen lo mismo",
+  "gravedad": "media",
+  "donde": "OrganizacionService.crearSede (POST /api/v1/organizacion/sedes) frente a POST /api/v1/administracion/iglesias",
+  "reproduccion": "Ejecutar lo mismo que crearSede: INSERT INTO org.sedes (codigo,nombre,tipo,pais,ciudad) y las dos asignaciones PASTOR_CONGREGACIONAL. La sede queda sin sede_padre_id, sin región (unidad_id), con 0 filas en sistema.modulos_sede (solo ve los módulos de núcleo) y sin registro en la bitácora de aprovisionamiento. La otra ruta sí usa sistema.crear_iglesia, pero recibe un solo pastorId: nombra un pastor sin su esposa, contra la regla de los pastores en matrimonio.",
+  "id": "P05"
+ },
+ {
+  "fuente": "00",
+  "titulo": "El catálogo de tipos de documento solo sirve en Colombia",
+  "gravedad": "media",
+  "donde": "sistema.catalogo_valores 'tipo_documento' y nucleo.tg_tipo_documento_del_catalogo (migración 0061), frente a nucleo.tipos_documento",
+  "reproduccion": "INSERT INTO nucleo.personas (sede_id, primer_nombre, primer_apellido, tipo_documento, numero_documento) VALUES ((SELECT id FROM org.sedes WHERE codigo='BCN'),'Laia','Puig','DNI','9000000001'); falla con 23514 'El tipo de documento «DNI» no está en el catálogo', aunque nucleo.tipos_documento trae DNI, NIE, CIP, SSN e ITIN. En Barcelona, Madrid, Panamá y Estados Unidos los locales quedan sin documento o con pasaporte.",
+  "id": "P06"
+ },
+ {
+  "fuente": "00",
+  "titulo": "El traslado queda en la línea de tiempo con la fecha de hoy",
+  "gravedad": "baja",
+  "donde": "nucleo.trasladar",
+  "reproduccion": "SELECT nucleo.trasladar(<persona>, <sede destino>, 'Cambio de ciudad', NULL, NULL, DATE '2024-03-01'); el hecho TRASLADO_SEDE de crm.linea_tiempo queda con ocurrido_en = now() aunque detalle->>'desde' diga 2024-03-01. En cr_pob_nucleo los 197 traslados (incluidos los pastores enviados en 2007) aparecen como ocurridos el 21 de septiembre de 2026.",
+  "id": "P07"
+ },
+ {
+  "fuente": "00",
+  "titulo": "Códigos crudos y etiquetas sin género en la consola y en la ficha",
+  "gravedad": "baja",
+  "donde": "frontend/master/master.js (Tablero de la red) y frontend/src/vistas/personas.js",
+  "reproduccion": "Abrir master/#/red: la columna Tipo muestra 'filial_nacional', 'filial_internacional', 'plantacion'. Abrir la ficha de una mujer casada: 'Género: F' y 'Estado civil: Casado' (la etiqueta del catálogo es masculina).",
+  "id": "P08"
+ },
+ {
+  "fuente": "10",
+  "titulo": "Un LIDER_GRUPO opera sobre todos los grupos de su sede, no solo el suyo: ve sus integrantes, reporta reuniones y saca gente de grupos ajenos",
+  "gravedad": "alta",
+  "donde": "backend/api/src/grupos/grupos.ts (lista, ficha, agregar, salir y reunion solo llaman exigirNivel(2)); identidad.sedes_de (rama 4: el alcance 'grupo' devuelve la SEDE del grupo); RLS grupos_sel/ins/upd con plataforma.sede_visible",
+  "reproduccion": "En cr_e2e_61 con el token de Jorge Ibarra (9b5510dc-b1fd-4597-926f-7d113e89e742), LIDER_GRUPO solo del «Grupo Familiar Toberín» de BOG-NORTE: GET /api/v1/grupos?limite=100 devuelve los 16 grupos de la sede; GET /api/v1/grupos/<id del Grupo Familiar Cedritos> devuelve sus 13 integrantes con nombre; POST /api/v1/grupos/<Cedritos>/reuniones {\"fecha\":\"2026-09-19\",\"tema\":\"Prueba de alcance del líder\",\"asistentes\":3} responde 201 y la fila queda en grupos.reuniones con reportada_por = Jorge; POST /api/v1/grupos/<Cedritos>/miembros/<persona>/salir {\"motivo\":\"Prueba de alcance del líder\"} responde 201 y la membresía queda cerrada con sacado_por = Jorge. Esperado: 403 fuera del grupo de su asignación. Arreglo: cuando el alcance del rol en 'grupos' es 'grupo' (o 'segmento'), filtrar por pe.alcance_id (una función plataforma.grupo_visible usada por la API y por la RLS de grupos, membresias y reuniones).",
+  "id": "P09"
+ },
+ {
+  "fuente": "10",
+  "titulo": "El trabajador de la bandeja de salida descarta los avisos administrativos como «Consentimiento revocado antes del envío»: el coordinador nunca recibe el aviso de un nuevo y el integrado nunca recibe su confirmación",
+  "gravedad": "alta",
+  "donde": "plataforma.tomar_notificaciones (migración 0073): el paso de descarte usa plataforma.puede_contactar sin mirar plataforma.finalidades.base_legal (tg_notificacion_exige_consentimiento sí la mira)",
+  "reproduccion": "BEGIN; INSERT INTO crm.nuevos_registros (sede_id, nombre, email, telefono, como_supo, fuente) SELECT id, 'Prueba Aviso', 'prueba.aviso.demo@example.org', '310 555 0001', 'amigo', 'web' FROM org.sedes WHERE codigo = 'CALI'; SELECT * FROM plataforma.tomar_notificaciones(50); SELECT plantilla, estado, ultimo_error FROM plataforma.notificaciones; ROLLBACK. Resultado: Bienvenida_nuevo pasa a 'enviando' y Notificacion_coordinador (persona = la coordinadora, finalidad 'administrativa', base legal 'contrato') queda 'descartada' con «Consentimiento revocado antes del envío», aunque nadie revocó nada: ningún adulto tiene consentimiento para 'administrativa' porque no se pide. Pasa igual con Confirmacion_miembro. En la demostración quedan 499 Notificacion_coordinador y 213 Confirmacion_miembro descartadas (la huella del defecto; el poblador 60 las habría descartado igual). Arreglo: en el UPDATE de descarte, JOIN plataforma.finalidades f ON f.codigo = COALESCE(n.finalidad, 'convocatoria') AND f.base_legal = 'consentimiento'.",
+  "id": "P10"
+ },
+ {
+  "fuente": "10",
+  "titulo": "Los roles que trabajan con menores fuera de RocaKids se otorgan sin antecedentes (DIRECTOR_SEGMENTO, COORDINADOR_SEGMENTO sobre Aventureros, Exploradores, Pulso o Eco, y LIDER_GRUPO sobre un grupo de menores)",
+  "gravedad": "alta",
+  "donde": "identidad.roles_con_menores (seed 021) solo lista DIRECTOR_ROCAKIDS y MAESTRO_ROCAKIDS; identidad.tg_rol_de_menores_exige_antecedentes no mira el alcance",
+  "reproduccion": "BEGIN; fijar el contexto del Pastor Principal (app.persona_id = e914934d-9ef8-4d19-852f-a8f8b95da7ba, nivel 4, global); SELECT identidad.otorgar_asignacion(<líder de CALI sin antecedentes>, 'DIRECTOR_SEGMENTO', 'segmento', <id del segmento AVENTUREROS (9 a 11 años) de ROCAKIDS en CALI>, 2::smallint, 'ACTA-PRUEBA-02 · prueba', '2026-01-10', NULL) → se otorga, y talento.apto_para_menores(persona) = false; ROLLBACK. La propia descripción del rol pone de ejemplo «Aventureros en RocaKids», e identidad.alcanza_persona le abre las fichas de los integrantes de los grupos del segmento. Por eso este poblador no creó grupos de Pulso, Eco ni RocaKids ni roles sobre esos segmentos. Arreglo: exigir antecedentes cuando el alcance es un segmento con edad_max < 18 o un grupo con integrantes menores.",
+  "id": "P11"
+ },
+ {
+  "fuente": "10",
+  "titulo": "La integración ignora la fecha de la decisión: convertido_en y el hecho CAMBIO_ETAPA quedan con la fecha de hoy",
+  "gravedad": "media",
+  "donde": "crm.convertir_en_miembro de 3 argumentos (0024: now() en el INSERT a crm.linea_tiempo y en convertido_en); la de 6 argumentos (0040) solo usa p_fecha_decision para fecha_decision y la membresía",
+  "reproduccion": "Como el coordinador de nuevos Arley Escobar (57fface1-5461-4ac4-ab83-0943353909d9): POST /api/v1/nuevos/<id en seguimiento de BOG-NORTE>/convertir-miembro {\"fecha_conversion\":\"2026-09-10\"} → 201; en la base fecha_decision = 2026-09-10 pero convertido_en = 2026-09-21 16:37 y el hecho CAMBIO_ETAPA ocurrido_en = 2026-09-21 16:37. En la ficha de una persona integrada en diciembre de 2025, «Se integra al Grupo Familiar Valle del Lili» aparece como lo último que le pasó, con fecha de hoy (213 casos en la demostración; convertido_en se corrigió por UPDATE, la línea de tiempo no admite UPDATE). Arreglo: COALESCE(p_fecha_decision::timestamptz, now()) en ambos sitios.",
+  "id": "P12"
+ },
+ {
+  "fuente": "10",
+  "titulo": "La conversión parte el nombre por el primer espacio: el segundo nombre queda como apellido",
+  "gravedad": "media",
+  "donde": "crm.convertir_en_miembro (3 argumentos): primer_nombre = split_part(nombre, ' ', 1) y primer_apellido = el resto",
+  "reproduccion": "Como el coordinador Arley Escobar: POST /api/v1/nuevos/1c6873e9-4fdd-4be0-8e8c-fa7b433c692c/convertir-miembro {} (registro «Samuel David Villamil», BOG-NORTE) → la persona nueva queda con primer_nombre «Samuel», segundo_nombre NULL y primer_apellido «David Villamil». El registro maestro nace con el apellido equivocado (certificados, búsqueda y duplicados). Arreglo: pedir nombres y apellidos por separado en el formulario, o no inventar el apellido y dejarlo para la secretaría.",
+  "id": "P13"
+ },
+ {
+  "fuente": "10",
+  "titulo": "Con el grupo cerrado nadie puede registrar la salida de sus integrantes, y el mensaje dice «no admite membresías nuevas»",
+  "gravedad": "media",
+  "donde": "grupos.tg_grupo_abierto (0012) corre BEFORE INSERT OR UPDATE y revisa cerrado_en sin distinguir una salida; además no hay endpoint para cerrar un grupo",
+  "reproduccion": "UPDATE grupos.grupos SET cerrado_en = '2026-09-15', abierto = false WHERE nombre = 'Grupo Familiar Usaquén' (BOG-NORTE); como el pastor Luis Zamora (f94690c1-ff8b-4917-b28c-0632bfd18498): POST /api/v1/grupos/<id>/miembros/<persona>/salir {\"motivo\":\"Se trasladó a otra ciudad\"} → HTTP 400 «El grupo … está cerrado desde 2026-09-15: no admite membresías nuevas», y la ficha sigue mostrando 6 miembros activos para siempre. Este poblador cierra primero las membresías y después el grupo. Arreglo: en UPDATE permitir cuando OLD.fecha_salida IS NULL AND NEW.fecha_salida IS NOT NULL, y cerrar las membresías en la misma operación que cierra el grupo.",
+  "id": "P14"
+ },
+ {
+  "fuente": "10",
+  "titulo": "La bandeja de nuevos muestra a los «No interesados» como «CONTACTAR HOY», y ningún camino los saca de la bandeja",
+  "gravedad": "media",
+  "donde": "crm.v_bandeja_nuevos (excluye solo convertido e inactivo); backend/api/src/nuevos/nuevos.service.ts registrarContacto: proximo_contacto = COALESCE($3::date, proximo_contacto) conserva la fecha anterior; ninguna ruta de la API pasa un registro a «inactivo»",
+  "reproduccion": "Registrar por POST /api/v1/nuevos/<id>/registrar-contacto un contacto con reaccion 'no_interesado' y sin fecha_siguiente_contacto sobre un registro cuyo proximo_contacto ya pasó → estado 'no_interesado' y proxima_accion 'CONTACTAR HOY' en el tablero por defecto «En seguimiento (todos)». En la demostración, 43 «no interesados» aparecen así, mezclados con los que sí hay que llamar. Arreglo: excluirlos del tablero por defecto y poner proximo_contacto = NULL cuando la reacción es no_interesado.",
+  "id": "P15"
+ },
+ {
+  "fuente": "10",
+  "titulo": "La pantalla de grupos muestra códigos crudos en vez de las etiquetas del catálogo («pequeno», «miercoles», «sabado», «colider»)",
+  "gravedad": "baja",
+  "donde": "frontend/src/vistas/grupos.js (esc(g.tipo), esc(g.dia_reunion), chip(m.rol))",
+  "reproduccion": "Como el pastor de Bogotá Norte abrir index.html#/grupos: el tipo sale «pequeno» (el catálogo dice «Grupo pequeño») y los días «miercoles» y «sabado» sin tilde; la ficha de un grupo de tMt Legado dice «PEQUENO · CALI · SABADO 18:00» y el rol «colider» (el catálogo dice «Colíder»). Arreglo: traducir con valoresDe('tipo_grupo') y valoresDe('rol_membresia') y un mapa de días con tilde.",
+  "id": "P16"
+ },
+ {
+  "fuente": "10",
+  "titulo": "El hecho de ingreso y salida de un grupo repite la palabra: «Entró al grupo Grupo Familiar Boston»",
+  "gravedad": "baja",
+  "donde": "grupos.tg_membresia_a_linea y grupos.tg_membresia_salida_a_linea ('Entró al grupo ' || nombre, 'Salió del grupo ' || nombre)",
+  "reproduccion": "Abrir la ficha de cualquier integrante de un grupo cuyo nombre empieza por «Grupo» (index.html#/personas/<id>): la historia dice «Entró al grupo Grupo Familiar …» y «Salió del grupo Grupo Familiar …». Arreglo: «Entró a » || nombre, o quitar «grupo» si el nombre ya lo trae.",
+  "id": "P17"
+ },
+ {
+  "fuente": "10",
+  "titulo": "«Integrar como miembro» deja a la persona como «Visitante»",
+  "gravedad": "baja",
+  "donde": "crm.convertir_en_miembro no toca nivel_compromiso; la API responde «Nuevo miembro integrado al sistema»",
+  "reproduccion": "Convertir cualquier registro de la bandeja y abrir la ficha de la persona: «Compromiso: Visitante». Puede ser una decisión (la etapa «conoce» del 4C), pero la pantalla y la respuesta afirman que ya es miembro; conviene alinear el texto o el nivel.",
+  "id": "P18"
+ },
+ {
+  "fuente": "20",
+  "titulo": "Un maestro de otra sede registra y entrega a un niño ajeno: registrar_checkin y entregar_menor no miran la sede de la sesión",
+  "gravedad": "critica",
+  "donde": "backend/db/migrations/0067_el_domingo_se_puede_operar.sql (registrar_checkin pasa a SECURITY DEFINER sin guardia de sede) y 0051_salvaguarda_cerrada.sql §6 (entregar_menor SECURITY DEFINER sin sede_visible); backend/api/src/rocakids/rocakids.controller.ts solo exige N4",
+  "reproduccion": "Token de un MAESTRO_ROCAKIDS de Cali (alcance segmento de Cali): GET /api/v1/rocakids/salas devuelve solo CALI y GET /api/v1/rocakids/menores/<niño de BOG-CHICO>/acudientes da 400. Aun así POST /api/v1/rocakids/checkin {menorId: niño de Bogotá Chicó, salaId: sala EXPLORA de Bogotá Chicó, entregadoPor: su acudiente principal} responde 200 con checkinId y el código de entrega (la fila queda en BOG-CHICO con recibido_por = el maestro de Cali), y POST /api/v1/rocakids/entregar con ese código responde «Menor entregado.». En SQL: BEGIN; set_config app.sede_ids={CALI}, app.nivel_max=4, app.llave_n4; SET LOCAL ROLE casaroca_app; SELECT count(*) FROM rocakids.salas da 0, pero SELECT * FROM rocakids.registrar_checkin(niño_bogotá, sala_bogotá, acudiente, persona, NULL, 'motivo') inserta. Arreglo: dentro de las dos funciones exigir plataforma.sede_visible de la sala y que el menor sea de la sede de la sala, como ya hace roster_de_sala.",
+  "id": "P19"
+ },
+ {
+  "fuente": "20",
+  "titulo": "Un antecedente nuevo «no apto» no quita la aptitud mientras siga vigente uno «apto» anterior",
+  "gravedad": "critica",
+  "donde": "talento.apto_para_menores (0049) e identidad.falta_de_antecedentes (0051): preguntan si EXISTE un registro apto y vigente por tipo, sin mirar el más reciente",
+  "reproduccion": "BEGIN; insertar los cinco tipos exigidos con resultado 'apto' y vigentes para una persona; talento.apto_para_menores(p) = true. Insertar DELITOS_SEXUALES con resultado 'no_apto' expedido hoy (observación: aparece en el registro de inhabilidades). talento.apto_para_menores(p) sigue en true: el rol MAESTRO_ROCAKIDS se sigue otorgando y talento.revocar_no_aptos() no lo quita. ROLLBACK. Arreglo: por tipo, tomar el último registro (DISTINCT ON tipo ORDER BY expedido_en DESC) y exigir que ese sea apto y vigente.",
+  "id": "P20"
+ },
+ {
+  "fuente": "20",
+  "titulo": "El alcance que admiten los roles de RocaKids («ministerio») abre las 27 sedes con N4, y «sede» se rechaza",
+  "gravedad": "critica",
+  "donde": "identidad.roles (DIRECTOR_ROCAKIDS y MAESTRO_ROCAKIDS con alcance_maximo 'ministerio'); identidad.sedes_de rama 5 (ministerio = todas las sedes donde está encendido); identidad.anchura_de_alcance (sede 5 > ministerio 3). La prueba backend/db/tests/salvaguarda_menores.sql usa justamente ese alcance",
+  "reproduccion": "SELECT identidad.otorgar_asignacion(<maestra de Cali apta>, 'MAESTRO_ROCAKIDS', 'ministerio', <id de ROCAKIDS>, 4::smallint, 'ACTA-PRUEBA-0001'); SELECT * FROM identidad.contexto_de(<maestra>) da 27 sedes y nivel 4 (incluida Madrid, con el módulo apagado). Con alcance 'sede' y la sede de Cali la base responde «El rol MAESTRO_ROCAKIDS alcanza como máximo ministerio… Un rol de sede no se otorga sobre toda la red» (el mensaje además es falso: la sede no es toda la red). El poblador usó alcance 'segmento' (la etapa donde la persona sirve), que sí limita a su sede. Arreglo: que el alcance de ministerio se limite a la sede (ministerio_sede) o admitir 'sede' para estos roles.",
+  "id": "P21"
+ },
+ {
+  "fuente": "20",
+  "titulo": "Una sede nueva nace sin salas de RocaKids, y encender el módulo tampoco las crea",
+  "gravedad": "alta",
+  "donde": "seeds/019_catalogos_que_faltaban.sql afirma que el aprovisionamiento crea las salas, pero sistema.crear_iglesia y sistema.habilitar_modulo no insertan en rocakids.salas; la API no tiene ruta para crear salas",
+  "reproduccion": "En la plantilla cr_pob_nucleo hay 26 sedes con el módulo rocakids encendido y SELECT count(*) FROM rocakids.salas da 5 (solo las de la semilla en BOG-CHICO). En las otras 25 sedes la pantalla Niños no ofrece ninguna sala y no se puede recibir a ningún niño. Arreglo: crear las salas por plantilla al crear la iglesia o al encender el módulo, o dar una ruta de administración.",
+  "id": "P22"
+ },
+ {
+  "fuente": "20",
+  "titulo": "rocakids.condiciones_de revienta: pide columnas que la tabla no tiene",
+  "gravedad": "alta",
+  "donde": "backend/db/migrations/0051_salvaguarda_cerrada.sql §4: SELECT c.severidad, c.registrado_en contra rocakids.condiciones_medicas, que tiene critica y registrada_en",
+  "reproduccion": "Con N4 y alcance: SELECT * FROM rocakids.condiciones_de(<menor>, 'prueba') da ERROR column c.severidad does not exist. Es la única vía de la aplicación para leer la salud de un niño (el SELECT directo le fue revocado): el domingo nadie puede ver la alergia; la sala solo sabe «tiene condición médica registrada».",
+  "id": "P23"
+ },
+ {
+  "fuente": "20",
+  "titulo": "La consola no puede otorgar los roles de RocaKids",
+  "gravedad": "alta",
+  "donde": "frontend/master/master.js, formularios «Otorgar un rol» (el identificador de alcance solo ofrece iglesias, cerca de las líneas 977-980 y 2165-2168), contra tg_asignacion_respeta_alcance",
+  "reproduccion": "Con el token del Pastor Principal: POST /api/v1/identidad/personas/<id>/otorgar {roles:[{rol:'MAESTRO_ROCAKIDS', alcanceTipo:'ministerio', alcanceId:<id de la sede de Cali>, nivelMax:4, acta:'ACTA-PRUEBA-2026-01'}]} da 400 «El registro hace referencia a algo que no existe o que ya no está vigente.»; con alcanceTipo 'sede' da 400 «alcanza como máximo ministerio». El formulario no deja elegir un ministerio ni un segmento, así que nadie puede nombrar un maestro de RocaKids desde la consola.",
+  "id": "P24"
+ },
+ {
+  "fuente": "20",
+  "titulo": "Terminar un contrato suspende la cuenta aunque la persona siga con un rol vigente",
+  "gravedad": "alta",
+  "donde": "talento.tg_fin_de_vinculo_corta_acceso: solo cuenta otros contratos activos; no mira asignaciones vigentes ni voluntariados",
+  "reproduccion": "BEGIN; tomar una secretaria con contrato activo y rol SECRETARIA vigente (Armenia); UPDATE talento.contratos SET estado='terminado' WHERE id=<su contrato>; su cuenta queda 'suspendida' con motivo «Termino su vinculo con la organizacion» (sin tildes) y el rol sigue vigente: ya no puede entrar. ROLLBACK.",
+  "id": "P25"
+ },
+ {
+  "fuente": "20",
+  "titulo": "Las funciones del domingo no reciben la fecha: la historia y la cola sin conexión quedan con la hora de la corrida",
+  "gravedad": "media",
+  "donde": "rocakids.registrar_checkin (now(); CURRENT_DATE para la regla de dos adultos y la idempotencia; crm.anotar_hecho con now()), rocakids.entregar_menor (salida now(), intentos_entrega.ocurrido_en por omisión, registrar_lectura), rocakids.servidores_sala.fecha por omisión; intentos_entrega y crm.linea_tiempo no admiten UPDATE",
+  "reproduccion": "Tras cargar 8 domingos con las funciones: crm.linea_tiempo tiene 3.122 hechos CHECKIN_ROCAKIDS del 2026-09-21, rocakids.intentos_entrega 3.182 filas del 21 y plataforma.bitacora_lectura 3.184 lecturas N4 del 21, aunque los ingresos van del 2 de agosto (se corrigieron por UPDATE). En la vida real: un ingreso encolado sin conexión el domingo que se envía el lunes queda con la hora del lunes, y la regla de dos adultos mira las salas del lunes (0 adultos): la base lo rechaza y la cola lo pasa a «rechazados». Arreglo: aceptar el instante del ingreso desde la cola (con tope).",
+  "id": "P26"
+ },
+ {
+  "fuente": "20",
+  "titulo": "El aviso rojo de Talento solo mira la primera página, y la lista se corta en 100 sin decirlo",
+  "gravedad": "media",
+  "donde": "backend/api/src/talento/talento.ts (el aviso se calcula sobre las filas del LIMIT) y frontend/src/vistas/talento.js (pide ?limite=100 sin paginar)",
+  "reproduccion": "Como Pastor Principal, #/talento dice «⛔ 1 voluntario(s) ACTIVOS con menores y SIN antecedentes vigentes: Carmenza Murillo Gómez», pero SELECT count(*) FROM talento.voluntariados v WHERE v.estado='activo' AND v.trabaja_con_menores AND NOT talento.apto_para_menores(v.persona_id) da 5 (Barranquilla dos, Bogotá Sur, Cartagena, Miami). Son 100 de unos 1.100 voluntariados. Arreglo: calcular el aviso con una cuenta aparte y paginar.",
+  "id": "P27"
+ },
+ {
+  "fuente": "20",
+  "titulo": "Un director o maestro de RocaKids no puede abrir la ficha de un niño de su sala ni de sus voluntarios",
+  "gravedad": "media",
+  "donde": "identidad.alcanza_persona (0077): el alcance segmento solo llega a miembros de grupos del segmento y el de ministerio a quien sirve o está en grupos (sin filtro de sede); no conoce rocakids.inscripciones",
+  "reproduccion": "Con el token de la directora de RocaKids de Bogotá Chicó (alcance segmento Pequeños), GET /api/v1/personas/<niño de Bogotá Chicó con 7 ingresos> da 404 «No existe esa persona, o no está a su alcance». El módulo Personas aparece en su menú (personas: ver) pero no abre a nadie de su ministerio. Con alcance ministerio sí abriría las fichas, pero de las 27 sedes.",
+  "id": "P28"
+ },
+ {
+  "fuente": "20",
+  "titulo": "v_antecedentes_por_vencer cuenta los antecedentes viejos ya renovados, con días negativos",
+  "gravedad": "media",
+  "donde": "talento.v_antecedentes_por_vencer (0049): vence_en <= CURRENT_DATE + 60 sin mirar si hay uno más nuevo del mismo tipo ni si ya venció",
+  "reproduccion": "SELECT count(*) FROM talento.v_antecedentes_por_vencer da 706 filas, muchas con días negativos, mientras las personas con algo por vencer de verdad son 22 (el último registro de cada tipo vence entre hoy y 60 días). La lista de trabajo para renovar antes se vuelve ruido.",
+  "id": "P29"
+ },
+ {
+  "fuente": "20",
+  "titulo": "La regla de dos adultos cuenta a quien ya se fue, y la vista de alertas no filtra el día",
+  "gravedad": "media",
+  "donde": "frontend/src/vistas/checkin.js ofrece «Entrar a servir» pero no «Salir de la sala» (rocakids.salir_de_sala existe y nadie la llama); rocakids.v_salas_sin_dos_adultos no filtra por fecha",
+  "reproduccion": "Una maestra que se va a media mañana sigue contando para la regla todo el día. Si alguien marcara la salida con salir_de_sala, todas las salas de los domingos pasados aparecerían en v_salas_sin_dos_adultos con 0 adultos. El poblador dejó salio_en vacío, como lo deja la pantalla.",
+  "id": "P30"
+ },
+ {
+  "fuente": "20",
+  "titulo": "El código de entrega no tiene tope de intentos",
+  "gravedad": "media",
+  "donde": "0051 §7 crea rocakids.intentos_fallidos_recientes() para el tope, pero rocakids.entregar_menor no la consulta",
+  "reproduccion": "En una transacción, llamar rocakids.entregar_menor 40 veces sobre el mismo ingreso con un acudiente autorizado y códigos distintos: 40 resultados 'codigo_incorrecto' y ningún bloqueo.",
+  "id": "P31"
+ },
+ {
+  "fuente": "20",
+  "titulo": "El formulario de antecedentes deja «Vence» opcional y la base lo exige",
+  "gravedad": "media",
+  "donde": "frontend/src/vistas/talento.js (venceEn opcional), backend/api/src/talento/talento.ts (manda null) y talento.antecedentes.vence_en NOT NULL; tipos_antecedente.meses_vigencia no se usa",
+  "reproduccion": "POST /api/v1/talento/antecedentes {personaId, tipo:'JUDICIAL', resultado:'apto', expedidoEn:'2026-09-15'} da 400 «Falta un dato obligatorio.» (el registro de la API dice 23502, null en vence_en) sin decir cuál. Arreglo: calcular vence_en con meses_vigencia del tipo.",
+  "id": "P32"
+ },
+ {
+  "fuente": "20",
+  "titulo": "El alcance máximo de un rol no se aplica a los roles de equipo",
+  "gravedad": "media",
+  "donde": "tg_asignacion_respeta_alcance solo existe sobre identidad.asignaciones, no sobre identidad.asignaciones_unidad",
+  "reproduccion": "SELECT au.rol, au.alcance_tipo FROM identidad.asignaciones_unidad au JOIN org.unidades u ON u.id=au.unidad_id WHERE u.codigo='EQ-KIDS' da DIRECTOR_ROCAKIDS con alcance organizacion, que a una persona la base no le deja pasar de ministerio. Para el equipo nacional tiene sentido, pero la regla no es pareja.",
+  "id": "P33"
+ },
+ {
+  "fuente": "20",
+  "titulo": "Textos sin tildes y códigos crudos en pantalla",
+  "gravedad": "baja",
+  "donde": "seeds/019 (sala «Parvulos (3 a 5)»); seeds/020 (unidades «Direccion Pastoral», «Region Bogota y Sabana», «Equipo de Formacion», «Equipo de Construccion», «Equipo de Produccion»); frontend/src/vistas/talento.js (Contratos, columna Tipo: obra_labor, termino_fijo, prestacion_servicios); motivo «Termino su vinculo con la organizacion»",
+  "reproduccion": "#/checkin como directora de Bogotá Chicó muestra «BOG-CHICO · Parvulos (3 a 5)»; master/#/equipos muestra las unidades sin tildes; #/talento, pestaña Contratos, muestra los códigos del catálogo en vez de su etiqueta.",
+  "id": "P34"
+ },
+ {
+  "fuente": "20",
+  "titulo": "Los ingresos de RocaKids entran a la línea de tiempo aunque 0036 dice que quedan fuera, y la entrega no deja su hecho",
+  "gravedad": "baja",
+  "donde": "0036 §7 frente a registrar_checkin (crm.anotar_hecho CHECKIN_ROCAKIDS); entregar_menor no anota ENTREGA_ROCAKIDS aunque el tipo existe",
+  "reproduccion": "SELECT tipo, count(*) FROM crm.linea_tiempo WHERE tipo IN ('CHECKIN_ROCAKIDS','ENTREGA_ROCAKIDS') GROUP BY 1 da 3.122 ingresos y 0 entregas. La seguridad por nivel los esconde a N3, pero la decisión escrita y el código no coinciden.",
+  "id": "P35"
+ },
+ {
+  "fuente": "30",
+  "titulo": "El CONSEJERO no puede entrar a la aplicación: toda llamada le devuelve 403 aunque tiene casos asignados",
+  "gravedad": "alta",
+  "donde": "backend/api/src/comun/identidad.helper.ts:69-72 (conSesion) + identidad.contexto_de, que da sedes = {} al rol de alcance caso_propio",
+  "reproduccion": "slot.sh <n> token 3c1ff2ed-416b-42ba-8c24-bf31a12f3298 (Sonia Quiñones, CONSEJERO de BOG-NORTE, 2 casos activos). GET /api/v1/sesion/yo y GET /api/v1/consejeria/casos devuelven 403 «Su usuario no tiene ninguna sede asignada todavía». La pantalla index.html#/consejeria dice «No se pudo cargar». En la base (SET LOCAL ROLE casaroca_api_dev con su contexto) sí ve sus 2 casos: la política funciona y la API la corta antes. También pierde su permiso «oracion ver». Arreglo: que contexto_de incluya la sede de la persona en los roles caso_propio, o que conSesion deje pasar a quien tiene caso_propio en las rutas de consejería.",
+  "id": "P36"
+ },
+ {
+  "fuente": "30",
+  "titulo": "Derivar un caso de consejería siempre falla (400)",
+  "gravedad": "alta",
+  "donde": "backend/api/src/consejeria/consejeria.ts, POST casos/:id/cerrar: pone estado='derivado' y cerrado_en=now(); choca con el CHECK caso_cierre_coherente de 0015_consejeria.sql",
+  "reproduccion": "Como el pastor Luis Zamora (f94690c1-ff8b-4917-b28c-0632bfd18498), POST /api/v1/consejeria/casos/<caso en_proceso de BOG-NORTE>/cerrar con {\"derivadoA\":\"psicología clínica por la EPS\",\"desenlace\":\"...\"}: la respuesta es 400 «Los datos no cumplen una regla del sistema», el registro muestra 23514 caso_cierre_coherente y el caso no cambia. La base solo acepta derivado con cerrado_en NULL. Arreglo: no llenar cerrado_en al derivar, o que el CHECK admita estado IN ('cerrado','derivado'). Además la ficha solo muestra la tarjeta de cierre cuando hay cerrado_en, así que un caso derivado sigue ofreciendo los formularios de acción.",
+  "id": "P37"
+ },
+ {
+  "fuente": "30",
+  "titulo": "Revocar el rol de un consejero deja sus casos a su nombre y el aviso de «sin consejero» no los cuenta",
+  "gravedad": "media",
+  "donde": "identidad.revocar_asignacion y la tabla identidad.asignaciones: ninguna función ni disparador toca consejeria.asignaciones; la bandeja cuenta asignaciones con hasta IS NULL",
+  "reproduccion": "BEGIN; contexto de la dirección (app.persona_id=e914934d-9ef8-4d19-852f-a8f8b95da7ba, nivel 4, global); SELECT identidad.revocar_asignacion(<id de la asignación CONSEJERO de 3c1ff2ed-...>, 'Prueba', NULL). Ella queda sin rol vigente, pero sus 2 filas de consejeria.asignaciones siguen con hasta NULL y la consulta de «sin consejero» de la API cuenta 0. ROLLBACK. La revocación del núcleo (Javier Saavedra: «sus casos pasan a los otros dos consejeros») se cumplió en la demostración reasignando a mano en el instante de la revocación; el sistema no lo hace.",
+  "id": "P38"
+ },
+ {
+  "fuente": "30",
+  "titulo": "El consejero tiene «crear» en la matriz, pero la base no le deja abrir un caso",
+  "gravedad": "media",
+  "donde": "Política casos_ins de consejeria.casos (0015): exige plataforma.sede_visible(sede_id), que es falso para el alcance caso_propio",
+  "reproduccion": "BEGIN; SET LOCAL ROLE casaroca_api_dev; set_config app.persona_id='3c1ff2ed-416b-42ba-8c24-bf31a12f3298', app.sede_ids='', app.nivel_max='3', app.alcance_global='false'; INSERT INTO consejeria.casos (...) VALUES (... sede BOG-NORTE, 'FE') → «new row violates row-level security policy for table casos». Aunque se arregle el 403, abrir casos seguirá siendo solo de los pastores.",
+  "id": "P39"
+ },
+ {
+  "fuente": "30",
+  "titulo": "La mesa de servicio solo la puede atender el Equipo de Comunicaciones",
+  "gravedad": "media",
+  "donde": "backend/db/seeds/020_central_y_regiones.sql:79 (EQ-COM → GERENCIA_ADMINISTRATIVA), el único rol con ATENDER_REQUERIMIENTO en sistema.matriz_permisos",
+  "reproduccion": "SELECT rol FROM sistema.matriz_permisos WHERE modulo='requerimientos' AND accion='ATENDER_REQUERIMIENTO' → solo GERENCIA_ADMINISTRATIVA; SELECT u.codigo FROM identidad.asignaciones_unidad au JOIN org.unidades u ON u.id=au.unidad_id WHERE au.rol='GERENCIA_ADMINISTRATIVA' → EQ-COM («Contenido, redes y comunicación interna»). La Dirección Administrativa, Construcción y Sistemas no pueden asignar ni resolver una gotera o un computador dañado. En la demostración los cambios de estado los hacen los cuatro integrantes de EQ-COM, porque son los únicos a los que la base se lo permite.",
+  "id": "P40"
+ },
+ {
+  "fuente": "30",
+  "titulo": "Reabrir una tarea no borra hecha_en; al marcarla hecha otra vez conserva la fecha de la primera vez",
+  "gravedad": "baja",
+  "donde": "plataforma.tg_sellar_estado('estado','hecha:hecha_en') en plataforma.tareas (0074): solo sella si está vacío y la transición hecha>pendiente no lo limpia (los requerimientos sí limpian resuelto_en al reabrir)",
+  "reproduccion": "BEGIN; INSERT una tarea 'pendiente'; UPDATE estado='hecha', hecha_en='2026-09-01 10:00-05'; UPDATE estado='pendiente' (hecha_en sigue en 2026-09-01); UPDATE estado='hecha' (hecha_en sigue en 2026-09-01, no hoy); ROLLBACK.",
+  "id": "P41"
+ },
+ {
+  "fuente": "30",
+  "titulo": "Los casos cerrados y derivados salen «sin asignar» (chip rojo) en la lista de consejería",
+  "gravedad": "baja",
+  "donde": "frontend/src/vistas/consejeria.js:26-27 (chip «sin asignar» cuando no hay asignación activa) + cerrar en consejeria.ts, que termina las asignaciones",
+  "reproduccion": "Como Luis Zamora, GET /api/v1/consejeria/casos: 8 casos cerrados o derivados llegan con consejeros = null y la pantalla index.html#/consejeria los pinta «sin asignar» en rojo. El aviso de la API sí los excluye. Debería mostrarse quién llevó el caso o nada.",
+  "id": "P42"
+ },
+ {
+  "fuente": "30",
+  "titulo": "Etiquetas sin tildes o con el código crudo en pantalla",
+  "gravedad": "baja",
+  "donde": "consejeria.topicos (semilla); frontend/src/vistas/consejeria.js:24 (chip(k.estado)); frontend/src/vistas/comun.js:343 (chipEstado solo cambia «_» por espacio)",
+  "reproduccion": "index.html#/consejeria muestra «Vocacion y proposito», «Duelo y perdida», «Situacion laboral» (y en la base también «Ideacion suicida», «Ansiedad y depresion», «Situacion de un menor de edad») y el estado crudo «en_proceso»; la ficha dice «EN_PROCESO». En #/peticiones sale «en revision» y en #/oracion «en oracion», sin tilde. La migración 0074 arregló las etiquetas del catálogo, pero los tópicos no están en sistema.catalogo_valores.",
+  "id": "P43"
+ },
+ {
+  "fuente": "30",
+  "titulo": "La API de consejería solo exige nivel N3, no el permiso del módulo",
+  "gravedad": "baja",
+  "donde": "backend/api/src/consejeria/consejeria.ts: exigirNivel(req, 3) sin exigir(c, 'consejeria', 'ver')",
+  "reproduccion": "Un LIDER_DE_ORACION (N3, sin permiso de consejería), por ejemplo 12e8fb48-a2cf-4b46-8dc1-3b904c61b1be, recibe 200 con 0 casos en GET /api/v1/consejeria/casos y en los tópicos. La política de la base impide la fuga, pero el módulo debería responder 403 como hacen oración y peticiones.",
+  "id": "P44"
+ },
+ {
+  "fuente": "30",
+  "titulo": "Nadie más que la dirección general puede decidir una petición interna; «dirigida_a» es solo informativo",
+  "gravedad": "baja",
+  "donde": "sistema.matriz_permisos: DECIDIR_PETICION no está asignada a ningún rol (solo pasa por 'administrar' de PASTOR_DIRECTOR_GENERAL y PROPIETARIO)",
+  "reproduccion": "SELECT * FROM sistema.matriz_permisos WHERE accion='DECIDIR_PETICION' → 0 filas. Las 122 peticiones de las 36 sedes, incluidas las dirigidas a Finanzas (EQ-FIN) o Legal (EQ-LEGAL), solo las puede decidir la pareja de la dirección general: hoy 12 llevan más de una semana sin decisión.",
+  "id": "P45"
+ },
+ {
+  "fuente": "40",
+  "titulo": "Expedir o anular un certificado de formación, o abrir una cohorte, no deja rastro en la auditoría",
+  "gravedad": "media",
+  "donde": "backend/db/migrations/0017_formacion.sql crea formacion.certificados y formacion.cohortes sin trg_auditar; 0069 (línea 55) solo se lo pone a inscripciones y 0074 (líneas 888-889) a series y enseñanzas",
+  "reproduccion": "SELECT tgname FROM pg_trigger WHERE tgrelid IN ('formacion.certificados'::regclass,'formacion.cohortes'::regclass) AND tgname='trg_auditar' devuelve 0 filas. En la base poblada hay 2 certificados anulados (FOR-BOG-CHICO-2026-0002 y FOR-BOG-CHICO-2026-0030) y 351 cohortes, y SELECT count(*) FROM plataforma.auditoria WHERE esquema='formacion' AND tabla IN ('certificados','cohortes') da 0. Arreglo: CREATE TRIGGER trg_auditar AFTER INSERT OR UPDATE OR DELETE ON formacion.certificados (y cohortes) FOR EACH ROW EXECUTE FUNCTION plataforma.tg_auditar().",
+  "id": "P46"
+ },
+ {
+  "fuente": "40",
+  "titulo": "Un certificado anulado no se puede volver a expedir",
+  "gravedad": "media",
+  "donde": "backend/db/migrations/0017_formacion.sql: formacion.certificados.inscripcion_id es UNIQUE aunque el certificado esté anulado",
+  "reproduccion": "BEGIN; INSERT INTO formacion.certificados (inscripcion_id, codigo, emitido_en) SELECT inscripcion_id, 'FOR-PRUEBA-REEXPEDIR', DATE '2026-09-20' FROM formacion.certificados WHERE anulado_motivo LIKE '%apellido%'; ROLLBACK; responde: duplicate key value violates unique constraint \"certificados_inscripcion_id_key\". El caso es real: el certificado se anuló porque salió con el segundo apellido mal y la persona pidió uno nuevo. Arreglo: cambiar la restricción por un índice único parcial WHERE anulado_en IS NULL.",
+  "id": "P47"
+ },
+ {
+  "fuente": "40",
+  "titulo": "No existe ninguna ruta ni pantalla para expedir o ver certificados de formación",
+  "gravedad": "media",
+  "donde": "backend/api/src/formacion/formacion.ts (ninguna ruta toca formacion.certificados); frontend/src/vistas/formacion.js (solo muestra el distintivo «otorga certificado»); el portal (sus «certificados» son solo los de aportes)",
+  "reproduccion": "grep -n certificados backend/api/src/formacion/formacion.ts no encuentra nada. Abra como secretaria de Bogotá Norte (82f8f4d2-242c-4a08-9aac-106b8f12651c) una cohorte terminada que certifica, por ejemplo IB-201-2026-1: dice «otorga certificado», pero no hay botón para expedirlo y ningún certificado se ve en ninguna parte. La tabla y sus reglas existen; hoy solo se llena por SQL (así lo hizo el poblador).",
+  "id": "P48"
+ },
+ {
+  "fuente": "40",
+  "titulo": "«Registrar pago» no guarda cuánto se pagó",
+  "gravedad": "media",
+  "donde": "backend/api/src/formacion/formacion.ts, pago(): solo hace SET estado_pago; frontend/src/vistas/formacion.js no muestra valor_pagado",
+  "reproduccion": "Como la secretaria de Bogotá Norte (82f8f4d2-242c-4a08-9aac-106b8f12651c): POST /api/v1/formacion/inscripciones/<una inscripción 'pendiente' de FIN-01-2026-10, valor 20.000>/pago con {\"estadoPago\":\"parcial\",\"referencia\":\"Recibo de caja 0457\"} responde 201. SELECT estado_pago, valor_pagado da parcial | NULL, y la auditoría guarda el motivo «Pago: Recibo de caja 0457» pero ningún valor. Nadie puede saber cuánto falta. Arreglo: recibir el valor (obligatorio si es parcial) y mostrarlo en la ficha.",
+  "id": "P49"
+ },
+ {
+  "fuente": "40",
+  "titulo": "La lista y la ficha de cohortes dicen «por encima del cupo» cuando la base no lo está",
+  "gravedad": "media",
+  "donde": "backend/api/src/formacion/formacion.ts: cohortes() cuenta estado <> 'retirado' y ficha() estado !== 'retirado'; el disparador de la base (formacion.tg_pago_declarado) e inscribir() cuentan NOT IN ('retirado','reprobado')",
+  "reproduccion": "Como la secretaria de Bogotá Norte: la cohorte MAT-02-2026-09 tiene cupo 12. Se inscribe hasta completar 12 (la siguiente da 409 «La cohorte está llena (12 de 12)»); luego POST .../inscripciones/<uno que cursa>/calificar con {\"estado\":\"reprobado\"}; luego se inscribe a quien esperaba (201). GET /api/v1/formacion/cohortes muestra 14 / 12 con el aviso «1 cohorte(s) por encima del cupo. Es un problema de salón, no de informe.» y la ficha dice ocupación 14 de 12; en la base ocupan 12 (hay 2 reprobados). Arreglo: contar igual que la base en las dos consultas.",
+  "id": "P50"
+ },
+ {
+  "fuente": "40",
+  "titulo": "Las pantallas ofrecen sobre lo de la red acciones que siempre fallan, y el calendario da un mensaje falso",
+  "gravedad": "media",
+  "donde": "frontend/src/vistas/calendario.js (muestra «Se hizo» y «Cancelar» si estado es programado y puede_crear); frontend/src/vistas/tematicas.js y backend/api/src/tematicas/tematicas.ts (puede_editar no mira la sede de la serie)",
+  "reproduccion": "La secretaria de Bogotá Norte ve «Se hizo» y «Cancelar» en todos los eventos de «toda la red». POST /api/v1/calendario/<id de la Conferencia anual de la red 2026>/realizado (o /cancelar) responde 404 «Ese evento no existe o no es de su sede»; el evento sí existe. El pastor de Bogotá Norte (f94690c1-ff8b-4917-b28c-0632bfd18498) abre la serie de la red «Nehemías» y ve «Terminada» y «Agregar una enseñanza»; POST .../ensenanzas responde 403 y .../estado responde 404. La base protege bien (nada cambia): el defecto es ofrecer botones que no pueden funcionar. Arreglo: ocultar esas acciones cuando el ítem es de la red y la sesión no alcanza toda la red.",
+  "id": "P51"
+ },
+ {
+  "fuente": "40",
+  "titulo": "El prerrequisito de un curso no lo comprueba nadie",
+  "gravedad": "baja",
+  "donde": "backend/api/src/formacion/formacion.ts inscribir(), y la base (formacion.cursos.prerequisito_id sin disparador)",
+  "reproduccion": "Como la secretaria de Bogotá Norte: POST /api/v1/formacion/cohortes/<IB-301-2026-2 de BOG-NORTE>/inscribir con una persona que nunca hizo el Instituto y {\"estadoPago\":\"pendiente\"} responde 201 «Inscripción registrada.», aunque IB-301 exige IB-201.",
+  "id": "P52"
+ },
+ {
+  "fuente": "40",
+  "titulo": "La historia de la persona muestra el código de la cohorte y el certificado a medianoche",
+  "gravedad": "baja",
+  "donde": "backend/db/migrations/0036_linea_tiempo_conectada.sql: formacion.tg_inscripcion_a_linea y tg_certificado_a_linea usan cohortes.codigo y la fecha sin hora emitido_en",
+  "reproduccion": "En la ficha de cualquier inscrito (index.html#/personas/<id>, como el pastor) la historia dice «Se inscribió en IB-301-2026-2» y «Certificó IB-202-2026-1», este último a las «12:00 a. m.». Con el código que sugiere el formulario («2026-2») diría «Se inscribió en 2026-2». Arreglo: nombre del curso más el código, y la hora real de expedición.",
+  "id": "P53"
+ },
+ {
+  "fuente": "40",
+  "titulo": "Textos de las semillas sin tildes que se ven en pantalla",
+  "gravedad": "baja",
+  "donde": "backend/db/seeds/019_catalogos_que_faltaban.sql y 022_festivos_colombia.sql",
+  "reproduccion": "En Formación (secretaria de Bogotá Norte) se leen «Instituto biblico», «Formacion de maestros de ninos», «El caracter del lider», «Como dirigir un grupo», «Ensenar a ninos» y «Salvaguarda y proteccion de menores», junto a los cursos nuevos bien escritos. sistema.festivos trae «Ano Nuevo», «Dia de la Raza», «San Jose», «Ascension», «Sagrado Corazon», «Boyaca» y «Asuncion». La demostración no los maquilla, para que el arreglo llegue a producción por una semilla o migración.",
+  "id": "P54"
+ },
+ {
+  "fuente": "40",
+  "titulo": "Códigos sin traducir y un título que no corresponde en Formación",
+  "gravedad": "baja",
+  "donde": "frontend/src/vistas/formacion.js: chip(p.tipo) y el título «Cohortes abiertas»",
+  "reproduccion": "La tabla «Programas de la red» muestra «curso_corto», «diplomado», «taller», «instituto» tal como se guardan. La tabla titulada «Cohortes abiertas» lista también todas las cohortes terminadas desde 2025.",
+  "id": "P55"
+ },
+ {
+  "fuente": "40",
+  "titulo": "Los eventos de varios días muestran solo la hora final",
+  "gravedad": "baja",
+  "donde": "frontend/src/vistas/calendario.js: hasta ${e.termina.slice(11)}",
+  "reproduccion": "La conferencia de la red (23 a 25 de octubre) aparece como «2026-10-23 18:00 hasta 13:00»; las vigilias, «21:00 hasta 01:00» sin decir que es el día siguiente.",
+  "id": "P56"
+ },
+ {
+  "fuente": "40",
+  "titulo": "Las listas se cortan sin avisar",
+  "gravedad": "baja",
+  "donde": "frontend/src/vistas/tematicas.js (limite=100), formacion.js (limite=100), calendario.js (limite=200); no hay paginación en ninguna",
+  "reproduccion": "Como la dirección (e914934d-9ef8-4d19-852f-a8f8b95da7ba): Temáticas muestra 100 de 137 series (151 si corren antes los pobladores 10 y 20), Formación 100 de 359 cohortes, y nada dice «mostrando 100 de N». El calendario de 6 meses trae 190 filas: el poblador cabe a propósito en el tope de 200.",
+  "id": "P57"
+ },
+ {
+  "fuente": "40",
+  "titulo": "En el teléfono, la tarjeta de un evento de la red se deforma",
+  "gravedad": "baja",
+  "donde": "frontend/src/vistas/calendario.js, primera columna de la tabla",
+  "reproduccion": "A 375 px, en «Día de oración por las naciones» el distintivo «toda la red» queda en tres renglones y el botón «Cancelar» se corta en el borde de la tarjeta. La medición de desbordes de e2e.py no lo ve porque ignora lo que está dentro de tablas.",
+  "id": "P58"
+ },
+ {
+  "fuente": "50",
+  "titulo": "Un aviso «pendiente» de PayU revienta el webhook y el aviso ni siquiera se guarda",
+  "gravedad": "alta",
+  "donde": "aportes.actualizar_estado_pasarela (migraciones 0038/0039) y backend/api/src/aportes/aportes.service.ts (estadoDe: PENDING y todo estado desconocido se vuelven 'pendiente')",
+  "reproduccion": "BEGIN; insertar una fila en aportes.pasarela_transacciones con referencia 'PRUEBA-PEND-1' (estado iniciada); SELECT aportes.actualizar_estado_pasarela('PRUEBA-PEND-1','pendiente','trx-1',NULL); → ERROR violates check constraint \"trx_confirmada_coherente\": la función pone confirmada_en = now() en todo estado y el CHECK lo prohíbe en los no finales. En la API toda la transacción del webhook se revierte, incluido registrar_aviso_pasarela, así que el aviso que «se guarda SIEMPRE» se pierde, responde 500 y PayU reintenta sin fin (PSE y efectivo pasan por PENDING).",
+  "id": "P59"
+ },
+ {
+  "fuente": "50",
+  "titulo": "El certificado de donación recoge aportes que nadie ha confirmado",
+  "gravedad": "alta",
+  "donde": "aportes.expedir_certificado (migración 0022): toma estado IN ('registrado','confirmado')",
+  "reproduccion": "En una transacción revertida, persona 00a79fbd-e74a-4cf4-9bc8-6fb46c8f6c9e (12 aportes confirmados y 1 registrado en 2026): SELECT aportes.expedir_certificado(persona,'2026-01-01','2026-12-31','PRUEBA',NULL) → cantidad_aportes = 13. Lo que el digitador tecleó y la tesorera no cotejó con el extracto va a un documento para la DIAN y pasa a 'certificado' (inmutable) saltándose la segunda mano; la pantalla dice «Lo confirmado es inmutable y entra al certificado».",
+  "id": "P60"
+ },
+ {
+  "fuente": "50",
+  "titulo": "Un contracargo sobre un pago en línea ya contabilizado no se puede registrar",
+  "gravedad": "media",
+  "donde": "aportes.pasarela_transacciones: CHECK trx_aporte_solo_si_aprobada + aportes.actualizar_estado_pasarela; la API nunca produce 'reversada'",
+  "reproduccion": "Aprobar una transacción, contabilizarla con aportes.confirmar_pago y luego SELECT aportes.actualizar_estado_pasarela(ref,'reversada',trx,NULL) → ERROR violates check constraint \"trx_aporte_solo_si_aprobada\". El aporte sigue contado y certificable aunque el banco devolvió el dinero; la cabecera de la 0038 promete que un pago puede «reversarse días después».",
+  "id": "P61"
+ },
+ {
+  "fuente": "50",
+  "titulo": "La cifra total de Aportes suma pesos, dólares y euros como si fueran pesos",
+  "gravedad": "media",
+  "donde": "backend/api/src/aportes/donaciones.service.ts (listar: total_monto) y frontend/src/vistas/aportes.js (dinero(d.total_monto) en COP)",
+  "reproduccion": "Entrar como Pastor Principal, Aportes, 2026, Todos: muestra «$ 39.927.081». Los 200 renglones son 39.923.650 COP + 965 EUR + 2.466 USD sumados en un solo número y pintados como pesos.",
+  "id": "P62"
+ },
+ {
+  "fuente": "50",
+  "titulo": "La API numera el certificado con la sede actual de la persona, no con la de sus aportes",
+  "gravedad": "media",
+  "donde": "backend/api/src/aportes/donaciones.service.ts expedirCertificado (prefijo CERT-AAAA-SEDE sale de nucleo.personas.sede_id)",
+  "reproduccion": "Como tesorera de Bogotá Chicó: POST /api/v1/aportes/certificados {\"persona_id\":\"7467aec2-758d-46fc-87ff-9cf08093f21d\",\"anio\":2025} (dio en Chicó en 2025, hoy congrega en la plantación de Nueva York) → número CERT-2025-NYC-0001 con sede_id de BOG-CHICO. Rompe la numeración por sede, crea una serie para una sede sin el módulo y puede chocar con otro número (el conteo solo ve los certificados visibles).",
+  "id": "P63"
+ },
+ {
+  "fuente": "50",
+  "titulo": "No hay forma de anular un aporte desde la aplicación",
+  "gravedad": "media",
+  "donde": "backend/api/src/aportes (sin ruta) y frontend/src/vistas/aportes.js (sin botón)",
+  "reproduccion": "La base tiene anulado_en, anulado_motivo, el estado 'anulado' y el disparador que marca la línea de tiempo, y la matriz le da 'anular' a TESORERIA sobre aportes, pero grep en backend/api/src/aportes solo encuentra lecturas de anulado_en. La regla «un aporte no se corrige: se anula y se vuelve a registrar» no se puede cumplir desde la pantalla.",
+  "id": "P64"
+ },
+ {
+  "fuente": "50",
+  "titulo": "El formulario de aportes no deja escoger el fondo: lo dirigido termina en el fondo general",
+  "gravedad": "media",
+  "donde": "frontend/src/vistas/aportes.js (campos del formulario) y donaciones.service.ts registrar (acepta 'fondo', la pantalla nunca lo manda)",
+  "reproduccion": "Registrar desde Aportes una ofrenda de misiones, un pacto de construcción o un aporte a RocaKids: queda en GENERAL (solo el diezmo va a DIEZMOS). La 0016 dice que un aporte dirigido a un proyecto no puede convertirse en ofrenda general.",
+  "id": "P65"
+ },
+ {
+  "fuente": "50",
+  "titulo": "«Terminada» sube cualquier obra al 100 % sin hito: el avance deja de salir de los hitos",
+  "gravedad": "media",
+  "donde": "backend/api/src/construccion/construccion.ts (POST :id/estado pone avance_pct = 100 y terminada_en = CURRENT_DATE)",
+  "reproduccion": "Como Pastor Principal: POST /api/v1/construccion/<Techado de la plazoleta de encuentro>/estado {\"estado\":\"terminada\"} → pasó de 31 % a 100 % y terminada_en = hoy, con los mismos 3 hitos. La restricción obra_terminada_al_cien queda burlada por la propia API.",
+  "id": "P66"
+ },
+ {
+  "fuente": "50",
+  "titulo": "Legal y Construcción no los puede usar su equipo, y la dirección no puede nombrarlos responsables",
+  "gravedad": "media",
+  "donde": "seeds 009/025 (matriz: legal y construccion solo para PASTOR_DIRECTOR_GENERAL y PROPIETARIO), asignaciones_unidad (EQ-LEGAL recibe AUDITOR, EQ-CONST nada), backend/api/src/db/db.service.ts (filtro de módulos por sede) y legal.ts/construccion.ts (el responsable se valida contra nucleo.v_personas)",
+  "reproduccion": "identidad.puede(Nicolás Nova, 'legal', 'ver') = false; identidad.puede(Ángela Useche, 'construccion', 'ver') = false. Y como Pastor Principal: POST /api/v1/legal {sedeId: Bogotá Chicó, tipo: 'contrato', titulo: 'Prueba…', responsableId: '374e8259-21ea-44e4-b518-d28fa21ee349'} (líder del Equipo Legal, congrega en Bogotá Sur) → 403 «Esa persona no está en su alcance.» Legal solo está encendido en la sede madre y el filtro de módulos le quita a la dirección a toda persona de otra sede; igual pasa en Construcción con el Equipo de Construcción (Bogotá Norte, sin el módulo).",
+  "id": "P67"
+ },
+ {
+  "fuente": "50",
+  "titulo": "El pastor y el digitador ven «Confirmar» y el formulario de registro, y al usarlos reciben 403",
+  "gravedad": "baja",
+  "donde": "frontend/src/vistas/aportes.js (no pregunta puede(); la lista no trae puede_confirmar ni puede_registrar)",
+  "reproduccion": "Como pastor de Cali (f2c64237-7ddd-42c2-96f4-967ae690d733): Aportes → «Confirmar» en un aporte por confirmar → POST /api/v1/aportes/:id/confirmar 403 «Su rol no tiene el permiso APROBAR_APORTE sobre el módulo aportes.». La digitadora de Barranquilla ve los mismos botones.",
+  "id": "P68"
+ },
+ {
+  "fuente": "50",
+  "titulo": "Reabrir un asunto legal conserva la fecha de cierre y «Cómo terminó»",
+  "gravedad": "baja",
+  "donde": "plataforma.asuntos_legales: tg_sellar_estado solo llena cerrado_en si está vacío y nada lo limpia al pasar de cerrado a en_tramite",
+  "reproduccion": "Como Pastor Principal: POST /api/v1/legal/<Arriendo del local de la sede Bello>/estado {\"estado\":\"en_tramite\"} → queda en_tramite con cerrado_en = 2026-02-20 y resultado lleno; la ficha sigue mostrando «Cómo terminó» en un asunto abierto, y un nuevo cierre conserva la fecha vieja.",
+  "id": "P69"
+ },
+ {
+  "fuente": "50",
+  "titulo": "La vista de control de certificados marca como descuadrado todo certificado anulado",
+  "gravedad": "baja",
+  "donde": "aportes.v_control_certificados (migración 0022)",
+  "reproduccion": "SELECT numero, cuadra FROM aportes.v_control_certificados v JOIN aportes.certificados c USING (id) WHERE NOT v.cuadra → CERT-2025-MED-0007 (anulado): al anular, anular_certificado libera sus aportes y la vista compara el total contra cero renglones. Es una falsa alarma en el control que debería mirar solo los expedidos.",
+  "id": "P70"
+ },
+ {
+  "fuente": "50",
+  "titulo": "Las pantallas muestran códigos del catálogo en vez de sus nombres, sin tildes",
+  "gravedad": "baja",
+  "donde": "frontend/src/vistas/aportes.js (metodo_pago y tipo_aporte en minúscula), frontend/src/vistas/comun.js chipEstado, aportes.tg_aporte_a_linea (resumen con el código)",
+  "reproduccion": "Aportes muestra «nequi_daviplata», «consignacion», «datafono», «donacion»; Legal muestra el estado «en tramite»; la línea de tiempo de la ficha dice «Aporte registrado: donacion». El catálogo tiene las etiquetas bien escritas («Nequi o Daviplata», «Consignación», «Datáfono», «Donación»).",
+  "id": "P71"
+ },
+ {
+  "fuente": "50",
+  "titulo": "Los fondos de aportes nacen vigentes desde el día en que corre la semilla",
+  "gravedad": "baja",
+  "donde": "backend/db/seeds/016_fondos_aportes.sql (vigente_desde por omisión CURRENT_DATE)",
+  "reproduccion": "SELECT codigo, vigente_desde FROM aportes.fondos → todos 2026-09-21. Todo aporte histórico o migrado cuelga de un fondo que según su propia vigencia no existía; hoy nada lo valida, pero un informe que filtre fondos por vigencia perdería la historia.",
+  "id": "P72"
+ },
+ {
+  "fuente": "60",
+  "titulo": "La API de Habeas Data no mira la matriz de permisos: cualquier N3 lee y responde peticiones de su sede",
+  "gravedad": "alta",
+  "donde": "backend/api/src/cumplimiento/cumplimiento.controller.ts (todas las rutas solo llaman exigirNivel; ninguna llama exigir(c, 'cumplimiento', ...))",
+  "reproduccion": "En cr_e2e_66: token del DIGITADOR_APORTES de Cali (el rol no tiene ninguna fila de 'cumplimiento' en sistema.matriz_permisos). GET /api/v1/cumplimiento/peticiones?limite=5 responde 200 con las 4 peticiones de Cali (nombre y contacto de cada titular); GET /api/v1/cumplimiento/consentimientos/<persona> responde 200. Control: GET /api/v1/comunicaciones con el mismo token responde 403 «Su rol no tiene el permiso ver sobre el módulo comunicaciones». Lo mismo vale para responder, prorrogar y revocar (solo piden N3). Arreglo: exigir(c,'cumplimiento','ver'|'editar') en cada ruta.",
+  "id": "P73"
+ },
+ {
+  "fuente": "60",
+  "titulo": "El trabajador de la bandeja descarta los avisos de base contractual (administrativa) con un motivo falso",
+  "gravedad": "alta",
+  "donde": "plataforma.tomar_notificaciones (migración 0073, segundo UPDATE: solo exime 'emergencia'); contradice plataforma.tg_notificacion_exige_consentimiento (0055) y la corrección de revocar_consentimiento",
+  "reproduccion": "BEGIN; SELECT plataforma.encolar_notificacion(<sede>, <coordinador sin consentimiento administrativo>, 'coordinacion@example.org', 'email', 'Notificacion_coordinador', '{}', 'nuevos', 'x', 'administrativa'); el aviso queda 'pendiente'. SELECT * FROM plataforma.tomar_notificaciones(1000); el aviso pasa a 'descartada' con «Consentimiento revocado antes del envío», aunque la base legal es contrato y nadie revocó nada. ROLLBACK. En la red completa así quedaron 712 avisos de nuevos (213 Confirmacion_miembro y 499 Notificacion_coordinador): ningún coordinador se entera de un visitante y ningún miembro recibe su confirmación. Arreglo: descartar solo si la finalidad tiene base_legal = 'consentimiento' (unir con plataforma.finalidades).",
+  "id": "P74"
+ },
+ {
+  "fuente": "60",
+  "titulo": "Revocar una sola finalidad descarta lo encolado de las otras finalidades del mismo canal",
+  "gravedad": "media",
+  "donde": "plataforma.revocar_consentimiento (el UPDATE final filtra por canal y por base legal, no por p_finalidad)",
+  "reproduccion": "BEGIN; persona con correo autorizado para pastoral y convocatoria; encolar_notificacion(..., 'Comunicacion_general', ..., 'pastoral'); SELECT plataforma.revocar_consentimiento(persona, 'email', 'convocatoria'); el aviso pastoral queda 'descartada' mientras plataforma.puede_contactar(persona, 'email', 'pastoral') sigue en true. ROLLBACK.",
+  "id": "P75"
+ },
+ {
+  "fuente": "60",
+  "titulo": "ejecutar_supresion corre sobre una petición rechazada y la deja atendida",
+  "gravedad": "media",
+  "donde": "plataforma.ejecutar_supresion (solo rechaza estado 'atendida'); la ruta POST /api/v1/cumplimiento/peticiones/:id/suprimir no mira el estado, solo la pantalla esconde el botón",
+  "reproduccion": "BEGIN; SELECT plataforma.ejecutar_supresion(<id de HD-20260602-4e0fbd, supresión RECHAZADA porque la pidió la madre de un mayor de edad>, NULL); ejecuta, anonimiza al titular («Titular suprimido») y la petición pasa a 'atendida'. ROLLBACK. Arreglo: exigir estado en recibida, en_tramite o prorrogada.",
+  "id": "P76"
+ },
+ {
+  "fuente": "60",
+  "titulo": "prorrogar_peticion reabre una petición atendida y permite prorrogar varias veces",
+  "gravedad": "media",
+  "donde": "plataforma.prorrogar_peticion (migración 0053): no mira el estado, ni si ya hubo prórroga, ni si el plazo ya venció",
+  "reproduccion": "BEGIN; SELECT plataforma.prorrogar_peticion(<HD-20251020-aa8e11, atendida>, 'Motivo de prueba', true) devuelve 2025-11-10 y la petición vuelve a 'prorrogada'; una segunda llamada devuelve 2025-11-17. ROLLBACK. La Ley 1581 permite una sola prórroga, informada antes del vencimiento.",
+  "id": "P77"
+ },
+ {
+  "fuente": "60",
+  "titulo": "Los plazos de 2025 se cuentan sin festivos: una consulta vence en un festivo",
+  "gravedad": "media",
+  "donde": "semilla de sistema.festivos (seed 022): va de 2026-01-01 a 2028-12-25, aunque la red salió en vivo el 2025-09-08 y el comentario de 0053 dice «2026 a 2030»",
+  "reproduccion": "SELECT plataforma.dias_habiles_desde('2025-10-20', 10) devuelve 2025-11-03, que es festivo (Todos los Santos). En la demostración, la consulta HD-20251020-aa8e11 vence ese día. Toda petición de septiembre a diciembre de 2025 tiene el plazo corrido (8 y 25 de diciembre, 3 y 17 de noviembre).",
+  "id": "P78"
+ },
+ {
+  "fuente": "60",
+  "titulo": "Las peticiones de Habeas Data no dejan rastro en la auditoría ni tienen máquina de estados",
+  "gravedad": "media",
+  "donde": "plataforma.peticiones_titular (migración 0049): su único disparador es trg_peticion_calcula_plazo",
+  "reproduccion": "Después de poblar 36 peticiones con respuestas, prórrogas, una supresión y una revocatoria: SELECT count(*) FROM plataforma.auditoria WHERE tabla = 'peticiones_titular' devuelve 0. Un UPDATE de 'atendida' a 'recibida' pasa sin queja. Quién respondió, prorrogó o cerró una petición legal no queda registrado.",
+  "id": "P79"
+ },
+ {
+  "fuente": "60",
+  "titulo": "En el teléfono, la bandeja de Habeas Data esconde los botones y corta el nombre del titular",
+  "gravedad": "media",
+  "donde": "frontend/src/styles/editorial.css:201 (.tabla td { display:flex; justify-content:space-between }) con la primera celda de frontend/src/vistas/cumplimiento.js (texto, <br>, <span> y <div class=\"acciones\"> sueltos) dentro de la tarjeta con overflow:hidden de tabla() en frontend/src/vistas/comun.js",
+  "reproduccion": "e2e.py con movil=True y el pastor de Cali, index.html#/cumplimiento: Responder, Prorrogar y Ejecutar supresión quedan en x=450 px mientras la tarjeta termina en x=359 (no se ven ni se alcanzan), y el nombre y el correo del titular salen cortados. desbordes() no lo detecta porque excluye .tabla. Captura: slots/66/capturas/movil-habeas-data-pastor-cali.png. Arreglo: envolver el contenido de la celda en un solo contenedor o dejar que el td haga flex-wrap.",
+  "id": "P80"
+ },
+ {
+  "fuente": "60",
+  "titulo": "Las fechas «Recibida» y «Enviada el» se muestran en UTC: lo de la noche aparece al día siguiente",
+  "gravedad": "media",
+  "donde": "frontend/src/vistas/cumplimiento.js (String(p.recibida_en).slice(0, 10)) y frontend/src/vistas/comunicaciones.js (String(k.enviada_en).slice(0, 10))",
+  "reproduccion": "HD-20260420-f5da2f se radicó el 20 de abril a las 9:10 p. m. y la columna «Recibida» dice 2026-04-21 (contradice el radicado). La Navidad de Bogotá Sur salió el 14 de diciembre a las 8:30 p. m.; GET /api/v1/comunicaciones/<id> la entrega como 2025-12-15T01:30:00.000Z y la ficha dice «Enviada el 2025-12-15».",
+  "id": "P81"
+ },
+ {
+  "fuente": "60",
+  "titulo": "La respuesta que deja la supresión al titular es el JSON crudo y sin tildes («diez anos»)",
+  "gravedad": "baja",
+  "donde": "plataforma.ejecutar_supresion (respuesta = 'Supresion ejecutada. ' || v_res::text)",
+  "reproduccion": "Respuesta guardada en HD-20260902-25ac8b: «Supresion ejecutada. {\"casillas_borradas\": 0, ... \"los soportes se conservan diez anos (Codigo de Comercio art. 28)...\"}». Es lo que se le entrega al titular; tampoco deja evidencia.",
+  "id": "P82"
+ },
+ {
+  "fuente": "60",
+  "titulo": "La lista de comunicaciones se corta en 100 sin paginar, no dice la sede y llama «en cola» a lo ya enviado",
+  "gravedad": "baja",
+  "donde": "frontend/src/vistas/comunicaciones.js (api.obtener('/api/v1/comunicaciones?limite=100') sin control de más; columna Resultado «N en cola»)",
+  "reproduccion": "Con el Pastor Principal, GET /api/v1/comunicaciones?limite=100 devuelve 100 filas (78 enviadas, 12 borradores, 10 aprobadas) de 177 en la base del núcleo: las 5 canceladas y 72 envíos no se pueden ver. La fila no muestra la sede aunque la API la trae, y un envío de diciembre dice «92 en cola».",
+  "id": "P83"
+ },
+ {
+  "fuente": "60",
+  "titulo": "Textos sin tilde o en código en Habeas Data y en la bandeja de avisos",
+  "gravedad": "baja",
+  "donde": "plataforma.revocar_consentimiento («antes del envio»); frontend/src/vistas/comun.js chipEstado («en tramite»; «atendida» sale en ámbar); frontend/src/vistas/cumplimiento.js (canales crudos «telefono»); frontend/master/master.js avisos() (plantilla «Comunicacion_general»)",
+  "reproduccion": "Aviso descartado por la revocatoria de hoy: ultimo_error «Consentimiento revocado por el titular antes del envio» (tomar_notificaciones sí escribe «envío»). En index.html#/cumplimiento el chip dice «en tramite» y el selector de canal muestra «telefono». En master/#/avisos cada aviso muerto se titula «Comunicacion_general».",
+  "id": "P84"
+ },
+ {
+  "fuente": "60",
+  "titulo": "El estado «en trámite» de una petición no tiene ruta en la API",
+  "gravedad": "baja",
+  "donde": "backend/api/src/cumplimiento/cumplimiento.controller.ts (solo radicar, responder, prorrogar y suprimir)",
+  "reproduccion": "No hay forma de marcar desde la pantalla que una petición está en trámite; la base lo admite (CHECK de estado) y la demostración tiene 5 así, puestas por UPDATE.",
+  "id": "P85"
+ },
+ {
+  "fuente": "ig",
+  "titulo": "Un consejero sin otro rol no puede usar la aplicación: la API le responde 403 en todas las rutas, incluida Consejería",
+  "gravedad": "alta",
+  "donde": "backend/api/src/comun/identidad.helper.ts:69 (conSesion rechaza a quien no tiene sedes) e identidad.sedes_de (no contempla el alcance caso_propio, que la base obliga a tener alcance_id nulo)",
+  "reproduccion": "Sobre una copia de cr_e2e_base con la API arriba, pida el token de Diana Piñeros (0b7f86e1-1fa8-4c94-a5b6-fca684de0d43, CONSEJERO de BAQ con 5 casos activos) y haga GET /api/v1/consejeria/casos. Responde 403 «Su usuario no tiene ninguna sede asignada todavía. Comuníquese con la central.», igual que /personas y /sesion/yo. En cambio, /auth/quien-soy devuelve sedes []. SQL: SELECT identidad.sedes_de('0b7f86e1-...') devuelve {}. Con app.sede_ids vacío y SET LOCAL ROLE casaroca_app, la seguridad por fila sí le deja ver su caso vigente, así que el cerrojo está en la API. Afecta a los 54 consejeros de la red, 44 de ellos con casos asignados.",
+  "id": "P86"
+ },
+ {
+  "fuente": "ig",
+  "titulo": "La ficha de una persona en la consola responde 500 a un pastor N3 (transacción abortada)",
+  "gravedad": "media",
+  "donde": "backend/api/src/administracion/administracion.ts:929-932 (try/catch sin SAVEPOINT alrededor de identidad.cuenta_de)",
+  "reproduccion": "Pida el token del pastor de Cali, Duván Ballesteros (f2c64237-7ddd-42c2-96f4-967ae690d733, PASTOR_CONGREGACIONAL N3), y haga GET /api/v1/administracion/personas/001e9a78-fd7b-45cd-bf87-40c5604e098a (una persona de Cali). Responde 500 y el registro de la API dice «25P02 current transaction is aborted». En SQL, con el contexto del pastor y SET LOCAL ROLE casaroca_app, SELECT * FROM identidad.cuenta_de(...) lanza 42501 «Su rol no administra accesos». El catch lo traga y la consulta siguiente cae con 25P02. En pantalla se llega desde la consola, en «Qué puede cada quien» (N3), con el botón Ficha. Arreglo: SAVEPOINT / ROLLBACK TO SAVEPOINT en el catch, o preguntar primero si puede administrar a esa persona.",
+  "id": "P87"
+ },
+ {
+  "fuente": "ig",
+  "titulo": "No hay cómo registrar un fallecimiento ni una salida de la red, y el estado «trasladada» no corta el acceso aunque la migración dice que sí",
+  "gravedad": "media",
+  "donde": "backend/api/src/personas/personas.service.ts:154 (el estado no se toca desde la API, y ninguna pantalla lo cambia); db/migrations/0048_identidad_y_sesion.sql:241-247 (nucleo.tg_estado_persona_corta_acceso)",
+  "reproduccion": "En la API y en el frontend no hay ninguna ruta que cambie nucleo.personas.estado: fallecida y trasladada solo se ponen por SQL. En una copia: BEGIN; se toma una SECRETARIA con cuenta activa; UPDATE nucleo.personas SET estado='trasladada' WHERE id=<ella>; la cuenta sigue 'activa' y el rol sigue vigente. Con estado 'fallecida', la cuenta pasa a 'suspendida' con el motivo «La persona paso a estado fallecida». ROLLBACK. El comentario de la migración dice «Cuando una persona pasa a fallecida, trasladada o fusionada, su cuenta se suspende», pero el código solo mira fallecida, fusionada e inactiva. Además, nada define qué pasa con la membresía de quien murió o se fue: el banco M1 exige una membresía principal vigente, y crm.enviar_comunicacion no excluye «trasladada».",
+  "id": "P88"
+ },
+ {
+  "fuente": "ig",
+  "titulo": "Textos de la semilla sin tildes y una raya larga que se ven en pantalla",
+  "gravedad": "baja",
+  "donde": "backend/db/seeds/020_central_y_regiones.sql, 019_catalogos_que_faltaban.sql, 006_roles_de_segmento.sql",
+  "reproduccion": "SELECT nombre FROM org.unidades devuelve «Region Bogota y Sabana», «Region Colombia», «Region Internacional», «Direccion Pastoral» (y las otras cuatro direcciones), «Equipo de Formacion», «Equipo de Produccion» y «Equipo de Construccion». En formacion.programas y cursos: «Instituto biblico», «Formacion de maestros de ninos», «Ensenar a ninos», «Como dirigir un grupo», «El caracter del lider» y «Salvaguarda y proteccion de menores». En rocakids.salas, la sala «Parvulos (3 a 5)» de BOG-CHICO. La descripción del rol DIRECTOR_SEGMENTO en identidad.roles lleva una raya larga: sale en /administracion/catalogo, /identidad/roles y en «Roles y techos». El poblador no los maquilla.",
+  "id": "P89"
+ },
+ {
+  "fuente": "ig",
+  "titulo": "Las funciones de la base que fijan app.motivo lo dejan puesto para el resto de la transacción, y la bitácora hereda un motivo que no corresponde",
+  "gravedad": "baja",
+  "donde": "identidad.otorgar_asignacion, sistema.crear_iglesia, sistema.habilitar_modulo, identidad.recertificar, sistema.marcar_permiso, sistema.cambiar_freno, org.sacar_del_equipo y otras (set_config('app.motivo', ..., true) sin restaurar el valor anterior)",
+  "reproduccion": "En cr_pob_base, la base recién migrada sin el poblador: SELECT tabla, operacion, motivo, valor_nuevo FROM plataforma.auditoria WHERE motivo = 'Aprovisionamiento de BCN'. Aparece una persona insertada en BOG-CHICO (y su membresía) auditada como «Aprovisionamiento de BCN», porque la semilla la insertó después de crear_iglesia('BCN') en la misma transacción. En el poblador pasaba en masa (297 cuentas con el motivo «Acta: ACTA-NYC-2026-03 · coordinación de nuevos»); lo corregí allí. Dentro de la API el daño es menor, porque cada petición es una transacción, pero cualquier ruta que escriba algo ajeno después de una de estas funciones queda mal rotulada.",
+  "id": "P90"
+ }
+]

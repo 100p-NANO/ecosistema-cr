@@ -18,3 +18,7 @@ dist/
 
 # Paquete del sitio de demostración (lo genera backend/scripts/empaquetar-sitio-demo.sh)
 sitio-demo.zip
+
+# Arnés e2e: estado de cada puesto de prueba (se crea al correr)
+e2e/slots/
+e2e/__pycache__/
