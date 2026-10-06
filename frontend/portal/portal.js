@@ -2,6 +2,9 @@ import { api, hayTokens, borrarTokens, guardarTokens } from '../src/api.js';
 import { demoActivo } from '../src/demo.js';
 import { pintarEntrar } from '../src/vistas/entrar.js';
 import { esc, cargando, error, engancharReintentar, avisar, unaVez } from '../src/ui.js';
+import { icono } from '../src/iconos.js';
+import { animarVista } from '../src/movimiento.js';
+import { cabCelda, aviso, avisos } from '../src/tablero.js';
 
 /**
  * Mi iglesia · el portal del congregante.
@@ -58,12 +61,30 @@ function pintarMarco() {
   const actual = pestanaActual();
   const boton = ([k, v], corto = false) => `<button class="nav__item" data-ir="${k}" ${k === actual ? 'aria-current="page"' : ''}
       ${corto ? `aria-label="${esc(v.titulo)}"` : ''}>
-      <span class="nav__icono" aria-hidden="true">${v.icono}</span><span>${esc(corto ? v.corto : v.titulo)}</span></button>`;
+      <span class="nav__icono" aria-hidden="true">${icono(k === 'inicio' ? 'panel' : k)}</span><span>${esc(corto ? v.corto : v.titulo)}</span></button>`;
+  /* 5 oct 2026 · Mismo encuadre que la aplicación y la consola (DISENO.md
+     §4): emblema arriba, pestañas bajo su rótulo y la persona abajo. Daniel
+     lo vio suelto, con iconos de texto y sin marca: «todo lo que creemos
+     tiene que tener el mismo estilo». */
+  const yo = resumen?.persona ?? {};
+  const iniciales = String(yo.nombre ?? '').split(' ').filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
   RAIZ.innerHTML = `
     <a class="salto-al-contenido" href="#contenido">Ir al contenido</a>
     <div class="marco">
       <nav class="nav" aria-label="Secciones">
-        <span class="nav__todas">${Object.entries(PESTANAS).map(e => boton(e)).join('')}</span>
+        <span class="nav__todas">
+          <span class="nav__marca">
+            <span class="nav__emblema" aria-hidden="true">CR</span>
+            <span><b>Mi iglesia</b><small>Casa Sobre la Roca</small></span>
+          </span>
+          <span class="nav__grupo" role="group" aria-label="Mi cuenta">
+            <span class="nav__rotulo">Mi cuenta</span>${Object.entries(PESTANAS).map(e => boton(e)).join('')}
+          </span>
+          <span class="nav__yo">
+            <span class="nav__avatar" aria-hidden="true">${esc(iniciales || '·')}</span>
+            <span class="nav__yo-texto"><b>${esc(yo.nombre ?? '')}</b><small>${esc(yo.sede ?? '')}</small></span>
+          </span>
+        </span>
         <span class="nav__pocas">${Object.entries(PESTANAS).map(e => boton(e, true)).join('')}</span>
       </nav>
       <div class="columna">
@@ -103,31 +124,88 @@ function pintarPestana() {
   if (!z) return;
   const vista = z.cloneNode(false); z.replaceWith(vista);
   ({ inicio, datos, permisos, aportes, derechos })[p](vista);
+  animarVista(vista);
   document.getElementById('contenido')?.focus({ preventScroll: true });
 }
 
-/* ── Inicio: lo suyo de un vistazo ────────────────────────────────── */
+/* ── Inicio: lo suyo de un vistazo ────────────────────────────────────
+   5 oct 2026 · En bento, como el Panel de la aplicación: la celda azul
+   saluda y dice lo más importante de hoy; cada cuadro explica y lleva a
+   su pestaña; los avisos dicen qué le falta por hacer. */
 function inicio(v) {
   const r = resumen, yo = r.persona ?? {};
+  const hijos = r.hijos ?? [], grupos = r.grupos ?? [], formacion = r.formacion ?? [];
+  const a = r.aportes_del_anio ?? {};
+  const cons = r.consentimientos ?? [];
+  const otorgados = cons.filter(c => c.otorgado).length;
+  const enSala = hijos.filter(h => h.en_sala_ahora);
+  const frase = enSala.length
+    ? `${enSala.map(h => esc(h.nombre)).join(' y ')} ${enSala.length === 1 ? 'está' : 'están'} en su sala ahora mismo.`
+    : grupos.length ? `Su grupo se reúne el ${esc(grupos[0].dia ?? '')} a las ${esc(grupos[0].hora ?? '')}.`
+    : 'Este es su espacio en la iglesia.';
+  const pendientes = [
+    !otorgados && aviso({ tono: 'atender', titulo: 'Todavía no ha elegido cómo quiere que la iglesia le contacte',
+      detalle: 'Usted decide por qué canal y para qué. Puede cambiarlo cuando quiera.', accion: { t: 'Elegir', ir: 'permisos' } }),
+    !grupos.length && aviso({ tono: 'atender', titulo: 'Todavía no está en un grupo',
+      detalle: 'Pregunte en su sede por uno cerca de su casa.', accion: { t: 'Ver mis datos', ir: 'datos' } }),
+    formacion.some(f => String(f.pago).startsWith('pend')) && aviso({ tono: 'atender', titulo: 'Tiene un pago de formación pendiente',
+      detalle: 'Acérquese a Tesorería de su sede.' }),
+  ];
   v.innerHTML = `
-    <h1>Hola, ${esc(yo.primer_nombre ?? '')}</h1>
-    <p class="etiqueta">${esc(yo.sede ?? '')}</p>
-    ${(r.hijos ?? []).length ? `<h2>Sus hijos</h2><div class="cifras">
-      ${r.hijos.map(h => `<div class="cifra"><b>${esc(h.nombre)}</b><span>${esc(h.edad ?? '')} años ·
-        ${h.en_sala_ahora ? 'está en su sala ahora' : 'no está en sala'}${h.puede_retirar ? ' · usted puede recogerlo' : ''}</span></div>`).join('')}
-    </div>` : ''}
-    <h2>Sus grupos</h2>
-    ${(r.grupos ?? []).length ? `<div class="tarjeta" style="padding:0;overflow:hidden"><table class="tabla">
-      <thead><tr><th>Grupo</th><th>Cuándo</th><th>Su papel</th></tr></thead><tbody>
-      ${r.grupos.map(g => `<tr><td data-th="Grupo"><strong>${esc(g.grupo)}</strong><br><span class="ayuda">${esc(g.tipo ?? '')}</span></td>
-        <td data-th="Cuándo">${esc(g.dia ?? 'por definir')} ${esc(g.hora ?? '')}</td><td data-th="Su papel">${esc(g.rol ?? '')}</td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="ayuda">Todavía no está en ningún grupo. Pregunte en su sede por uno cerca de su casa.</p>'}
-    <h2 style="margin-top:1.5rem">Su formación</h2>
-    ${(r.formacion ?? []).length ? `<div class="tarjeta" style="padding:0;overflow:hidden"><table class="tabla">
-      <thead><tr><th>Curso</th><th>Estado</th><th>Pago</th></tr></thead><tbody>
-      ${r.formacion.map(f => `<tr><td data-th="Curso"><strong>${esc(f.curso)}</strong><br><span class="ayuda">${esc(f.cohorte)}</span></td>
-        <td data-th="Estado">${esc(f.estado)}${f.nota != null ? ` · nota ${esc(f.nota)}` : ''}</td><td data-th="Pago">${esc(String(f.pago ?? '').replace('_', ' '))}</td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="ayuda">No está inscrito en ningún curso.</p>'}`;
+    <div class="bento">
+      <section class="bento__celda bento__celda--marca c-8">
+        <p class="bento__rotulo">${esc(yo.sede ?? 'Mi iglesia')}</p>
+        <div>
+          <h1 style="margin:0 0 .35rem">Hola, ${esc(yo.primer_nombre ?? '')}</h1>
+          <p class="bento__pie">${frase}</p>
+        </div>
+      </section>
+      <a class="bento__celda bento__celda--accion c-4" href="#/aportes" style="text-decoration:none">
+        <p class="bento__rotulo">Mis aportes de ${new Date().getFullYear()}</p>
+        <p class="bento__cifra">${esc(dinero(a.total))}</p>
+        <p class="bento__pie">${esc(a.cantidad ?? 0)} aporte(s) confirmados por Tesorería</p>
+        <span class="bento__flecha">Ver certificados →</span>
+      </a>
+
+      <section class="bento__celda c-12" aria-label="Lo que le falta">
+        ${cabCelda('Lo que le falta', 'Lo que puede hacer usted mismo, sin pedírselo a nadie.')}
+        ${avisos(pendientes, 'Todo al día. Gracias por mantener sus datos al día.')}
+      </section>
+
+      ${hijos.map(h => `
+      <section class="bento__celda c-4" aria-label="${esc(h.nombre)}">
+        <p class="bento__rotulo">${esc(h.parentesco === 'MADRE' || h.parentesco === 'PADRE' ? 'Su hijo' : 'A su cargo')}</p>
+        <div><h2 class="bento__titulo" style="font-size:22px">${esc(h.nombre)}</h2>
+          <p class="bento__pie">${esc(h.edad ?? '')} años</p></div>
+        <div class="bento__fichas">
+          <span class="cajon__der ${h.en_sala_ahora ? 'cajon__der--bien' : ''}">${h.en_sala_ahora ? '● En su sala ahora' : 'No está en sala'}</span>
+          ${h.puede_retirar ? '<span class="cajon__der">Usted puede recogerlo</span>' : ''}
+        </div>
+      </section>`).join('')}
+
+      <section class="bento__celda ${hijos.length ? 'c-4' : 'c-6'}" aria-label="Sus grupos">
+        ${cabCelda('Sus grupos', grupos.length ? `Está en <b>${grupos.length}</b> grupo(s).` : 'Todavía no está en ningún grupo.')}
+        ${grupos.map(g => `<div class="cr-aviso cr-aviso--bien">
+          <span class="cr-aviso__icono" aria-hidden="true">${icono('reunion')}</span>
+          <span class="cr-aviso__texto"><b>${esc(g.grupo)}</b>
+            <small>${esc(g.tipo ?? '')} · ${esc(g.dia ?? 'por definir')} ${esc(g.hora ?? '')} · ${esc(g.rol ?? '')}</small></span></div>`).join('')}
+      </section>
+
+      <section class="bento__celda ${hijos.length ? 'c-4' : 'c-6'}" aria-label="Su formación">
+        ${cabCelda('Su formación', formacion.length ? `Está en <b>${formacion.length}</b> curso(s).` : 'No está inscrito en ningún curso.')}
+        ${formacion.map(f => `<div class="cr-aviso cr-aviso--${String(f.pago).startsWith('pend') ? 'atender' : 'bien'}">
+          <span class="cr-aviso__icono" aria-hidden="true">${icono('formacion')}</span>
+          <span class="cr-aviso__texto"><b>${esc(f.curso)}</b>
+            <small>${esc(f.cohorte ?? '')} · ${esc(f.estado ?? '')}${f.nota != null ? ` · nota ${esc(f.nota)}` : ''} · ${esc(String(f.pago ?? '').replace('_', ' '))}</small></span></div>`).join('')}
+      </section>
+
+      <a class="bento__celda bento__celda--accion c-12" href="#/permisos" style="text-decoration:none">
+        <p class="bento__rotulo">Cómo le contactamos</p>
+        <p class="bento__pie">Usted autorizó <b>${otorgados}</b> de ${cons.length} combinaciones de canal y finalidad.
+          Ningún mensaje sale por un canal que usted no haya autorizado.</p>
+        <span class="bento__flecha">Revisar mis permisos →</span>
+      </a>
+    </div>`;
 }
 
 /* ── Mis datos ────────────────────────────────────────────────────── */
@@ -210,7 +288,10 @@ function aportes(v) {
   v.innerHTML = `
     <h1>Mis aportes</h1>
     <p class="etiqueta">Lo confirmado por Tesorería este año, y sus certificados para la declaración de renta.</p>
-    <div class="cifras"><div class="cifra"><b>${esc(dinero(a.total))}</b><span>${esc(a.cantidad ?? 0)} aporte(s) confirmados en ${new Date().getFullYear()}</span></div></div>
+    <div class="bento"><section class="bento__celda bento__celda--marca c-6">
+      <p class="bento__rotulo">Confirmado en ${new Date().getFullYear()}</p>
+      <div><p class="bento__cifra">${esc(dinero(a.total))}</p>
+        <p class="bento__pie">${esc(a.cantidad ?? 0)} aporte(s) confirmados por Tesorería</p></div></section></div>
     <h2>Certificados de donación</h2>
     ${(resumen.certificados ?? []).length ? `<div class="tarjeta" style="padding:0;overflow:hidden"><table class="tabla">
       <thead><tr><th>Certificado</th><th>Período</th><th>Total</th></tr></thead><tbody>

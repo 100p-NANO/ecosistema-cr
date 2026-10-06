@@ -499,3 +499,4 @@ button.bento__celda { appearance: none; text-align: left; font: inherit; color: 
 @media (prefers-reduced-motion: reduce) {
   .cajon__fondo, .cajon__panel { transition: none; }
 }
+.cr-aviso__icono svg { width: 16px; height: 16px; display: block; }

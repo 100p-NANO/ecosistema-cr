@@ -149,3 +149,18 @@ explicativas, mucho más asertivo»*. Regla que sale de ahí:
   `#7E57C2`, en ese orden. Los niveles N0 a N4 conservan su color y van en barras con su
   nombre, no en dona (N2 azul y N3 violeta no se distinguen solos).
 - Piezas del panel en `frontend/src/tablero.js`: `cabCelda`, `aviso`, `avisos`.
+
+### 7.2 · Las tres plataformas, un solo estilo (5 oct 2026)
+
+Daniel, al ver el portal «Mi iglesia» sin el estilo nuevo: *«es importante que todo lo que
+creemos tenga el mismo estilo; regla»*.
+
+- La aplicación de las sedes (`frontend/index.html`), la consola de la central
+  (`frontend/master/`) y el portal del congregante (`frontend/portal/`) enlazan **las tres**
+  `src/styles/bento-movimiento.css` y usan `src/iconos.js`, `src/movimiento.js` y
+  `src/tablero.js`.
+- Toda columna lleva el emblema CR arriba, las pestañas bajo su rótulo y la persona que entró
+  abajo. Toda pantalla de inicio es bento con una celda azul, avisos accionables y cuadros que
+  explican.
+- ⛔ Una plataforma o pantalla nueva no se entrega si no carga esas piezas. Antes de publicar se
+  abren las tres una al lado de la otra (§6).
