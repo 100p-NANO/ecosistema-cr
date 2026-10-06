@@ -1,5 +1,8 @@
 import { api, hayTokens, guardarTokens, borrarTokens } from '../src/api.js';
 import { demoActivo } from '../src/demo.js';
+import { animarVista } from '../src/movimiento.js';
+import { barrasH, avance, SERIE } from '../src/graficos.js';
+import { cabCelda, aviso, avisos, n as aNumero, fmt as fmtN } from '../src/tablero.js';
 
 /**
  * CASA ROCA · SISTEMA MASTER
@@ -432,7 +435,68 @@ async function pintar() {
       ${e.peticionId ? `<div class="mono" style="margin-top:4px">petición ${esc(e.peticionId)}</div>` : ''}
     </div>`;
   }
+  animarVista(m);
   m.focus({ preventScroll: true });
+}
+
+/* Tablero de la red (5 oct 2026, rediseño). Ya no son seis cuadros con un
+   número: abre con lo que la central tiene que RESOLVER (cada aviso con su
+   botón), dice cuánto va la red contra las 36 iglesias que prevé, y
+   muestra cómo está compuesta y dónde hay más ministerios activos. */
+const TIPOS = { sede_madre: 'Sede madre', filial_nacional: 'Filiales nacionales',
+  filial_internacional: 'Filiales internacionales', plantacion: 'Plantaciones' };
+function tableroRed({ sedes, uni, cue, rec, arr, avi }) {
+  const equipos = (uni.unidades ?? []).filter(u => u.clase === 'equipo').length;
+  const personas = arr.personas_con_acceso ?? cue.total ?? 0;
+  const atencion = aNumero(cue.necesitan_atencion), vencidos = aNumero(rec.vencidos), muertos = aNumero(avi?.salud?.muertos);
+  const porTipo = Object.entries(sedes.reduce((a, x) => { const k = x.tipo ?? 'otro'; a[k] = (a[k] ?? 0) + 1; return a; }, {}))
+    .map(([k, v], i) => ({ t: TIPOS[k] ?? k, v, color: SERIE[i % SERIE.length] }));
+  const porMinisterios = sedes.filter(x => x.ministerios_activos != null)
+    .sort((a, b) => aNumero(b.ministerios_activos) - aNumero(a.ministerios_activos)).slice(0, 8)
+    .map(x => ({ t: x.nombre, v: aNumero(x.ministerios_activos), ir: 'modulos/' + x.id }));
+  const lista = [
+    atencion && aviso({ tono: 'urgente', titulo: `${fmtN(atencion)} ${atencion === 1 ? 'cuenta necesita' : 'cuentas necesitan'} atención`,
+      detalle: 'Bloqueadas, sin segundo factor o sin entrar hace mucho.', accion: { t: 'Revisar cuentas', ir: 'cuentas' } }),
+    vencidos && aviso({ tono: 'urgente', titulo: `${fmtN(vencidos)} ${vencidos === 1 ? 'acceso pasó' : 'accesos pasaron'} su plazo de revisión`,
+      detalle: esc(rec.aviso ?? 'Un permiso que nadie revisa es un permiso que nadie quitó.'), accion: { t: 'Recertificar', ir: 'recert' } }),
+    muertos && aviso({ tono: 'atender', titulo: `${fmtN(muertos)} avisos no salieron`,
+      detalle: 'Correos o mensajes que fallaron tras todos los reintentos.', accion: { t: 'Ver avisos', ir: 'avisos' } }),
+    sedes.length < 36 && aviso({ tono: 'atender', titulo: `Faltan ${36 - sedes.length} iglesias por desplegar`,
+      detalle: 'Cada una nace con su pastor y pastora y con una plantilla.', accion: { t: 'Puesta en marcha', ir: 'arranque' } }),
+  ];
+  const kpi = (t, v, explica, ir, ojo = false) => `
+    <a class="bento__celda bento__celda--accion c-3 ${ojo ? 'bento__celda--ojo' : ''}" href="#/${ir}" style="text-decoration:none">
+      <p class="bento__rotulo">${esc(t)}</p>
+      <p class="bento__cifra num"${/^\d+$/.test(String(v)) ? ` data-cifra="${esc(v)}"` : ''}>${esc(fmtN(v))}</p>
+      <p class="bento__pie">${esc(explica)}</p>
+    </a>`;
+  return `<div class="bento">
+    <section class="bento__celda bento__celda--marca c-4">
+      <p class="bento__rotulo">La red hoy</p>
+      <div>
+        <p class="bento__cifra num" data-cifra="${sedes.length}">${sedes.length}</p>
+        <p class="bento__pie" style="margin-bottom:10px">iglesias activas de las 36 que prevé la red</p>
+        ${avance(Math.round(100 * sedes.length / 36), `${Math.round(100 * sedes.length / 36)} % desplegado`, { color: '#E3A52C' })}
+      </div>
+    </section>
+    <section class="bento__celda c-8" aria-label="Lo que la central tiene que resolver">
+      ${cabCelda('Lo que la central tiene que resolver', 'Ordenado por urgencia. Cada aviso trae el botón para resolverlo.')}
+      ${avisos(lista, 'La red está al día: no hay cuentas, permisos ni avisos pendientes.')}
+    </section>
+    ${kpi('Personas con acceso', personas, 'cuentas vigentes en toda la red', 'cuentas')}
+    ${kpi('Equipos corporativos', equipos, 'Contabilidad, Tesorería y los demás', 'equipos')}
+    ${kpi('Necesitan atención', cue.necesitan_atencion ?? 0, atencion ? 'cuentas para revisar hoy' : 'ninguna cuenta con problemas', 'cuentas', atencion > 0)}
+    ${kpi('Por recertificar', rec.vencidos ?? 0, vencidos ? 'accesos vencidos' : 'todo revisado a tiempo', 'recert', vencidos > 0)}
+    <section class="bento__celda c-6" aria-label="Iglesias por tipo">
+      ${cabCelda('Cómo está compuesta la red', `${sedes.length} iglesias activas, por tipo.`, { t: 'Iglesias', ir: 'iglesias' })}
+      ${barrasH('Iglesias por tipo', porTipo) || '<p class="bento__explica">Ninguna iglesia todavía.</p>'}
+    </section>
+    <section class="bento__celda c-6" aria-label="Ministerios activos por iglesia">
+      ${cabCelda('Dónde hay más vida ministerial', 'Ministerios encendidos en cada iglesia. Pulse una para ver qué tiene.', { t: 'Qué ve cada iglesia', ir: 'modulos' })}
+      ${barrasH('Ministerios activos por iglesia', porMinisterios, { total: porMinisterios.reduce((a, x) => a + x.v, 0) })
+        || '<p class="bento__explica">Ninguna iglesia reporta ministerios todavía.</p>'}
+    </section>
+  </div>`;
 }
 
 function cabecera(titulo, texto) {
@@ -664,21 +728,13 @@ const VISTAS = {
     const sedes = (Array.isArray(sed) ? sed : (sed?.sedes ?? [])).filter(x => x.activa !== false);
     m.innerHTML = `
       ${cabecera('Tablero de la red', 'Lo que hay hoy, contado por el sistema, no por un informe.')}
-      <div class="ms-kpis">
-        <div class="ms-kpi"><b class="num">${sedes.length}</b><span>Iglesias</span></div>
-        <div class="ms-kpi"><b class="num">${(uni.unidades ?? []).filter(u => u.clase === 'equipo').length}</b><span>Equipos</span></div>
-        <div class="ms-kpi"><b class="num">${esc(arr.personas_con_acceso ?? cue.total ?? 0)}</b><span>Personas con acceso</span></div>
-        <div class="ms-kpi ${Number(cue.necesitan_atencion) ? 'ms-kpi--ojo' : ''}"><b class="num">${esc(cue.necesitan_atencion ?? 0)}</b><span>Cuentas que necesitan atención</span></div>
-        <div class="ms-kpi ${Number(rec.vencidos) ? 'ms-kpi--ojo' : ''}"><b class="num">${esc(rec.vencidos ?? 0)}</b><span>Por recertificar</span></div>
-        ${avi ? `<div class="ms-kpi ${Number(avi.salud?.muertos) ? 'ms-kpi--ojo' : ''}"><b class="num">${esc(avi.salud?.muertos ?? 0)}</b><span>Avisos que no salieron</span></div>` : ''}
-      </div>
-      ${alerta(rec.aviso)}
+      ${tableroRed({ sedes, uni, cue, rec, arr, avi })}
       <h2 class="ms-h2">Iglesias</h2>
       ${tablaMs(sedes, [
         { t: 'Iglesia', p: s => `<button class="ms-enlace" data-modulos="${esc(s.id)}">
             <b>${esc(s.nombre)}</b><span class="ms-doc">${esc(s.codigo)}</span></button>` },
         { t: 'Ciudad', k: 'ciudad' },
-        { t: 'Tipo', p: s => `<span class="ms-chip">${esc(s.tipo ?? '')}</span>` },
+        { t: 'Tipo', p: s => `<span class="ms-chip">${esc(TIPOS[s.tipo] ?? s.tipo ?? '')}</span>` },
       ], 'Ninguna iglesia todavía.',
          { attr: 'modulos', id: s => s.id, que: s => 'lo que ve ' + s.nombre })}`;
     /* ⛔ Delegado sobre el contenedor: antes se colgaba de cada botón, y
@@ -688,6 +744,8 @@ const VISTAS = {
     m.addEventListener('click', ev => {
       const b = ev.target.closest('[data-modulos]');
       if (b) location.hash = '#/modulos/' + b.dataset.modulos;
+      const ir = ev.target.closest('[data-ir]');
+      if (ir) location.hash = '#/' + ir.dataset.ir;
     });
   },
 

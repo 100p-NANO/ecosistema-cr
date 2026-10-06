@@ -113,3 +113,39 @@ aprobó la iglesia.
 - Aplicación de los pastores: `frontend/src/styles/variables.css` (paleta y escala)
   y `frontend/src/styles/editorial.css` (tema y componentes)
 - Las dos declaran `color-scheme: light` en su `index.html`
+
+## 7 · Bento y movimiento (5 oct 2026)
+
+Pedido de Daniel: *«aplica motion y bento al sistema con los colores de Casa Roca»*.
+Vive en `frontend/src/styles/bento-movimiento.css` y `frontend/src/movimiento.js`, y
+lo enlazan las dos plataformas.
+
+- **Bento:** rejilla de 12 columnas (6 en tableta y teléfono) con celdas `c-2` a
+  `c-12` y `f-2` para dos filas. Radio de 8 px, filete de 1 px, cero sombras. Una
+  sola celda azul de marca por pantalla, con el filete mostaza arriba; la que pide
+  atención se tiñe de aviso. Hoy se usa en el Panel de la aplicación y en el
+  Tablero de la red de la consola.
+- **Movimiento:** entrada escalonada de los bloques de cada vista (6 px y 40 ms
+  por bloque), las cifras cuentan hasta su valor, el filete mostaza de la pestaña
+  elegida crece al llegar y la celda que se pulsa pinta su filete azul y una línea
+  mostaza abajo. ⛔ Nada se levanta al pasar el ratón, y con «reducir movimiento»
+  encendido no se mueve nada.
+
+### 7.1 · Paneles que explican (5 oct 2026, misma noche)
+
+Daniel: *«muchos cuadros sin sentido, solo con título; tiene que haber gráficos y cosas
+explicativas, mucho más asertivo»*. Regla que sale de ahí:
+
+- **Ninguna celda es solo un número con un rótulo.** Toda celda dice qué pasa, contra
+  qué se compara («▲ 3 % más que el domingo anterior») y, si hay algo que hacer, trae el
+  botón para hacerlo.
+- Toda pantalla de inicio abre con **«Lo que pide atención hoy»**: avisos ordenados por
+  urgencia (icono + palabra + color, nunca solo color), cada uno con su acción.
+- Gráficos en `frontend/src/graficos.js`: SVG propio, sin CDN. Línea con área (tendencias),
+  columnas (pocas magnitudes en el tiempo), barras horizontales con etiqueta (partes y
+  rankings), chispa, avance y variación. Todos con tooltip al pasar, foco con teclado y
+  «Ver los datos» en tabla.
+- Paleta de series validada: azul `#2A66C4`, mostaza `#E3A52C`, verde `#1E8A55`, violeta
+  `#7E57C2`, en ese orden. Los niveles N0 a N4 conservan su color y van en barras con su
+  nombre, no en dona (N2 azul y N3 violeta no se distinguen solos).
+- Piezas del panel en `frontend/src/tablero.js`: `cabCelda`, `aviso`, `avisos`.

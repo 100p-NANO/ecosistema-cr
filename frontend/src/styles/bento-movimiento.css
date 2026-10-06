@@ -1,0 +1,501 @@
+/* ============================================================
+   bento-movimiento.css · Rejilla bento y movimiento, COMPARTIDA
+   Pedido de Daniel (5 oct 2026): «aplica motion y bento al sistema
+   con los colores de Casa Roca».
+
+   La enlazan las DOS plataformas (aplicación de los pastores y
+   consola del Sistema Master), para que se vean igual (DISENO.md §6).
+   Los colores van escritos con su valor de marca como respaldo: así
+   funciona con las variables de cualquiera de las dos hojas.
+
+   Lo que NO hace, porque lo prohíbe docs/DISENO.md:
+   - Ni una sombra: el relieve sigue siendo el filete de 1 px.
+   - Nada de levantar la tarjeta al pasar, ni degradados, ni vidrio.
+   - Radios de 8 px en las celdas, nada más redondo.
+   - La mostaza aparece UNA vez por celda destacada, como filete.
+   - Con «reducir movimiento» encendido no se mueve nada.
+   ============================================================ */
+
+:root {
+  --bt-azul:     #134291;
+  --bt-azul-hov: #0E367A;
+  --bt-azul-suave: #E6ECF7;
+  --bt-mostaza:  #E3A52C;
+  --bt-navy:     #071D44;
+  --bt-sup:      #FFFFFF;
+  --bt-filete:   #E8E8EA;
+  --bt-texto:    #17171A;
+  --bt-suave:    #55555C;
+  --bt-tenue:    #75757E;
+  --bt-aviso:    #B5790F;
+  --bt-aviso-bg: #FDF4DE;
+  --bt-ok:       #1E8A55;
+  --bt-hueco:    12px;
+  --bt-curva:    cubic-bezier(.2, .7, .2, 1);
+}
+
+/* ── Rejilla ─────────────────────────────────────────────────── */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-flow: row dense;
+  gap: var(--bt-hueco);
+  margin: 16px 0 28px;
+}
+.bento__celda {
+  position: relative;
+  grid-column: span 4;
+  min-width: 0;
+  display: flex; flex-direction: column; justify-content: flex-start; gap: 10px;
+  padding: 16px;
+  background: var(--bt-sup);
+  border: 1px solid var(--bt-filete);
+  border-radius: 8px;
+  overflow: hidden;
+  color: var(--bt-texto);
+  transition: border-color 160ms linear, background-color 160ms linear;
+}
+.bento__celda.c-2  { grid-column: span 2; }
+.bento__celda.c-3  { grid-column: span 3; }
+.bento__celda.c-4  { grid-column: span 4; }
+.bento__celda.c-5  { grid-column: span 5; }
+.bento__celda.c-6  { grid-column: span 6; }
+.bento__celda.c-7  { grid-column: span 7; }
+.bento__celda.c-8  { grid-column: span 8; }
+.bento__celda.c-12 { grid-column: span 12; }
+.bento__celda.f-2  { grid-row: span 2; }
+/* La celda de marca y la de acción reparten: rótulo arriba, lo demás abajo. */
+.bento__celda--marca, .bento__celda--accion { justify-content: space-between; }
+
+/* Rótulo, cifra y pie de cada celda */
+.bento__rotulo {
+  margin: 0;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--bt-tenue);
+}
+.bento__cifra {
+  margin: 0;
+  font-size: clamp(28px, 3.2vw, 40px); line-height: 1.05; font-weight: 500;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+}
+.bento__pie { margin: 0; font-size: 13px; color: var(--bt-suave); }
+.bento__celda h2, .bento__celda h3 { margin: 0; }
+
+/* Celda de marca: el azul de Casa Roca con un filete mostaza arriba.
+   Es la única celda saturada de la rejilla. */
+.bento__celda--marca {
+  background: var(--bt-azul);
+  border-color: var(--bt-azul);
+  color: #fff;
+}
+.bento__celda--marca::before {
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: var(--bt-mostaza);
+}
+.bento__celda--marca .bento__rotulo { color: rgba(255,255,255,.72); }
+.bento__celda--marca .bento__pie    { color: rgba(255,255,255,.84); }
+.bento__celda--marca .bento__cifra  { font-size: clamp(40px, 5vw, 64px); }
+.bento__celda--marca h1, .bento__celda--marca h2 { color: #fff; }
+
+/* Celda que pide atención: el tono de aviso, sin rojo de alarma. */
+.bento__celda--ojo { background: var(--bt-aviso-bg); border-color: #F0DDB4; }
+.bento__celda--ojo .bento__cifra { color: var(--bt-aviso); }
+
+/* Celda que se pulsa: el filete se vuelve azul y una línea mostaza
+   crece abajo. No se levanta, no hace sombra. */
+.bento__celda--accion { cursor: pointer; text-align: left; font: inherit; }
+.bento__celda--accion::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: var(--bt-mostaza);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 220ms var(--bt-curva);
+}
+.bento__celda--accion:hover { border-color: var(--bt-azul); }
+.bento__celda--accion:hover::after { transform: scaleX(1); }
+.bento__celda--accion:focus-visible {
+  outline: 2px solid var(--bt-azul); outline-offset: 2px;
+}
+.bento__flecha { color: var(--bt-azul); font-weight: 600; font-size: 13px; }
+.bento__celda--marca .bento__flecha { color: #fff; }
+
+/* Listas cortas dentro de una celda (módulos, sedes) */
+.bento__lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bento__lista li {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 6px 0; border-top: 1px solid var(--bt-filete); font-size: 13px;
+}
+.bento__lista li:first-child { border-top: 0; }
+.bento__lista code { font-size: 11.5px; color: var(--bt-suave); }
+.bento__desliza { max-height: 280px; overflow: auto; }
+
+.bento__fichas { display: flex; flex-wrap: wrap; gap: 6px; }
+.bento__ficha {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 10px;
+  border: 1px solid var(--bt-filete); border-radius: 6px;
+  font-size: 13px; background: var(--bt-sup);
+}
+
+/* ── Teléfono y tableta ──────────────────────────────────────── */
+@media (max-width: 960px) {
+  .bento { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .bento__celda, .bento__celda.c-4, .bento__celda.c-5, .bento__celda.c-6,
+  .bento__celda.c-7, .bento__celda.c-8, .bento__celda.c-12 { grid-column: span 6; }
+  .bento__celda.c-2, .bento__celda.c-3 { grid-column: span 3; }
+  .bento__celda.f-2 { grid-row: auto; }
+}
+@media (max-width: 420px) {
+  .bento { gap: 8px; }
+  .bento__celda { padding: 14px; }
+}
+
+/* ── Movimiento ──────────────────────────────────────────────────
+   Todo dentro de «no-preference»: quien pidió reducir movimiento en su
+   teléfono no ve ni una animación, y la pantalla queda igual de clara. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Entrada escalonada: cada bloque sube 6 px y aparece, uno tras otro.
+     `--i` lo pone movimiento.js; con 40 ms por bloque la pantalla entera
+     llega en menos de medio segundo. */
+  /* La rejilla no entra entera: entran sus celdas, una por una. */
+  .cr-entra > :not(.bento),
+  .bento.cr-entra > .bento__celda {
+    animation: cr-entra 380ms var(--bt-curva) both;
+    animation-delay: calc(min(var(--i, 0), 10) * 40ms);
+  }
+  @keyframes cr-entra {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* La celda de marca entra con su filete mostaza dibujándose. */
+  .bento.cr-entra .bento__celda--marca::before {
+    animation: cr-filete 520ms var(--bt-curva) 120ms both;
+    transform-origin: left;
+  }
+  @keyframes cr-filete { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+  @keyframes cr-pestana { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+}
+
+/* La pestaña elegida de la columna izquierda lleva un filete mostaza que
+   crece al llegar. Solo en la columna de escritorio: en el teléfono la
+   columna es una tira horizontal y el filete vertical no tiene sentido. */
+@media (min-width: 961px) {
+  .nav__item[aria-current="page"], .ms-navit.is-on { position: relative; }
+  .nav__item[aria-current="page"]::before, .ms-navit.is-on::before {
+    content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px;
+    border-radius: 2px; background: var(--bt-mostaza);
+  }
+}
+@media (min-width: 961px) and (prefers-reduced-motion: no-preference) {
+  .nav__item[aria-current="page"]::before, .ms-navit.is-on::before {
+    animation: cr-pestana 260ms var(--bt-curva) both;
+  }
+}
+
+/* ============================================================
+   Gráficos (src/graficos.js) y componentes que explican
+   (src/tablero.js). 5 oct 2026: «muchos cuadros sin sentido, solo
+   con título; tiene que haber gráficos y cosas explicativas, mucho
+   más asertivo». Cada celda dice QUÉ pasa y QUÉ hacer.
+   ============================================================ */
+.gr { position: relative; margin: 0; padding: 0; min-width: 0; }
+.gr__lienzo { position: relative; margin-left: 40px; height: var(--alto, 200px); }
+.gr__lienzo svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.gr__eje-y {
+  position: absolute; left: -40px; top: 14px; bottom: 26px; width: 34px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  font-size: 11px; color: var(--bt-tenue); text-align: right; font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.gr--columnas .gr__eje-y { top: 18px; }
+.gr__eje-y span { line-height: 0; }
+.gr__eje-x {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 22px;
+  display: flex; justify-content: space-between; align-items: flex-end;
+  font-size: 11px; color: var(--bt-tenue); pointer-events: none; white-space: nowrap;
+}
+.gr__eje-x--todas { justify-content: space-around; padding-right: 8px; }
+.gr__guia { opacity: 0; transition: opacity 120ms linear; }
+.gr__guia.is-on { opacity: .35; }
+.gr__zona { cursor: crosshair; outline: none; }
+.gr__punto {
+  position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px;
+  border-radius: 50%; background: var(--bt-azul); box-shadow: 0 0 0 2px #fff;
+  pointer-events: none;
+}
+.gr__barra { transition: fill-opacity 120ms linear; }
+.gr__barra.is-activa { fill-opacity: 1; }
+.gr__tip {
+  position: absolute; top: -6px; transform: translate(-50%, -100%);
+  padding: 4px 8px; border-radius: 6px; background: var(--bt-navy); color: #fff;
+  font-size: 12px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums;
+  opacity: 0; pointer-events: none; transition: opacity 100ms linear; z-index: 2;
+}
+.gr__tip.is-on { opacity: 1; }
+.gr__datos { margin-top: 8px; font-size: 12px; color: var(--bt-suave); }
+.gr__datos summary { cursor: pointer; width: max-content; }
+.gr__datos summary:focus-visible { outline: 2px solid var(--bt-azul); outline-offset: 2px; border-radius: 4px; }
+.gr__datos table { margin-top: 6px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.gr__datos td, .gr__datos th { padding: 2px 12px 2px 0; text-align: left; font-weight: 400; }
+.gr__datos th { color: var(--bt-tenue); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+
+/* Barras horizontales */
+.gr--barrash { padding: 0; }
+.gr__filas { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.gr__fila {
+  display: grid; grid-template-columns: minmax(90px, 34%) 1fr auto; align-items: center; gap: 10px;
+  padding: 6px 4px; border-radius: 6px; color: inherit; text-decoration: none; font-size: 13px;
+}
+a.gr__fila:hover { background: var(--bt-azul-suave); }
+a.gr__fila:focus-visible { outline: 2px solid var(--bt-azul); outline-offset: 1px; }
+.gr__nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gr__pista { height: 10px; border-radius: 4px; background: #F1F1F4; overflow: hidden; }
+.gr__pista i { display: block; height: 100%; width: var(--ancho); border-radius: 0 4px 4px 0; }
+.gr__valor { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gr__valor small { color: var(--bt-tenue); }
+
+/* Dona */
+.gr--dona { padding: 0; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.gr__dona { position: relative; width: 140px; height: 140px; flex: none; }
+.gr__arco { cursor: pointer; outline: none; transition: stroke-width 120ms linear; }
+.gr__arco:hover, .gr__arco:focus-visible { stroke-width: 20; }
+.gr__centro {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  pointer-events: none; text-align: center;
+}
+.gr__centro b { font-size: 24px; font-weight: 500; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.gr__centro small { font-size: 11px; color: var(--bt-tenue); max-width: 90px; }
+.gr__leyenda { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; flex: 1; min-width: 140px; }
+.gr__leyenda li { display: flex; align-items: center; gap: 8px; }
+.gr__leyenda i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.gr__leyenda b { margin-left: auto; font-weight: 500; font-variant-numeric: tabular-nums; }
+.gr--dona .gr__tip { top: 0; left: 70px !important; }
+
+.gr-chispa { width: 100%; height: 32px; display: block; }
+.gr-avance { display: grid; gap: 4px; }
+.gr-avance__pista { height: 8px; border-radius: 4px; background: #F1F1F4; overflow: hidden; }
+.gr-avance__pista i { display: block; height: 100%; width: var(--ancho); border-radius: 4px; }
+.gr-avance small { font-size: 12px; color: var(--bt-suave); }
+
+.gr-var { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.gr-var small { font-weight: 400; color: var(--bt-tenue); }
+.gr-var--sube  { color: var(--bt-ok); }
+.gr-var--baja  { color: #C13A2B; }
+.gr-var--igual { color: var(--bt-suave); }
+.bento__celda--marca .gr-var, .bento__celda--marca .gr-var small { color: #fff; }
+
+/* Encabezado de celda con título y frase que explica */
+.bento__cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.bento__titulo { margin: 0; font-size: 15px; font-weight: 600; color: var(--bt-texto); }
+.bento__explica { margin: 2px 0 0; font-size: 13px; color: var(--bt-suave); line-height: 1.45; }
+.bento__enlace { font-size: 13px; font-weight: 600; color: var(--bt-azul); text-decoration: none; white-space: nowrap; }
+.bento__enlace:hover { text-decoration: underline; }
+.bento__enlace:focus-visible { outline: 2px solid var(--bt-azul); outline-offset: 2px; border-radius: 4px; }
+
+/* Avisos accionables: «qué pasa» + «qué hacer», con icono y palabra */
+.cr-avisos { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cr-aviso {
+  display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center;
+  padding: 10px 12px; border: 1px solid var(--bt-filete); border-radius: 8px; background: #fff;
+}
+.cr-aviso__icono {
+  width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center;
+  font-size: 14px; font-weight: 700;
+}
+.cr-aviso--urgente .cr-aviso__icono { background: #FBEAE7; color: #C13A2B; }
+.cr-aviso--atender .cr-aviso__icono { background: var(--bt-aviso-bg); color: var(--bt-aviso); }
+.cr-aviso--bien    .cr-aviso__icono { background: #E5F5EC; color: var(--bt-ok); }
+.cr-aviso__texto { font-size: 13.5px; line-height: 1.4; min-width: 0; }
+.cr-aviso__texto b { font-weight: 600; }
+.cr-aviso__texto small { display: block; color: var(--bt-tenue); font-size: 12px; }
+.cr-aviso__accion {
+  display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 6px;
+  border: 1px solid var(--bt-azul); color: var(--bt-azul); background: #fff;
+  font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: background-color 120ms linear, color 120ms linear;
+}
+.cr-aviso__accion:hover { background: var(--bt-azul); color: #fff; }
+.cr-aviso__accion:focus-visible { outline: 2px solid var(--bt-azul); outline-offset: 2px; }
+@media (max-width: 520px) {
+  .cr-aviso { grid-template-columns: 28px 1fr; }
+  .cr-aviso__accion { grid-column: 2; justify-self: start; }
+}
+
+/* Cifra con tendencia */
+.kpi { display: grid; gap: 6px; }
+.kpi__fila { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+
+/* Movimiento de los gráficos (solo sin «reducir movimiento») */
+@media (prefers-reduced-motion: no-preference) {
+  .gr__trazo { stroke-dasharray: 1; stroke-dashoffset: 1; animation: gr-trazo 900ms var(--bt-curva) 150ms forwards; }
+  @keyframes gr-trazo { to { stroke-dashoffset: 0; } }
+  .gr__area { opacity: 0; animation: gr-aparece 500ms linear 600ms forwards; }
+  .gr__punto { opacity: 0; animation: gr-aparece 300ms linear 1000ms forwards; }
+  @keyframes gr-aparece { to { opacity: 1; } }
+  .gr__barra { transform-box: fill-box; transform-origin: bottom; animation: gr-crece 520ms var(--bt-curva) both;
+               animation-delay: calc(var(--i, 0) * 45ms + 120ms); }
+  @keyframes gr-crece { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  .gr__pista i, .gr-avance__pista i { animation: gr-ancho 700ms var(--bt-curva) both; animation-delay: calc(var(--i, 0) * 60ms + 150ms); }
+  @keyframes gr-ancho { from { width: 0; } to { width: var(--ancho); } }
+  .gr__arco { animation: gr-aparece 500ms linear both; animation-delay: calc(var(--i, 0) * 120ms + 150ms); opacity: 0; }
+}
+.bento__celda--marca .gr-avance small { color: rgba(255,255,255,.84); }
+.bento__celda--marca .gr-avance__pista { background: rgba(255,255,255,.18); }
+
+/* ⛔ 5 oct 2026 · El área de contenido recibe el foco por programa en cada
+   cambio de vista (para que el teclado no vuelva al menú). La regla global
+   de «foco visible» le dibujaba un anillo a TODA la pantalla: Daniel lo vio
+   como un marco azul alrededor del panel. El anillo es para lo que se
+   pulsa; un contenedor que nadie pulsa no lo lleva. */
+main[tabindex="-1"]:focus, main[tabindex="-1"]:focus-visible,
+#contenido:focus, #contenido:focus-visible,
+#ms-main:focus, #ms-main:focus-visible { outline: none; box-shadow: none; }
+
+/* ============================================================
+   Columna de navegación de la aplicación (5 oct 2026)
+   Daniel: «ponle diseño, mira cómo se ve de plano; la parte de
+   arriba del logo». Emblema arriba, pestañas agrupadas por materia
+   (DISENO.md §4), iconos de un solo set y quien entró abajo.
+   ============================================================ */
+.nav__icono { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; }
+.nav__icono svg { width: 18px; height: 18px; display: block; }
+.nav__marca, .nav__grupo, .nav__rotulo, .nav__yo { display: none; }
+
+@media (min-width: 860px) {
+  .nav {
+    width: 248px; flex: 0 0 248px; padding: 14px 12px 12px; gap: 0;
+    overflow-x: hidden; overflow-y: auto; background: #fff;
+    scrollbar-width: thin;
+  }
+  .nav__todas { height: 100%; gap: 0; }
+
+  .nav__marca {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 8px 14px; margin-bottom: 4px; border-bottom: 1px solid var(--bt-filete);
+  }
+  .nav__emblema {
+    width: 36px; height: 36px; flex: none; display: grid; place-items: center;
+    border-radius: 8px; background: var(--bt-mostaza); color: var(--bt-navy);
+    font-weight: 800; font-size: 14px; letter-spacing: -.02em;
+  }
+  .nav__marca b { display: block; font-size: 14px; line-height: 1.2; color: var(--bt-navy); font-weight: 700; }
+  .nav__marca small { display: block; font-size: 11.5px; color: var(--bt-tenue); margin-top: 1px; }
+
+  .nav__grupo { display: flex; flex-direction: column; gap: 1px; margin-top: 14px; }
+  .nav__rotulo {
+    display: block; padding: 0 10px 6px;
+    font-size: 10.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--bt-tenue);
+  }
+
+  .nav__todas .nav__item {
+    min-height: 36px; height: 36px; padding: 0 10px; gap: 10px;
+    border-radius: 6px; font-size: 13.5px; color: var(--bt-suave); font-weight: 500;
+    transition: background-color 120ms linear, color 120ms linear;
+  }
+  .nav__todas .nav__item .nav__icono { color: var(--bt-tenue); transition: color 120ms linear; }
+  .nav__todas .nav__item:hover { background: #F3F5FA; color: var(--bt-texto); }
+  .nav__todas .nav__item:hover .nav__icono { color: var(--bt-azul); }
+  .nav__todas .nav__item[aria-current="page"] { background: var(--bt-azul-suave); color: var(--bt-azul); font-weight: 600; }
+  .nav__todas .nav__item[aria-current="page"] .nav__icono { color: var(--bt-azul); }
+  .nav__todas .nav__item:focus-visible { outline: 2px solid var(--bt-azul); outline-offset: -2px; box-shadow: none; }
+
+  .nav__yo {
+    display: flex; align-items: center; gap: 10px; margin-top: auto;
+    padding: 12px 8px 2px; border-top: 1px solid var(--bt-filete); position: sticky; bottom: 0; background: #fff;
+  }
+  .nav__grupo:last-of-type { margin-bottom: 16px; }
+  .nav__avatar {
+    width: 32px; height: 32px; flex: none; border-radius: 50%; display: grid; place-items: center;
+    background: var(--bt-azul); color: #fff; font-size: 12px; font-weight: 600;
+  }
+  .nav__yo-texto { min-width: 0; }
+  .nav__yo-texto b { display: block; font-size: 13px; font-weight: 600; color: var(--bt-texto);
+                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav__yo-texto small { display: block; font-size: 11.5px; color: var(--bt-tenue); }
+}
+
+/* ============================================================
+   Cajón de detalle (src/detalle.js) · 5 oct 2026
+   «Cada cuadro debe ser dinámico; cuando le dé clic, que aparezca
+   todo». El cajón FLOTA sobre la pantalla: es lo único que lleva
+   sombra (DISENO.md §3 la permite en lo que flota de verdad).
+   ============================================================ */
+.cajon { position: fixed; inset: 0; z-index: 90; }
+.cajon__fondo { position: absolute; inset: 0; background: rgba(7, 29, 68, .32); opacity: 0; transition: opacity 200ms linear; }
+.cajon__panel {
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(480px, 100%);
+  display: flex; flex-direction: column; background: #fff;
+  border-left: 1px solid var(--bt-filete); box-shadow: -16px 0 40px rgba(7, 29, 68, .14);
+  transform: translateX(24px); opacity: 0;
+  transition: transform 220ms var(--bt-curva), opacity 160ms linear; outline: none;
+}
+.cajon.is-on .cajon__fondo { opacity: 1; }
+.cajon.is-on .cajon__panel { transform: none; opacity: 1; }
+.cajon__cab {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: 18px 20px 14px; border-bottom: 1px solid var(--bt-filete);
+}
+.cajon__cab::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--bt-mostaza);
+}
+.cajon__cab h2 { margin: 2px 0 0; font-size: 20px; line-height: 1.25; color: var(--bt-navy); letter-spacing: -.01em; }
+.cajon__cerrar {
+  width: 32px; height: 32px; flex: none; border: 1px solid var(--bt-filete); border-radius: 6px;
+  background: #fff; color: var(--bt-suave); cursor: pointer; font-size: 14px;
+}
+.cajon__cerrar:hover { border-color: var(--bt-azul); color: var(--bt-azul); }
+.cajon__cerrar:focus-visible { outline: 2px solid var(--bt-azul); outline-offset: 2px; }
+.cajon__cuerpo { flex: 1; overflow-y: auto; padding: 16px 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+.cajon__explica { margin: 0; font-size: 14px; line-height: 1.5; color: var(--bt-suave); }
+.cajon__contenido { display: grid; gap: 14px; }
+.cajon__sub { margin: 6px 0 0; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--bt-tenue); }
+.cajon__nota { margin: 0; padding: 10px 12px; border-radius: 6px; background: var(--bt-azul-suave); font-size: 13px; color: var(--bt-navy); }
+.cajon__vacio { margin: 0; padding: 16px; border: 1px dashed var(--bt-filete); border-radius: 8px; color: var(--bt-suave); font-size: 13px; text-align: center; }
+.cajon__lista { list-style: none; margin: 0; padding: 0; border: 1px solid var(--bt-filete); border-radius: 8px; overflow: hidden; }
+.cajon__lista li + li { border-top: 1px solid var(--bt-filete); }
+.cajon__fila {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 10px 12px; color: inherit; text-decoration: none; font-size: 13.5px;
+}
+a.cajon__fila:hover { background: #F6F8FC; }
+a.cajon__fila:focus-visible { outline: 2px solid var(--bt-azul); outline-offset: -2px; }
+.cajon__fila-t { min-width: 0; }
+.cajon__fila-t b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.cajon__fila-t small { display: block; color: var(--bt-tenue); font-size: 12px; margin-top: 1px; }
+.cajon__der {
+  flex: none; padding: 2px 8px; border-radius: 6px; font-size: 12px; white-space: nowrap;
+  background: #F1F1F4; color: var(--bt-suave); font-variant-numeric: tabular-nums;
+}
+.cajon__der--mal  { background: #FBEAE7; color: #C13A2B; }
+.cajon__der--ojo  { background: var(--bt-aviso-bg); color: var(--bt-aviso); }
+.cajon__der--bien { background: #E5F5EC; color: var(--bt-ok); }
+.cajon__der--n3   { background: #EEE8F8; color: #7E57C2; }
+.cajon__ir {
+  align-self: flex-start; display: inline-flex; align-items: center; height: 36px; padding: 0 14px;
+  border-radius: 6px; background: var(--bt-azul); color: #fff; font-size: 14px; font-weight: 600; text-decoration: none;
+}
+.cajon__ir:hover { background: var(--bt-azul-hov); }
+.cajon__ir:focus-visible { outline: 2px solid var(--bt-azul); outline-offset: 2px; }
+body.con-cajon { overflow: hidden; }
+
+/* El cuadro que se abre dice que se abre: «Ver el detalle →» abajo. */
+.bento__celda.kpi .bento__flecha { margin-top: auto; opacity: .0; transition: opacity 140ms linear; }
+.bento__celda.kpi:hover .bento__flecha, .bento__celda.kpi:focus-visible .bento__flecha { opacity: 1; }
+@media (hover: none) { .bento__celda.kpi .bento__flecha { opacity: 1; } }
+button.bento__celda { appearance: none; text-align: left; font: inherit; color: inherit; }
+
+/* Teléfono: el cajón sube desde abajo y deja ver un poco de la pantalla. */
+@media (max-width: 640px) {
+  .cajon__panel {
+    top: auto; left: 0; width: 100%; max-height: 88dvh;
+    border-left: 0; border-top: 1px solid var(--bt-filete); border-radius: 12px 12px 0 0;
+    box-shadow: 0 -16px 40px rgba(7, 29, 68, .16); transform: translateY(24px);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .cajon__cab { position: relative; border-radius: 12px 12px 0 0; overflow: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cajon__fondo, .cajon__panel { transition: none; }
+}

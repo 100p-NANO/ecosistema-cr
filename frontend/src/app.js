@@ -4,6 +4,8 @@ import { pintarPanel } from './vistas/panel.js';
 import { esc, cargando, error, engancharReintentar, avisar } from './ui.js';
 import { cola } from './offline.js';
 import { demoActivo } from './demo.js';
+import { animarVista } from './movimiento.js';
+import { icono } from './iconos.js';
 
 /**
  * El armazón.
@@ -146,6 +148,13 @@ function irAlPortal() {
    una mano -- y un boton «Mas» que abre la lista completa. En escritorio
    la columna las muestra todas y el boton sobra. */
 const FIJAS_EN_MOVIL = 4;
+const GRUPOS_NAV = [
+  ['Inicio', ['panel', 'analitica']],
+  ['Pastoral', ['personas', 'nuevos', 'asistencia', 'grupos', 'checkin', 'oracion', 'consejeria']],
+  ['Formación y contenido', ['formacion', 'tematicas', 'calendario', 'comunicaciones']],
+  ['Operación', ['tareas', 'peticiones', 'requerimientos', 'talento']],
+  ['Administración', ['aportes', 'construccion', 'legal', 'cumplimiento', 'catalogos']],
+];
 
 function pintarMarco() {
   const disponibles = Object.entries(VISTAS).filter(([, v]) => alcanza(v.modulo));
@@ -159,19 +168,43 @@ function pintarMarco() {
 
   const boton = ([k, v], clase = 'nav__item') => `
     <button class="${clase}" data-ruta="${k}" ${k === actual ? 'aria-current="page"' : ''}>
-      <span class="nav__icono" aria-hidden="true">${v.icono}</span>
+      <span class="nav__icono" aria-hidden="true">${icono(k)}</span>
       <span>${esc(v.titulo)}</span>
     </button>`;
+  /* 5 oct 2026 · La columna se agrupa por materia (DISENO.md §4), con el
+     emblema arriba y quien entró abajo. Antes era una lista plana de veinte
+     pestañas sin marca ni orden. Una sección que no esté en ningún grupo
+     cae en «Administración», para que nunca desaparezca del menú. */
+  const enGrupo = new Set(GRUPOS_NAV.flatMap(([, ks]) => ks));
+  const grupos = GRUPOS_NAV.map(([t, ks], i) => [t, [...disponibles.filter(([k]) => ks.includes(k)),
+    ...(i === GRUPOS_NAV.length - 1 ? disponibles.filter(([k]) => !enGrupo.has(k)) : [])]])
+    .filter(([, l]) => l.length);
+  const quien = sesion?.persona?.nombre ?? 'Sin nombre';
+  const iniciales = quien.split(' ').filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
 
   RAIZ.innerHTML = `
     <a class="salto-al-contenido" href="#contenido" id="salto">Ir al contenido</a>
     <div class="marco">
       <nav class="nav" aria-label="Secciones">
-        <span class="nav__todas">${disponibles.map(v => boton(v)).join('')}</span>
+        <span class="nav__todas">
+          <span class="nav__marca">
+            <span class="nav__emblema" aria-hidden="true">CR</span>
+            <span><b>Casa Sobre la Roca</b><small>CasaRoca System</small></span>
+          </span>
+          ${grupos.map(([t, l]) => `
+            <span class="nav__grupo" role="group" aria-label="${esc(t)}">
+              <span class="nav__rotulo">${esc(t)}</span>${l.map(v => boton(v)).join('')}
+            </span>`).join('')}
+          <span class="nav__yo">
+            <span class="nav__avatar" aria-hidden="true">${esc(iniciales || '·')}</span>
+            <span class="nav__yo-texto"><b>${esc(quien)}</b>
+              <small>${esc(sesion?.alcance?.todaLaRed ? 'Toda la red' : (sesion?.alcance?.sedes?.length ?? 0) + ' sede(s)')} · N${esc(String(sesion?.alcance?.nivelMax ?? 0))}</small></span>
+          </span>
+        </span>
         <span class="nav__pocas">${enBarra.map(v => boton(v)).join('')}
           ${disponibles.length > FIJAS_EN_MOVIL ? `
           <button class="nav__item" id="b-mas" aria-haspopup="dialog" aria-expanded="false">
-            <span class="nav__icono" aria-hidden="true">⋯</span><span>Más</span>
+            <span class="nav__icono" aria-hidden="true">${icono('mas')}</span><span>Más</span>
           </button>` : ''}</span>
       </nav>
       <div class="hoja" id="hoja" hidden>
@@ -291,6 +324,7 @@ async function pintarVista() {
     zona.innerHTML = error(e.message, e.peticionId);
     engancharReintentar(zona, () => pintarVista());
   }
+  animarVista(zona);
   /* Quien navega con teclado se quedaba en BODY y tenia que recorrer todo
      otra vez desde arriba en cada cambio de vista. */
   document.getElementById('contenido')?.focus({ preventScroll: true });
